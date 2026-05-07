@@ -1,0 +1,57 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: cp .env.example .env.test
+      - run: bun test:unit
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dopplerhq/secrets-fetch-action@v1.3.1
+        id: doppler
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+          doppler-project: tus-vps
+          doppler-config: prd
+
+      - name: Log in to GCHR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ steps.doppler.outputs.GITHUB_TOKEN }}
+
+      - name: Build & Push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.docker_context }}
+          push: true
+          tags: ghcr.io/tahsinature/sandbox/tus:latest
+
+      - name: Deploy to Kubernetes
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ steps.doppler.outputs.TUS_HOST }}
+          username: ${{ steps.doppler.outputs.TUS_SSH_USERNAME }}
+          key: ${{ steps.doppler.outputs.TUS_SSH_PRIVATE_KEY }}
+          script: |
+            export KUBECONFIG=/home/tahsin/.kube/config
+            kubectl rollout restart deployment/tus
+            kubectl rollout status deployment/tus

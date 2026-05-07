@@ -22,6 +22,11 @@ RUN bun run build
 # ─── Stage 2: minimal runtime ───────────────────────────────
 FROM oven/bun:1.3-alpine AS runtime
 
+# tini as PID 1 so SIGINT/SIGTERM (Ctrl-C, k8s shutdown) actually reach Bun.
+# Without an init, the kernel masks default signal actions on PID 1 and the
+# container would have to be SIGKILLed after Docker's grace period.
+RUN apk add --no-cache tini
+
 WORKDIR /app
 
 # Server has no runtime deps — it uses Bun built-ins (Bun.serve, Bun.file).
@@ -37,6 +42,7 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --quiet --tries=1 --spider http://localhost:3000/healthz || exit 1
 
-# Server resolves client/dist via import.meta.dir → ../client/dist, so
-# running from /app keeps that lookup correct.
+# tini becomes PID 1 and execs the CMD as a child. Server resolves
+# client/dist via import.meta.dir → ../client/dist, so /app keeps that right.
+ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["bun", "run", "server/index.ts"]
