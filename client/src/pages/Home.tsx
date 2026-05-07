@@ -36,7 +36,7 @@ export default function Home() {
       </div>
 
       <h1 className="mt-6 text-center text-5xl font-bold tracking-tight sm:text-6xl">
-        <span className="text-gradient">Watch together.</span>
+        <span className="text-gradient">Roomflix.</span>
         <br />
         <span className="text-foreground/90">In perfect sync.</span>
       </h1>

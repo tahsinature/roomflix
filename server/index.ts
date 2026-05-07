@@ -73,7 +73,7 @@ async function handleClientMessage(
         const entry = await storage.videos.create({ url: message.videoUrl });
         room.state.subtitles = entry.subtitles;
       } catch (err) {
-        console.error("[watch-together] library lookup failed", err);
+        console.error("[roomflix] library lookup failed", err);
         room.state.subtitles = [];
       }
       break;
@@ -129,7 +129,7 @@ const server = Bun.serve<WsData>({
     }
 
     return new Response(
-      "watch-together server running. Start the Vite dev server for the UI.",
+      "roomflix server running. Start the Vite dev server for the UI.",
       { status: 200 },
     );
   },
@@ -165,6 +165,6 @@ const server = Bun.serve<WsData>({
 });
 
 console.log(
-  `[watch-together] ${IS_PROD ? "prod" : "dev"} server on http://localhost:${server.port}` +
+  `[roomflix] ${IS_PROD ? "prod" : "dev"} server on http://localhost:${server.port}` +
     (HAS_CLIENT_BUILD ? " (serving client/dist)" : " (no client build; use Vite dev server)"),
 );

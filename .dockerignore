@@ -1,0 +1,37 @@
+# Build artifacts — the Dockerfile builds these fresh inside the builder stage.
+**/node_modules
+**/dist
+
+# VCS / editor
+.git
+.gitignore
+.gitattributes
+.vscode
+.idea
+
+# OS
+**/.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local env
+.env
+.env.*
+
+# Repo / agent metadata — not needed in the image
+README.md
+CLAUDE.md
+.claude
+.cursor
+
+# Docker meta itself
+Dockerfile
+.dockerignore
+
+# Test/coverage
+coverage

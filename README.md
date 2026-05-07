@@ -1,4 +1,4 @@
-# Watch Together
+# Roomflix
 
 Synced video playback for any public URL. Create a room, share the link, paste
 a video URL — play/pause/seek/mute are mirrored to everyone in the room.
@@ -39,6 +39,29 @@ bun run start        # Bun server serves client/dist + WebSocket on :3000
 
 Open http://localhost:3000.
 
+### Container / Kubernetes
+
+```bash
+docker build -t roomflix .
+docker run --rm -p 3000:3000 roomflix
+```
+
+Multi-stage build: stage 1 installs deps and builds the client; stage 2 is a
+~120 MB Alpine image with just `bun` + the server source + `client/dist`. No
+runtime `node_modules` — the server uses Bun built-ins exclusively. Single
+container, single port, single process.
+
+Healthcheck: `GET /healthz`. For Kubernetes, point both `livenessProbe` and
+`readinessProbe` at the same endpoint.
+
+**Operational notes:**
+- **In-memory data is volatile.** Rooms, library entries, and uploaded
+  subtitle files all live in process memory and are lost on pod restart.
+  Swap the storage layer (`server/storage/index.ts`) for a DB-backed impl
+  before treating this as durable.
+- **Single replica only.** WebSocket sync state lives in one process's
+  memory; multiple replicas would split rooms across pods.
+
 ## How sync works
 
 Server holds canonical per-room state: `{ videoUrl, playing, currentTime, muted, updatedAt }`.
@@ -70,7 +93,7 @@ HLS/DASH manifests aren't supported in v1 (would need hls.js).
 ## Project layout
 
 ```
-watch-together/
+roomflix/
 ├── server/
 │   ├── index.ts       # Bun.serve + WebSocket handler
 │   ├── rooms.ts       # in-memory registry + TTL sweep
