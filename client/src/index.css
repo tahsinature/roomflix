@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 10% 4%;
+    --foreground: 0 0% 98%;
+    --card: 240 8% 7%;
+    --card-foreground: 0 0% 98%;
+    --muted: 240 4% 14%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 262 83% 58%;
+    --accent-foreground: 0 0% 100%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 10% 4%;
+    --border: 240 6% 18%;
+    --input: 240 6% 14%;
+    --ring: 262 83% 58%;
+    --radius: 0.75rem;
+  }
+
+  body {
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    min-height: 100vh;
+    background:
+      radial-gradient(1200px 600px at 10% -20%, hsl(262 83% 58% / 0.15), transparent 60%),
+      radial-gradient(900px 500px at 110% 110%, hsl(199 89% 48% / 0.12), transparent 55%),
+      hsl(var(--background));
+  }
+}
+
+@layer utilities {
+  .glass {
+    background: linear-gradient(
+      180deg,
+      hsl(0 0% 100% / 0.03) 0%,
+      hsl(0 0% 100% / 0.01) 100%
+    );
+    backdrop-filter: blur(12px);
+    border: 1px solid hsl(0 0% 100% / 0.06);
+  }
+  .gradient-border {
+    background:
+      linear-gradient(hsl(var(--card)), hsl(var(--card))) padding-box,
+      linear-gradient(
+          135deg,
+          hsl(262 83% 58% / 0.5),
+          hsl(199 89% 48% / 0.25),
+          hsl(0 0% 100% / 0.05)
+        )
+        border-box;
+    border: 1px solid transparent;
+  }
+  .text-gradient {
+    background: linear-gradient(135deg, #fff 0%, hsl(262 83% 78%) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--border));
+}

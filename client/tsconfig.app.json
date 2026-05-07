@@ -1,0 +1,18 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "types": [],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@shared/*": ["../server/*"]
+    }
+  },
+  "include": ["src", "../server/protocol.ts"]
+}

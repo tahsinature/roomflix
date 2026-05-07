@@ -1,0 +1,17 @@
+{
+  "name": "watch-together",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": ["client", "server"],
+  "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "dev:server": "bun run --cwd server dev",
+    "dev:client": "bun run --cwd client dev",
+    "build": "bun run --cwd client build",
+    "start": "NODE_ENV=production bun run --cwd server start"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
