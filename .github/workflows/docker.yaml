@@ -11,7 +11,6 @@ jobs:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - run: cp .env.example .env.test
       - run: bun test:unit
 
   build-and-push:
@@ -43,7 +42,7 @@ jobs:
         with:
           context: ${{ inputs.docker_context }}
           push: true
-          tags: ghcr.io/tahsinature/sandbox/tus:latest
+          tags: ghcr.io/tahsinature/roomflix/roomflix:latest
 
       - name: Deploy to Kubernetes
         uses: appleboy/ssh-action@v1.2.5
@@ -53,5 +52,5 @@ jobs:
           key: ${{ steps.doppler.outputs.TUS_SSH_PRIVATE_KEY }}
           script: |
             export KUBECONFIG=/home/tahsin/.kube/config
-            kubectl rollout restart deployment/tus
-            kubectl rollout status deployment/tus
+            kubectl rollout restart deployment/roomflix
+            kubectl rollout status deployment/roomflix
