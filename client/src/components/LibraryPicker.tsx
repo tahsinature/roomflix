@@ -5,6 +5,7 @@ import type { LibraryHealth, Video } from "@shared/protocol";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { HealthDot } from "@/components/HealthDot";
+import { SubtitleBadge } from "@/components/SubtitleBadge";
 import { urlIsClearlyNotVideo } from "@/lib/play";
 import { cn, urlFilename } from "@/lib/utils";
 
@@ -134,8 +135,14 @@ export function LibraryPicker({ onPick }: Props) {
                         </span>
                       )}
                       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="w-full truncate text-sm text-foreground">
-                          {v.title}
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="truncate text-sm text-foreground">
+                            {v.title}
+                          </span>
+                          <SubtitleBadge
+                            subtitles={v.subtitles}
+                            health={vh}
+                          />
                         </span>
                         <span
                           className="w-full truncate font-mono text-[11px] text-muted-foreground"

@@ -57,8 +57,9 @@ export type LibraryExportV1 = {
 };
 
 export type LibraryImportResult = {
-  imported: number;
-  skipped: number;
+  imported: number; // new entries created
+  updated: number; // existing entries patched (title/subtitles changed)
+  skipped: number; // existing entries with identical content
   errors: Array<{ url: string; reason: string }>;
 };
 

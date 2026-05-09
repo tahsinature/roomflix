@@ -1,0 +1,47 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 64 64"
+  fill="none"
+>
+  <!--
+    Two overlapping gradient circles + a play triangle in the overlap.
+    Conveys "two viewers, one playback" — the brand's whole point.
+    Works on light and dark tab backgrounds because the foreground shapes
+    are saturated, and the triangle sits on a colored mix region.
+  -->
+  <defs>
+    <radialGradient id="rf-v" cx="0.35" cy="0.3" r="0.85">
+      <stop offset="0%" stop-color="#c4b5fd" />
+      <stop offset="100%" stop-color="#7c3aed" />
+    </radialGradient>
+    <radialGradient id="rf-r" cx="0.65" cy="0.3" r="0.85">
+      <stop offset="0%" stop-color="#fda4af" />
+      <stop offset="100%" stop-color="#e11d48" />
+    </radialGradient>
+    <filter id="rf-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.2" />
+    </filter>
+  </defs>
+
+  <!-- Soft halo so the icon reads on busy tab backgrounds -->
+  <g filter="url(#rf-glow)" opacity="0.35">
+    <circle cx="22" cy="32" r="20" fill="#7c3aed" />
+    <circle cx="42" cy="32" r="20" fill="#e11d48" />
+  </g>
+
+  <!-- Two viewers -->
+  <circle cx="22" cy="32" r="18" fill="url(#rf-v)" />
+  <circle cx="42" cy="32" r="18" fill="url(#rf-r)" opacity="0.92" />
+
+  <!-- The shared moment — play triangle in the overlap region.
+       Centroid sits ~optical center (slightly right of geometric for
+       visual balance on a right-pointing triangle). -->
+  <path
+    d="M27 23 L27 41 L42 32 Z"
+    fill="#ffffff"
+    stroke="#0a0a14"
+    stroke-width="0.6"
+    stroke-opacity="0.25"
+    stroke-linejoin="round"
+  />
+</svg>

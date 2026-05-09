@@ -6,6 +6,7 @@ import {
   MediaPlayerInstance,
   MediaProvider,
   Track,
+  useMediaRemote,
   useMediaState,
 } from "@vidstack/react";
 import { AlertTriangle, Loader2, Play, RefreshCw } from "lucide-react";
@@ -13,6 +14,7 @@ import "@vidstack/react/player/styles/base.css";
 
 import type { Subtitle } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
+import { urlFilename } from "@/lib/utils";
 import { Controls } from "./Controls";
 
 type Props = {
@@ -314,6 +316,7 @@ export function VideoPlayer({
       />
 
       <LoadingOverlay hasError={playbackError !== null} />
+      <PrePlayCover url={videoUrl} hasError={playbackError !== null} />
 
       {playbackError && (
         <div className="absolute inset-0 z-30 animate-fade-in">
@@ -414,6 +417,47 @@ function LoadingOverlay({ hasError }: { hasError: boolean }) {
     <div className="pointer-events-none absolute inset-0 z-[25] flex flex-col items-center justify-center gap-2 bg-black/30 backdrop-blur-[1px]">
       <Loader2 className="h-8 w-8 animate-spin text-violet-300/90" />
       <span className="text-xs font-medium text-white/70">Loading video…</span>
+    </div>
+  );
+}
+
+// Cover screen shown when the video is loaded but hasn't been started yet
+// — fills the otherwise-blank black frame with the filename + a play button.
+// Vanishes once started=true. Reads Vidstack media state, so it lives
+// inside <MediaPlayer>.
+function PrePlayCover({
+  url,
+  hasError,
+}: {
+  url: string;
+  hasError: boolean;
+}) {
+  const canPlay = useMediaState("canPlay");
+  const started = useMediaState("started");
+  const remote = useMediaRemote();
+  if (hasError || !canPlay || started) return null;
+  return (
+    <div className="absolute inset-0 z-[20] flex flex-col items-center justify-center gap-5 bg-gradient-to-b from-black/40 via-black/20 to-black/70 backdrop-blur-[2px]">
+      <div className="flex flex-col items-center gap-1 px-6 text-center">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
+          Ready to play
+        </div>
+        <h2
+          className="line-clamp-2 max-w-xl text-lg font-semibold text-white sm:text-2xl"
+          title={url}
+        >
+          {urlFilename(url)}
+        </h2>
+      </div>
+      <Button
+        variant="accent"
+        size="lg"
+        onClick={() => remote.play()}
+        className="shadow-2xl shadow-violet-500/30"
+      >
+        <Play className="h-5 w-5 fill-current" />
+        Play
+      </Button>
     </div>
   );
 }

@@ -32,6 +32,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { HealthDot } from "@/components/HealthDot";
 import { Modal } from "@/components/Modal";
 import { PlayButton } from "@/components/PlayButton";
+import { SubtitleBadge } from "@/components/SubtitleBadge";
 import { cn, urlFilename } from "@/lib/utils";
 
 export default function Library() {
@@ -564,17 +565,20 @@ function ImportStatusBanner({
       </div>
     );
   }
-  const { imported, skipped, errors } = status.result;
+  const { imported, updated, skipped, errors } = status.result;
+  const parts = [
+    `Added ${imported}`,
+    `Updated ${updated}`,
+    `Unchanged ${skipped}`,
+  ];
+  if (errors.length > 0) {
+    parts.push(`${errors.length} error${errors.length === 1 ? "" : "s"}`);
+  }
   return (
     <div className="flex items-start justify-between gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-200">
       <div>
         <div className="font-medium">Import complete</div>
-        <div className="text-foreground/70">
-          Added {imported} · Skipped {skipped} (already in library)
-          {errors.length > 0
-            ? ` · ${errors.length} error${errors.length === 1 ? "" : "s"}`
-            : ""}
-        </div>
+        <div className="text-foreground/70">{parts.join(" · ")}</div>
         {errors.length > 0 && (
           <ul className="mt-1 list-disc pl-4 text-amber-200/80">
             {errors.slice(0, 3).map((e, i) => (
@@ -830,20 +834,6 @@ function VideoRow({
     }
   };
 
-  const subCount = video.subtitles.length;
-  // Subtitle health folded into the edit button's tooltip + an alert tint:
-  // if any subtitle URL is broken, the pencil goes red so the user notices
-  // without needing a separate button on the row.
-  const subtitleAlert = (() => {
-    if (subCount === 0 || !health?.subtitles) return false;
-    return video.subtitles.some(
-      (s) => health.subtitles[s.id] === "gone",
-    );
-  })();
-  const editLabel = subtitleAlert
-    ? "Edit video — a subtitle URL is unreachable"
-    : "Edit video";
-
   return (
     <li className="glass rounded-xl p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -853,6 +843,7 @@ function VideoRow({
             <span className="truncate text-sm font-medium text-foreground">
               {video.title}
             </span>
+            <SubtitleBadge subtitles={video.subtitles} health={health} />
           </div>
           <p
             className="mt-1 truncate font-mono text-xs text-muted-foreground"
@@ -867,15 +858,10 @@ function VideoRow({
             size="icon"
             variant="ghost"
             onClick={() => setEditOpen(true)}
-            aria-label={editLabel}
-            title={editLabel}
+            aria-label="Edit video"
+            title="Edit video"
           >
-            <Pencil
-              className={cn(
-                "h-4 w-4",
-                subtitleAlert && "text-red-300",
-              )}
-            />
+            <Pencil className="h-4 w-4" />
           </Button>
           <Button
             size="icon"
