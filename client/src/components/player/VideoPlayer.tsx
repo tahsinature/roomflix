@@ -9,11 +9,20 @@ import {
   useMediaRemote,
   useMediaState,
 } from "@vidstack/react";
-import { AlertTriangle, Loader2, Play, RefreshCw } from "lucide-react";
+import {
+  AlertTriangle,
+  HelpCircle,
+  Link2,
+  Loader2,
+  Play,
+  RefreshCw,
+} from "lucide-react";
+import { Link } from "react-router-dom";
 import "@vidstack/react/player/styles/base.css";
 
 import type { Subtitle } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { urlFilename } from "@/lib/utils";
 import { Controls } from "./Controls";
 
@@ -27,6 +36,8 @@ type Props = {
   onPlay: (currentTime: number) => void;
   onPause: (currentTime: number) => void;
   onSeek: (currentTime: number) => void;
+  // Called when the user submits a URL from the empty-player form.
+  onLoadUrl: (url: string) => void;
 };
 
 const DRIFT_TOLERANCE_S = 1.0;
@@ -46,6 +57,7 @@ export function VideoPlayer({
   onPlay,
   onPause,
   onSeek,
+  onLoadUrl,
 }: Props) {
   const playerRef = useRef<MediaPlayerInstance>(null);
   // While Date.now() < this timestamp, ignore feedback events from the
@@ -245,7 +257,7 @@ export function VideoPlayer({
   if (!videoUrl) {
     return (
       <div className={PLAYER_FRAME_CLASS}>
-        <EmptyPlayerState />
+        <EmptyPlayerState onLoadUrl={onLoadUrl} />
       </div>
     );
   }
@@ -528,22 +540,67 @@ function ErrorFrame({
   );
 }
 
-function EmptyPlayerState() {
+function EmptyPlayerState({
+  onLoadUrl,
+}: {
+  onLoadUrl: (url: string) => void;
+}) {
+  const [input, setInput] = useState("");
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = input.trim();
+    if (!url) return;
+    onLoadUrl(url);
+    setInput("");
+  };
+
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 px-4 text-center text-muted-foreground sm:px-8">
       <div
-        className="h-full w-full absolute inset-0 opacity-40"
+        className="absolute inset-0 h-full w-full opacity-40"
         style={{
           background:
             "radial-gradient(600px 300px at 50% 40%, hsl(262 83% 58% / 0.25), transparent 60%)",
         }}
       />
-      <div className="relative text-sm font-medium text-foreground/80">
-        No video loaded
+      <div className="relative space-y-1.5">
+        <div className="text-base font-semibold text-foreground/85 sm:text-lg">
+          No video loaded
+        </div>
+        <div className="text-xs sm:text-sm">
+          Paste a public video URL to get started.
+        </div>
       </div>
-      <div className="relative text-xs">
-        Paste a public video URL below to get started.
-      </div>
+
+      <form
+        onSubmit={submit}
+        className="relative flex w-full max-w-xl flex-col gap-2 sm:flex-row"
+      >
+        <div className="relative flex-1">
+          <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="https://…  (.mp4, .webm, etc.)"
+            className="pl-9"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            autoFocus
+          />
+        </div>
+        <Button type="submit" variant="accent" disabled={!input.trim()}>
+          Load video
+        </Button>
+      </form>
+
+      <Link
+        to="/help"
+        className="relative inline-flex items-center gap-1 text-[11px] text-muted-foreground transition hover:text-foreground"
+      >
+        <HelpCircle className="h-3 w-3" />
+        Don't have a URL? See the hosting guide
+      </Link>
     </div>
   );
 }

@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Check, Copy, Link2, Users, Wifi, WifiOff } from "lucide-react";
+import { ArrowLeft, Check, Copy, Users, Wifi, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { LibraryPicker } from "@/components/LibraryPicker";
 import { useRoomSync } from "@/hooks/useRoomSync";
@@ -14,7 +13,6 @@ export default function Room() {
     useRoomSync(roomId);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [urlInput, setUrlInput] = useState("");
   const [copied, setCopied] = useState(false);
 
   // Pre-load a video URL from ?video= when arriving via "Play" from the
@@ -49,15 +47,6 @@ export default function Room() {
     }
   };
 
-  const submitUrl = (e: React.FormEvent) => {
-    e.preventDefault();
-    const url = urlInput.trim();
-    if (url) {
-      actions.setUrl(url);
-      setUrlInput("");
-    }
-  };
-
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-6 sm:px-6 sm:py-8">
       <RoomHeader
@@ -79,27 +68,8 @@ export default function Room() {
           onPlay={actions.play}
           onPause={actions.pause}
           onSeek={actions.seek}
+          onLoadUrl={actions.setUrl}
         />
-
-        {!state.videoUrl && (
-          <form onSubmit={submitUrl} className="flex flex-col gap-2 sm:flex-row">
-            <div className="relative flex-1">
-              <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={urlInput}
-                onChange={(e) => setUrlInput(e.target.value)}
-                placeholder="Paste a public video URL (.mp4, .webm, etc.)"
-                className="pl-9"
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck={false}
-              />
-            </div>
-            <Button type="submit" variant="accent" disabled={!urlInput.trim()}>
-              Load video
-            </Button>
-          </form>
-        )}
       </div>
 
       <footer className="flex flex-col items-center gap-2 pt-6 text-center text-xs text-muted-foreground">
