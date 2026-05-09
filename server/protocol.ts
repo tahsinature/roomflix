@@ -43,6 +43,25 @@ export type LibraryHealth = {
   videos: Record<string, VideoHealth>;
 };
 
+// Wire format for the JSON export/import. Internal ids and timestamps are
+// intentionally absent — they're server-assigned and would just be noise
+// when re-importing into a different server instance.
+export type LibraryExportV1 = {
+  version: 1;
+  exportedAt: number;
+  videos: Array<{
+    url: string;
+    title: string;
+    subtitles: Array<{ url: string; label: string; lang: string }>;
+  }>;
+};
+
+export type LibraryImportResult = {
+  imported: number;
+  skipped: number;
+  errors: Array<{ url: string; reason: string }>;
+};
+
 // Verdict for a one-shot URL probe used by the library Add form.
 //   "ok"        — reachable AND looks like a video (content-type starts with
 //                  "video/" or URL has a known video extension).

@@ -1,18 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowLeft,
+  ChevronDown,
+  Download,
+  ExternalLink,
   Library as LibraryIcon,
   Loader2,
   Pencil,
   Plus,
   RefreshCw,
   Trash2,
+  Upload,
   XCircle,
 } from "lucide-react";
 import type {
+  LibraryExportV1,
   LibraryHealth,
+  LibraryImportResult,
   ProbeResult,
   RoomListItem,
   Subtitle,
@@ -104,12 +110,103 @@ export default function Library() {
     setVideos((prev) => prev.filter((v) => v.id !== id));
   };
 
+  // Build the export payload once and let the caller decide what to do
+  // with the resulting blob URL — download, open in a new tab, etc.
+  const buildExportBlobUrl = (): {
+    url: string;
+    filename: string;
+    revoke: () => void;
+  } => {
+    const payload: LibraryExportV1 = {
+      version: 1,
+      exportedAt: Date.now(),
+      videos: videos.map((v) => ({
+        url: v.url,
+        title: v.title,
+        subtitles: v.subtitles.map((s) => ({
+          url: s.url,
+          label: s.label,
+          lang: s.lang,
+        })),
+      })),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    return {
+      url,
+      filename: `roomflix-library-${new Date().toISOString().slice(0, 10)}.json`,
+      revoke: () => URL.revokeObjectURL(url),
+    };
+  };
+
+  const exportDownload = () => {
+    const { url, filename, revoke } = buildExportBlobUrl();
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    revoke();
+  };
+
+  const exportOpenInTab = () => {
+    const { url, revoke } = buildExportBlobUrl();
+    window.open(url, "_blank", "noopener");
+    // Give the new tab time to load the blob before we revoke. Without the
+    // delay the URL.createObjectURL ref vanishes before the tab fetches it.
+    setTimeout(revoke, 60_000);
+  };
+
+  const [importStatus, setImportStatus] = useState<
+    | { kind: "idle" }
+    | { kind: "running" }
+    | { kind: "done"; result: LibraryImportResult }
+    | { kind: "error"; message: string }
+  >({ kind: "idle" });
+
+  const handleImport = async (input: File | string) => {
+    setImportStatus({ kind: "running" });
+    try {
+      const text = typeof input === "string" ? input : await input.text();
+      if (!text.trim()) throw new Error("Nothing to import.");
+      const parsed = JSON.parse(text) as Partial<LibraryExportV1>;
+      if (!parsed || !Array.isArray(parsed.videos)) {
+        throw new Error(
+          "Doesn't look like a Roomflix library export — expected a JSON object with a `videos` array.",
+        );
+      }
+      const result = await api.importLibrary({
+        version: 1,
+        exportedAt: parsed.exportedAt ?? Date.now(),
+        videos: parsed.videos,
+      });
+      // Refresh the list + health so the imported entries appear.
+      const list = await api.listVideos();
+      setVideos(list);
+      setImportStatus({ kind: "done", result });
+      void reverify();
+    } catch (err) {
+      setImportStatus({
+        kind: "error",
+        message: (err as Error).message,
+      });
+    }
+  };
+
   return (
     <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
       <LibraryHeader
         count={videos.length}
         verifying={verifying}
         onReverify={reverify}
+        onExportDownload={exportDownload}
+        onExportOpenInTab={exportOpenInTab}
+        onImport={handleImport}
+        importStatus={importStatus}
+        onDismissImportStatus={() => setImportStatus({ kind: "idle" })}
       />
 
       <Card className="animate-fade-in">
@@ -146,51 +243,362 @@ export default function Library() {
   );
 }
 
+type ImportStatus =
+  | { kind: "idle" }
+  | { kind: "running" }
+  | { kind: "done"; result: LibraryImportResult }
+  | { kind: "error"; message: string };
+
 function LibraryHeader({
   count,
   verifying,
   onReverify,
+  onExportDownload,
+  onExportOpenInTab,
+  onImport,
+  importStatus,
+  onDismissImportStatus,
 }: {
   count: number;
   verifying: boolean;
   onReverify: () => void;
+  onExportDownload: () => void;
+  onExportOpenInTab: () => void;
+  onImport: (input: File | string) => Promise<void>;
+  importStatus: ImportStatus;
+  onDismissImportStatus: () => void;
 }) {
+  const [importOpen, setImportOpen] = useState(false);
+
   return (
-    <header className="flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <Button asChild variant="ghost" size="icon">
-          <Link to="/" aria-label="Back to home">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div>
-          <div className="text-xs uppercase tracking-widest text-muted-foreground">
-            Saved
+    <div className="flex flex-col gap-3">
+      <header className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button asChild variant="ghost" size="icon">
+            <Link to="/" aria-label="Back to home">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+          <div>
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">
+              Saved
+            </div>
+            <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+              <LibraryIcon className="h-4 w-4 text-violet-300" />
+              Library
+            </h1>
           </div>
-          <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-            <LibraryIcon className="h-4 w-4 text-violet-300" />
-            Library
-          </h1>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span className="hidden text-xs text-muted-foreground sm:inline">
+            {count} {count === 1 ? "video" : "videos"}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setImportOpen(true)}
+            disabled={importStatus.kind === "running"}
+            aria-label="Import library"
+            title="Import library"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            <span className="hidden lg:inline">Import</span>
+          </Button>
+          <ExportMenu
+            disabled={count === 0}
+            onDownload={onExportDownload}
+            onOpenInTab={onExportOpenInTab}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onReverify}
+            disabled={verifying}
+            aria-label="Re-verify library"
+          >
+            <RefreshCw
+              className={cn("h-3.5 w-3.5", verifying && "animate-spin")}
+            />
+            <span className="hidden lg:inline">
+              {verifying ? "Verifying…" : "Verify"}
+            </span>
+          </Button>
+        </div>
+      </header>
+
+      {importStatus.kind !== "idle" && (
+        <ImportStatusBanner
+          status={importStatus}
+          onDismiss={onDismissImportStatus}
+        />
+      )}
+
+      <ImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onSubmit={async (input) => {
+          setImportOpen(false);
+          await onImport(input);
+        }}
+      />
+    </div>
+  );
+}
+
+function ExportMenu({
+  disabled,
+  onDownload,
+  onOpenInTab,
+}: {
+  disabled: boolean;
+  onDownload: () => void;
+  onOpenInTab: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("mousedown", onClick);
+    window.addEventListener("keydown", onEsc);
+    return () => {
+      window.removeEventListener("mousedown", onClick);
+      window.removeEventListener("keydown", onEsc);
+    };
+  }, [open]);
+
+  const choose = (fn: () => void) => {
+    fn();
+    setOpen(false);
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setOpen((o) => !o)}
+        disabled={disabled}
+        aria-label="Export library"
+        title={disabled ? "Nothing to export" : "Export library"}
+      >
+        <Download className="h-3.5 w-3.5" />
+        <span className="hidden lg:inline">Export</span>
+        <ChevronDown className="h-3 w-3 opacity-60" />
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-full z-30 mt-2 min-w-[12rem] overflow-hidden rounded-xl border border-white/10 bg-card/95 p-1 shadow-2xl shadow-black/40 backdrop-blur">
+          <button
+            type="button"
+            onClick={() => choose(onDownload)}
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-foreground transition hover:bg-white/5"
+          >
+            <Download className="h-3.5 w-3.5 text-muted-foreground" />
+            Download file
+          </button>
+          <button
+            type="button"
+            onClick={() => choose(onOpenInTab)}
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-foreground transition hover:bg-white/5"
+          >
+            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+            Open in new tab
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ImportDialog({
+  open,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (input: File | string) => Promise<void>;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Reset on each open so the previous picker state doesn't carry over.
+  useEffect(() => {
+    if (open) {
+      setFile(null);
+      setText("");
+      setBusy(false);
+    }
+  }, [open]);
+
+  const canSubmit = !busy && (file !== null || text.trim().length > 0);
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setBusy(true);
+    try {
+      // File takes priority — both are unlikely, but if the user picked
+      // both we treat the file as the more deliberate choice.
+      await onSubmit(file ?? text);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="Import library">
+      <div className="space-y-5">
+        <section>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Upload a file
+          </label>
+          <div className="mt-2 flex items-center gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                e.target.value = "";
+                setFile(f);
+              }}
+            />
+            <Button
+              variant="outline"
+              onClick={() => fileRef.current?.click()}
+              className="h-10"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {file ? "Change file" : "Choose JSON file"}
+            </Button>
+            {file && (
+              <span
+                className="truncate text-xs text-muted-foreground"
+                title={file.name}
+              >
+                {file.name}
+              </span>
+            )}
+          </div>
+        </section>
+
+        <div className="relative py-1 text-center text-[10px] uppercase tracking-widest text-muted-foreground">
+          <span className="bg-card px-3">or paste JSON</span>
+          <div className="absolute inset-x-0 top-1/2 -z-10 h-px bg-border" />
+        </div>
+
+        <section>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder='{"version":1,"videos":[…]}'
+            spellCheck={false}
+            rows={8}
+            className="w-full rounded-md border border-border bg-input/60 p-3 font-mono text-xs text-foreground shadow-inner placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Paste the contents of a previous export. File takes priority if
+            both are filled.
+          </p>
+        </section>
+
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose} disabled={busy} className="h-10">
+            Cancel
+          </Button>
+          <Button
+            variant="accent"
+            onClick={submit}
+            disabled={!canSubmit}
+            className="h-10"
+          >
+            {busy ? "Importing…" : "Import"}
+          </Button>
         </div>
       </div>
-      <div className="flex items-center gap-3">
-        <span className="text-xs text-muted-foreground">
-          {count} {count === 1 ? "video" : "videos"}
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onReverify}
-          disabled={verifying}
-          aria-label="Re-verify library"
-        >
-          <RefreshCw
-            className={cn("h-3.5 w-3.5", verifying && "animate-spin")}
-          />
-          {verifying ? "Verifying…" : "Verify"}
-        </Button>
+    </Modal>
+  );
+}
+
+function ImportStatusBanner({
+  status,
+  onDismiss,
+}: {
+  status: Exclude<ImportStatus, { kind: "idle" }>;
+  onDismiss: () => void;
+}) {
+  if (status.kind === "running") {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.03] p-3 text-xs text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Importing library…
       </div>
-    </header>
+    );
+  }
+  if (status.kind === "error") {
+    return (
+      <div className="flex items-start justify-between gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+        <div>
+          <div className="font-medium">Import failed</div>
+          <div className="text-foreground/70">{status.message}</div>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="text-red-300/70 hover:text-red-200"
+          aria-label="Dismiss"
+        >
+          ✕
+        </button>
+      </div>
+    );
+  }
+  const { imported, skipped, errors } = status.result;
+  return (
+    <div className="flex items-start justify-between gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-200">
+      <div>
+        <div className="font-medium">Import complete</div>
+        <div className="text-foreground/70">
+          Added {imported} · Skipped {skipped} (already in library)
+          {errors.length > 0
+            ? ` · ${errors.length} error${errors.length === 1 ? "" : "s"}`
+            : ""}
+        </div>
+        {errors.length > 0 && (
+          <ul className="mt-1 list-disc pl-4 text-amber-200/80">
+            {errors.slice(0, 3).map((e, i) => (
+              <li key={i} className="truncate">
+                {e.url || "(no url)"}: {e.reason}
+              </li>
+            ))}
+            {errors.length > 3 && (
+              <li className="text-foreground/60">
+                …and {errors.length - 3} more
+              </li>
+            )}
+          </ul>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="text-emerald-300/70 hover:text-emerald-200"
+        aria-label="Dismiss"
+      >
+        ✕
+      </button>
+    </div>
   );
 }
 

@@ -3,13 +3,12 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   Clapperboard,
+  Heart,
   Library as LibraryIcon,
-  Sparkles,
 } from "lucide-react";
 import type { LibraryHealth, RoomListItem, Video } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import { PlayButton } from "@/components/PlayButton";
 import { api } from "@/lib/api";
 import { randomRoomId, urlFilename } from "@/lib/utils";
@@ -32,58 +31,86 @@ export default function Home() {
 
   return (
     <main className="relative mx-auto flex min-h-screen max-w-5xl flex-col items-center px-6 py-16">
+      <BackgroundOrbs />
+
       <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-muted-foreground backdrop-blur">
-        <Sparkles className="h-3 w-3 text-violet-400" />
-        Synced playback for any public video URL
+        <Heart className="h-3 w-3 fill-rose-400/70 text-rose-300" />
+        For couples, friends, and movie clubs
       </div>
 
       <h1 className="mt-6 text-center text-5xl font-bold tracking-tight sm:text-6xl">
         <span className="text-gradient">Roomflix.</span>
         <br />
-        <span className="text-foreground/90">In perfect sync.</span>
+        <span className="text-foreground/90">Movie nights, miles apart.</span>
       </h1>
 
-      <p className="mt-5 max-w-xl text-center text-base text-muted-foreground">
-        Create a room, share the link, paste any public video URL — play,
-        pause, seek, and mute land on everyone's screen at the same time.
+      <p className="mt-5 max-w-xl text-center text-base leading-relaxed text-muted-foreground">
+        Press play together — from anywhere. Share a link, pick a video, and
+        watch in perfect sync.
       </p>
 
-      <Card className="mt-12 w-full max-w-xl animate-fade-in">
-        <CardContent className="space-y-6 p-6 pt-6">
+      <div className="mt-12 flex w-full max-w-md flex-col items-stretch gap-4 animate-fade-in">
+        <Button
+          variant="accent"
+          size="lg"
+          className="w-full text-base shadow-2xl shadow-violet-500/25"
+          onClick={createRoom}
+        >
+          <Clapperboard className="h-5 w-5" />
+          Start a movie night
+          <ArrowRight className="h-4 w-4" />
+        </Button>
+
+        {/* Quiet secondary join — pill-shaped so it reads as a single
+            atomic input, not a competing form. The "Have a room?" prefix
+            anchors the intent without needing a divider line. */}
+        <form
+          onSubmit={joinRoom}
+          className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] py-1 pl-4 pr-1 transition-colors focus-within:border-white/20 focus-within:bg-white/[0.05]"
+        >
+          <span className="shrink-0 text-xs text-muted-foreground">
+            Have a room?
+          </span>
+          <Input
+            value={joinId}
+            onChange={(e) => setJoinId(e.target.value)}
+            placeholder="room-id"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            className="h-8 flex-1 border-0 bg-transparent px-1 text-sm shadow-none focus-visible:ring-0"
+          />
           <Button
-            variant="accent"
-            size="lg"
-            className="w-full text-base"
-            onClick={createRoom}
+            type="submit"
+            variant="ghost"
+            size="sm"
+            disabled={!joinId.trim()}
+            className="h-7 shrink-0 rounded-full px-3 text-xs"
           >
-            <Clapperboard className="h-5 w-5" />
-            Create a room
-            <ArrowRight className="h-4 w-4" />
+            Join
+            <ArrowRight className="h-3 w-3" />
           </Button>
-
-          <div className="relative py-1 text-center text-xs uppercase tracking-widest text-muted-foreground">
-            <span className="bg-card px-3">or join an existing room</span>
-            <div className="absolute inset-x-0 top-1/2 -z-10 h-px bg-border" />
-          </div>
-
-          <form onSubmit={joinRoom} className="flex gap-2">
-            <Input
-              value={joinId}
-              onChange={(e) => setJoinId(e.target.value)}
-              placeholder="room-id"
-              autoCapitalize="off"
-              autoCorrect="off"
-              spellCheck={false}
-            />
-            <Button type="submit" variant="outline" disabled={!joinId.trim()}>
-              Join
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+        </form>
+      </div>
 
       <RecentLibrary />
+
+      <footer className="mt-auto pt-12 text-center text-xs text-muted-foreground/70">
+        Made for the people you watch with. No accounts, no tracking.
+      </footer>
     </main>
+  );
+}
+
+// Two slow-drifting blurred gradient orbs behind the hero. They sit fixed
+// to the viewport so the warmth carries past the fold; pointer-events-none
+// keeps them out of the way; -z-10 places them under all foreground content.
+function BackgroundOrbs() {
+  return (
+    <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+      <div className="orb-a absolute -left-32 top-[-10%] h-[36rem] w-[36rem] rounded-full bg-violet-600/20 blur-3xl" />
+      <div className="orb-b absolute -right-32 top-[40%] h-[32rem] w-[32rem] rounded-full bg-rose-500/15 blur-3xl" />
+    </div>
   );
 }
 
@@ -152,7 +179,7 @@ function RecentLibrary() {
         {recent.map((v) => (
           <li
             key={v.id}
-            className="glass flex items-center gap-3 rounded-xl px-4 py-3"
+            className="glass flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/[0.06] hover:shadow-lg hover:shadow-violet-500/5"
           >
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium text-foreground">

@@ -11,6 +11,7 @@ import { handleVideosRest } from "./api/videos.ts";
 import { handleRoomsRest } from "./api/rooms.ts";
 import { handleHealthRest } from "./api/health.ts";
 import { handleProbeRest } from "./api/probe.ts";
+import { handleLibraryImportRest } from "./api/library_import.ts";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const IS_PROD = process.env.NODE_ENV === "production";
@@ -120,6 +121,10 @@ const server = Bun.serve<WsData>({
 
     if (url.pathname === "/api/library/probe") {
       return handleProbeRest(req);
+    }
+
+    if (url.pathname === "/api/library/import") {
+      return handleLibraryImportRest(req, storage);
     }
 
     // In prod, serve the Vite build. In dev, Vite serves the frontend directly

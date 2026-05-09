@@ -1,5 +1,7 @@
 import type {
+  LibraryExportV1,
   LibraryHealth,
+  LibraryImportResult,
   ProbeResult,
   RoomListItem,
   Subtitle,
@@ -61,5 +63,10 @@ export const api = {
     request<ProbeResult>("/api/library/probe", {
       method: "POST",
       body: JSON.stringify({ url }),
+    }),
+  importLibrary: (payload: LibraryExportV1) =>
+    request<LibraryImportResult>("/api/library/import", {
+      method: "POST",
+      body: JSON.stringify({ videos: payload.videos }),
     }),
 };
