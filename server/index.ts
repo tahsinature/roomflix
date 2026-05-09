@@ -9,7 +9,8 @@ import { getOrCreateRoom, removeSocket, type WsData } from "./rooms.ts";
 import { createStorage } from "./storage/index.ts";
 import { handleVideosRest } from "./api/videos.ts";
 import { handleRoomsRest } from "./api/rooms.ts";
-import { handleSubtitlesRest } from "./api/subtitles.ts";
+import { handleHealthRest } from "./api/health.ts";
+import { handleProbeRest } from "./api/probe.ts";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const IS_PROD = process.env.NODE_ENV === "production";
@@ -113,8 +114,12 @@ const server = Bun.serve<WsData>({
       return handleRoomsRest(req, url, storage);
     }
 
-    if (url.pathname === "/api/subtitles" || url.pathname.startsWith("/api/subtitles/")) {
-      return handleSubtitlesRest(req, url, storage);
+    if (url.pathname === "/api/library/health") {
+      return handleHealthRest(req, url, storage);
+    }
+
+    if (url.pathname === "/api/library/probe") {
+      return handleProbeRest(req);
     }
 
     // In prod, serve the Vite build. In dev, Vite serves the frontend directly

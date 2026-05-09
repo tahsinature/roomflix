@@ -27,6 +27,37 @@ export type RoomListItem = {
   updatedAt: number;
 };
 
+// "ok"          → URL responded 2xx/3xx within timeout
+// "gone"        → URL responded 4xx/5xx, timed out, or network error
+// "unverified"  → host disallows HEAD (e.g. 405) — couldn't determine
+export type HealthStatus = "ok" | "gone" | "unverified";
+
+// Per-video health snapshot. The map is keyed by Subtitle.id.
+export type VideoHealth = {
+  video: HealthStatus;
+  subtitles: Record<string, HealthStatus>;
+};
+
+export type LibraryHealth = {
+  checkedAt: number;
+  videos: Record<string, VideoHealth>;
+};
+
+// Verdict for a one-shot URL probe used by the library Add form.
+//   "ok"        — reachable AND looks like a video (content-type starts with
+//                  "video/" or URL has a known video extension).
+//   "uncertain" — reachable but content-type is unclear, or HEAD blocked but
+//                  URL has a video extension. User can override.
+//   "gone"      — 4xx/5xx/network error/timeout.
+export type ProbeVerdict = "ok" | "uncertain" | "gone";
+
+export type ProbeResult = {
+  verdict: ProbeVerdict;
+  contentType?: string;
+  contentLength?: number;
+  message?: string;
+};
+
 export type RoomState = {
   videoUrl: string | null;
   // Snapshot of the library entry's subtitles at the time of the last setUrl.

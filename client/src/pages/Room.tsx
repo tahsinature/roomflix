@@ -1,20 +1,43 @@
-import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Check, Copy, Link2, Users, Wifi, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { LibraryPicker } from "@/components/LibraryPicker";
-import { ChangeVideoButton } from "@/components/ChangeVideoButton";
 import { useRoomSync } from "@/hooks/useRoomSync";
 import { cn } from "@/lib/utils";
 
 export default function Room() {
   const { roomId = "" } = useParams();
-  const { state, viewers, serverTime, connected, actions } = useRoomSync(roomId);
+  const { state, viewers, serverTime, connected, stateLoaded, actions } =
+    useRoomSync(roomId);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [urlInput, setUrlInput] = useState("");
   const [copied, setCopied] = useState(false);
+
+  // Pre-load a video URL from ?video= when arriving via "Play" from the
+  // library. Apply once the WS is connected and we've seen the server's
+  // first state snapshot — otherwise we might stomp an existing room's
+  // video. After applying (or skipping), drop the param so reloads don't
+  // re-trigger.
+  useEffect(() => {
+    if (!connected || !stateLoaded) return;
+    const incoming = searchParams.get("video");
+    if (!incoming) return;
+    if (state.videoUrl === null) {
+      actions.setUrl(incoming);
+    }
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("video");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [connected, stateLoaded, state.videoUrl, searchParams, setSearchParams, actions]);
 
   const copyLink = async () => {
     try {
@@ -42,7 +65,6 @@ export default function Room() {
         connected={connected}
         copied={copied}
         onCopy={copyLink}
-        currentUrl={state.videoUrl}
         onChangeUrl={actions.setUrl}
       />
 
@@ -97,7 +119,6 @@ function RoomHeader(props: {
   connected: boolean;
   copied: boolean;
   onCopy: () => void;
-  currentUrl: string | null;
   onChangeUrl: (url: string) => void;
 }) {
   return (
@@ -136,10 +157,6 @@ function RoomHeader(props: {
           </span>
         </Badge>
         <LibraryPicker onPick={props.onChangeUrl} />
-        <ChangeVideoButton
-          currentUrl={props.currentUrl}
-          onApply={props.onChangeUrl}
-        />
         <Button
           variant="outline"
           size="sm"

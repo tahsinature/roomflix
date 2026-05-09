@@ -12,6 +12,9 @@ export type RoomSync = {
   viewers: number;
   serverTime: number;
   connected: boolean;
+  // True after the first state snapshot from the server has been applied.
+  // Distinguishes "fresh room with null video" from "haven't heard back yet".
+  stateLoaded: boolean;
   clientId: string;
   actions: {
     play: (currentTime: number) => void;
@@ -27,6 +30,7 @@ export function useRoomSync(roomId: string): RoomSync {
   const [viewers, setViewers] = useState(0);
   const [serverTime, setServerTime] = useState(Date.now());
   const [connected, setConnected] = useState(false);
+  const [stateLoaded, setStateLoaded] = useState(false);
   const clientIdRef = useRef<string>(randomClientId());
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -56,6 +60,7 @@ export function useRoomSync(roomId: string): RoomSync {
           setState(msg.state);
           setViewers(msg.viewers);
           setServerTime(msg.serverTime);
+          setStateLoaded(true);
         } else if (msg.type === "viewers") {
           setViewers(msg.viewers);
         }
@@ -94,6 +99,7 @@ export function useRoomSync(roomId: string): RoomSync {
     viewers,
     serverTime,
     connected,
+    stateLoaded,
     clientId: clientIdRef.current,
     actions,
   };

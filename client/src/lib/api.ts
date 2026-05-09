@@ -1,4 +1,10 @@
-import type { RoomListItem, Subtitle, Video } from "@shared/protocol";
+import type {
+  LibraryHealth,
+  ProbeResult,
+  RoomListItem,
+  Subtitle,
+  Video,
+} from "@shared/protocol";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -45,9 +51,15 @@ export const api = {
     request<void>(`/api/videos/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }),
-  uploadSubtitle: (input: { content: string; filename: string }) =>
-    request<{ id: string; url: string }>("/api/subtitles", {
+  libraryHealth: (opts: { refresh?: boolean } = {}) =>
+    request<LibraryHealth>(
+      opts.refresh
+        ? "/api/library/health?refresh=true"
+        : "/api/library/health",
+    ),
+  probeUrl: (url: string) =>
+    request<ProbeResult>("/api/library/probe", {
       method: "POST",
-      body: JSON.stringify(input),
+      body: JSON.stringify({ url }),
     }),
 };

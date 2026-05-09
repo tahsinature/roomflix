@@ -1,5 +1,6 @@
 import type { Subtitle } from "../protocol.ts";
 import type { Storage } from "../storage/index.ts";
+import { invalidateHealthCache } from "./health.ts";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -43,14 +44,13 @@ export async function handleVideosRest(req: Request, url: URL, storage: Storage)
       const inputSubtitles = parseSubtitles(body?.subtitles);
       const existing = await storage.videos.findByUrl(inputUrl);
       if (existing) return json(existing);
-      return json(
-        await storage.videos.create({
-          url: inputUrl,
-          title: inputTitle,
-          subtitles: inputSubtitles,
-        }),
-        201,
-      );
+      const created = await storage.videos.create({
+        url: inputUrl,
+        title: inputTitle,
+        subtitles: inputSubtitles,
+      });
+      invalidateHealthCache();
+      return json(created, 201);
     }
     return json({ error: "method not allowed" }, 405);
   }
@@ -69,11 +69,13 @@ export async function handleVideosRest(req: Request, url: URL, storage: Storage)
     if (subs !== undefined) patch.subtitles = subs;
     const updated = await storage.videos.update(id, patch);
     if (!updated) return json({ error: "not found" }, 404);
+    invalidateHealthCache();
     return json(updated);
   }
   if (req.method === "DELETE") {
     const removed = await storage.videos.remove(id);
     if (!removed) return json({ error: "not found" }, 404);
+    invalidateHealthCache();
     return new Response(null, { status: 204 });
   }
   return json({ error: "method not allowed" }, 405);

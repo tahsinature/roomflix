@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { InMemorySubtitleFileRepo, InMemoryVideoRepo } from "../storage/memory.ts";
+import { InMemoryVideoRepo } from "../storage/memory.ts";
 
 describe("InMemoryVideoRepo", () => {
   test("create stores a video with a generated id and empty subtitles", async () => {
@@ -53,19 +53,3 @@ describe("InMemoryVideoRepo", () => {
   });
 });
 
-describe("InMemorySubtitleFileRepo", () => {
-  test("put assigns unique ids and a content-addressed url", async () => {
-    const repo = new InMemorySubtitleFileRepo();
-    const a = await repo.put({ content: "WEBVTT\n", contentType: "text/vtt" });
-    const b = await repo.put({ content: "WEBVTT\n", contentType: "text/vtt" });
-    expect(a.id).not.toBe(b.id);
-    expect(a.url).toBe(`/api/subtitles/${a.id}`);
-  });
-
-  test("get returns stored content; null on miss", async () => {
-    const repo = new InMemorySubtitleFileRepo();
-    const { id } = await repo.put({ content: "X", contentType: "text/vtt" });
-    expect(await repo.get(id)).toEqual({ content: "X", contentType: "text/vtt" });
-    expect(await repo.get("nope")).toBeNull();
-  });
-});

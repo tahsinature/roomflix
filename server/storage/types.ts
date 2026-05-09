@@ -23,18 +23,6 @@ export interface VideoRepo {
   remove(id: string): Promise<boolean>;
 }
 
-// Stores the raw text of uploaded subtitle files. Keeps content out of
-// VideoRepo (which holds metadata) so the eventual DB swap can use object
-// storage (S3/R2) for files independently of relational rows.
-export interface SubtitleFileRepo {
-  put(input: {
-    content: string;
-    contentType: string;
-  }): Promise<{ id: string; url: string }>;
-  get(id: string): Promise<{ content: string; contentType: string } | null>;
-}
-
 export type Storage = {
   videos: VideoRepo;
-  subtitleFiles: SubtitleFileRepo;
 };

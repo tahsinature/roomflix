@@ -1,4 +1,4 @@
-import { InMemorySubtitleFileRepo, InMemoryVideoRepo } from "./memory.ts";
+import { InMemoryVideoRepo } from "./memory.ts";
 import type { Storage } from "./types.ts";
 
 let cached: Storage | null = null;
@@ -10,9 +10,8 @@ export function createStorage(): Storage {
   if (cached) return cached;
   cached = {
     videos: new InMemoryVideoRepo(),
-    subtitleFiles: new InMemorySubtitleFileRepo(),
   };
   return cached;
 }
 
-export type { Storage, SubtitleFileRepo, VideoRepo } from "./types.ts";
+export type { Storage, VideoRepo } from "./types.ts";

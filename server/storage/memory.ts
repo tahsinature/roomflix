@@ -1,5 +1,5 @@
 import type { Subtitle, Video } from "../protocol.ts";
-import type { SubtitleFileRepo, VideoRepo } from "./types.ts";
+import type { VideoRepo } from "./types.ts";
 
 function randomId(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -82,16 +82,3 @@ function normalizeSubtitle(s: Subtitle): Subtitle {
   };
 }
 
-export class InMemorySubtitleFileRepo implements SubtitleFileRepo {
-  private files = new Map<string, { content: string; contentType: string }>();
-
-  async put(input: { content: string; contentType: string }) {
-    const id = randomId();
-    this.files.set(id, input);
-    return { id, url: `/api/subtitles/${id}` };
-  }
-
-  async get(id: string) {
-    return this.files.get(id) ?? null;
-  }
-}
