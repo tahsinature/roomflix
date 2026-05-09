@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { urlFilename } from "@/lib/utils";
 import { Controls } from "./Controls";
+import { TitleBar } from "./TitleBar";
 
 type Props = {
   videoUrl: string | null;
@@ -255,6 +256,7 @@ export function VideoPlayer({ videoUrl, subtitles, playing, currentTime, updated
       load="eager"
       playsInline
       crossOrigin={null}
+      keyTarget="document"
       onPlay={handlePlay}
       onPause={handlePause}
       onSeeked={handleSeeked}
@@ -278,6 +280,7 @@ export function VideoPlayer({ videoUrl, subtitles, playing, currentTime, updated
 
       <Gesture className="absolute inset-0 z-10 block h-full w-full" event="pointerup" action="toggle:paused" />
 
+      <TitleBar title={urlFilename(videoUrl)} />
       <Controls subtitles={subtitles} activeSubtitleId={activeSubtitleId} onSelectSubtitle={setActiveSubtitleId} />
 
       <LoadingOverlay hasError={playbackError !== null} />
