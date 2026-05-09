@@ -22,6 +22,10 @@ type Props = {
   onSeek: (currentTime: number) => void;
   // Called when the user submits a URL from the empty-player form.
   onLoadUrl: (url: string) => void;
+  // True when the room is initializing with a URL passed via ?video= but the
+  // synced state hasn't caught up yet. Avoids flashing the URL-input form
+  // when we already know what's about to load.
+  loadingIncoming?: boolean;
 };
 
 const DRIFT_TOLERANCE_S = 1.0;
@@ -30,7 +34,7 @@ const PLAYER_FRAME_CLASS = "relative aspect-video w-full overflow-hidden rounded
 
 type PlaybackErrorKind = "network" | "format" | "stalled";
 
-export function VideoPlayer({ videoUrl, subtitles, playing, currentTime, updatedAt, serverTime, onPlay, onPause, onSeek, onLoadUrl }: Props) {
+export function VideoPlayer({ videoUrl, subtitles, playing, currentTime, updatedAt, serverTime, onPlay, onPause, onSeek, onLoadUrl, loadingIncoming = false }: Props) {
   const playerRef = useRef<MediaPlayerInstance>(null);
   // While Date.now() < this timestamp, ignore feedback events from the
   // player — we're applying remote state and don't want it to echo back.
@@ -226,11 +230,7 @@ export function VideoPlayer({ videoUrl, subtitles, playing, currentTime, updated
   }, [activeSubtitleId, subtitles]);
 
   if (!videoUrl) {
-    return (
-      <div className={PLAYER_FRAME_CLASS}>
-        <EmptyPlayerState onLoadUrl={onLoadUrl} />
-      </div>
-    );
+    return <div className={PLAYER_FRAME_CLASS}>{loadingIncoming ? <LoadingFrame /> : <EmptyPlayerState onLoadUrl={onLoadUrl} />}</div>;
   }
 
   // Format-incompatible: don't even mount Vidstack — saves the bandwidth of
@@ -453,6 +453,16 @@ function ErrorFrame({ kind, url, onRetry }: { kind: PlaybackErrorKind; url: stri
           Retry
         </Button>
       )}
+    </div>
+  );
+}
+
+function LoadingFrame() {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
+      <div className="absolute inset-0 h-full w-full opacity-40" style={{ background: "radial-gradient(600px 300px at 50% 40%, hsl(262 83% 58% / 0.25), transparent 60%)" }} />
+      <Loader2 className="relative h-8 w-8 animate-spin text-violet-300/90" />
+      <span className="relative text-xs text-white/70 sm:text-sm">Loading video…</span>
     </div>
   );
 }

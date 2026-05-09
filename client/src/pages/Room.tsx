@@ -17,8 +17,7 @@ export default function Room() {
   // Pre-load a video URL from ?video= when arriving via "Play" from the
   // library. Apply once the WS is connected and we've seen the server's
   // first state snapshot — otherwise we might stomp an existing room's
-  // video. After applying (or skipping), drop the param so reloads don't
-  // re-trigger.
+  // video.
   useEffect(() => {
     if (!connected || !stateLoaded) return;
     const incoming = searchParams.get("video");
@@ -26,6 +25,15 @@ export default function Room() {
     if (state.videoUrl === null) {
       actions.setUrl(incoming);
     }
+  }, [connected, stateLoaded, state.videoUrl, searchParams, actions]);
+
+  // Clear ?video= once the synced state actually has a videoUrl — whether
+  // or not it matches what we tried to apply. Until then we keep the param
+  // so the player can show a loading frame instead of flashing the empty
+  // URL-input state.
+  useEffect(() => {
+    if (state.videoUrl === null) return;
+    if (!searchParams.has("video")) return;
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -34,7 +42,9 @@ export default function Room() {
       },
       { replace: true },
     );
-  }, [connected, stateLoaded, state.videoUrl, searchParams, setSearchParams, actions]);
+  }, [state.videoUrl, searchParams, setSearchParams]);
+
+  const incomingPending = searchParams.has("video") && state.videoUrl === null;
 
   const copyLink = async () => {
     try {
@@ -62,6 +72,7 @@ export default function Room() {
           onPause={actions.pause}
           onSeek={actions.seek}
           onLoadUrl={actions.setUrl}
+          loadingIncoming={incomingPending}
         />
       </div>
 
