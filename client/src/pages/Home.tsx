@@ -30,7 +30,7 @@ export default function Home() {
   };
 
   return (
-    <main className="relative mx-auto flex min-h-screen max-w-5xl flex-col items-center px-6 py-16">
+    <main className="relative mx-auto flex min-h-screen max-w-5xl flex-col items-center justify-center px-6 py-16">
       <BackgroundOrbs />
 
       <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-muted-foreground backdrop-blur">
@@ -95,8 +95,11 @@ export default function Home() {
 
       <RecentLibrary />
 
-      <footer className="mt-auto pt-12 text-center text-xs text-muted-foreground/70">
-        Made for the people you watch with. No accounts, no tracking.
+      <footer className="flex flex-col items-center gap-1 pt-12 text-center text-xs text-muted-foreground/70">
+        <span>Made for the people you watch with. No accounts, no tracking.</span>
+        <Link to="/help" className="transition hover:text-foreground">
+          How to host your video →
+        </Link>
       </footer>
     </main>
   );

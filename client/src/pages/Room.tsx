@@ -74,13 +74,11 @@ export default function Room() {
           subtitles={state.subtitles}
           playing={state.playing}
           currentTime={state.currentTime}
-          muted={state.muted}
           updatedAt={state.updatedAt}
           serverTime={serverTime}
           onPlay={actions.play}
           onPause={actions.pause}
           onSeek={actions.seek}
-          onMutedChange={actions.setMuted}
         />
 
         {!state.videoUrl && (

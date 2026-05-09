@@ -78,6 +78,9 @@ export type ProbeResult = {
   message?: string;
 };
 
+// Synced room state. Audio settings (volume, muted) are intentionally NOT
+// here — they're per-device, like every other watch-together product. One
+// viewer muting their phone shouldn't mute everyone else.
 export type RoomState = {
   videoUrl: string | null;
   // Snapshot of the library entry's subtitles at the time of the last setUrl.
@@ -88,7 +91,6 @@ export type RoomState = {
   // currentTime is the playback position at `updatedAt`.
   // If playing, effective time is currentTime + (now - updatedAt) / 1000.
   currentTime: number;
-  muted: boolean;
   updatedAt: number; // server epoch ms
   updatedBy: string | null; // clientId
 };
@@ -99,7 +101,6 @@ export type ClientMessage =
   | { type: "play"; currentTime: number }
   | { type: "pause"; currentTime: number }
   | { type: "seek"; currentTime: number }
-  | { type: "setMuted"; muted: boolean }
   | { type: "setUrl"; videoUrl: string };
 
 // Messages sent by the server to clients.
@@ -113,7 +114,6 @@ export function emptyRoomState(): RoomState {
     subtitles: [],
     playing: false,
     currentTime: 0,
-    muted: false,
     updatedAt: Date.now(),
     updatedBy: null,
   };

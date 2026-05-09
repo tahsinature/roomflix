@@ -22,13 +22,11 @@ type Props = {
   subtitles: Subtitle[];
   playing: boolean;
   currentTime: number;
-  muted: boolean;
   updatedAt: number;
   serverTime: number;
   onPlay: (currentTime: number) => void;
   onPause: (currentTime: number) => void;
   onSeek: (currentTime: number) => void;
-  onMutedChange: (muted: boolean) => void;
 };
 
 const DRIFT_TOLERANCE_S = 1.0;
@@ -43,13 +41,11 @@ export function VideoPlayer({
   subtitles,
   playing,
   currentTime,
-  muted,
   updatedAt,
   serverTime,
   onPlay,
   onPause,
   onSeek,
-  onMutedChange,
 }: Props) {
   const playerRef = useRef<MediaPlayerInstance>(null);
   // While Date.now() < this timestamp, ignore feedback events from the
@@ -79,7 +75,10 @@ export function VideoPlayer({
   // support: if the browser flat-out says it can't decode this MIME type,
   // skip rendering the player and show the format error directly.
   useEffect(() => {
-    setActiveSubtitleId(null);
+    // Auto-pick a subtitle on each new video. Prefers a track whose lang
+    // matches the viewer's browser locale; falls back to the first track.
+    // The user can still toggle off via the captions menu.
+    setActiveSubtitleId(pickInitialSubtitle(subtitles));
     metadataLoadedRef.current = false;
     if (!videoUrl) {
       setPlaybackError(null);
@@ -133,16 +132,6 @@ export function VideoPlayer({
   useEffect(() => {
     if (videoUrl) markApplying(800);
   }, [videoUrl]);
-
-  // Sync muted.
-  useEffect(() => {
-    const p = playerRef.current;
-    if (!p) return;
-    if (p.muted !== muted) {
-      markApplying(250);
-      p.muted = muted;
-    }
-  }, [muted]);
 
   // Sync play/pause/seek to the expected remote state.
   useEffect(() => {
@@ -219,13 +208,6 @@ export function VideoPlayer({
     if (isApplying()) return;
     onSeek(playerRef.current?.currentTime ?? 0);
   };
-  const handleVolumeChange = () => {
-    if (isApplying()) return;
-    const p = playerRef.current;
-    if (!p) return;
-    if (p.muted !== muted) onMutedChange(p.muted);
-  };
-
   const tryResumePlayback = () => {
     const p = playerRef.current;
     if (!p) return;
@@ -239,13 +221,25 @@ export function VideoPlayer({
 
   // Sync the active subtitle id to Vidstack's TextTrackList. Imperative because
   // the React `default` prop only seeds initial mode, not later changes.
+  //
+  // Important: Vidstack adds tracks to player.textTracks ASYNCHRONOUSLY after
+  // <Track> mounts, so a single pass on effect-run can miss them. We also
+  // listen for the `add` event and re-apply, which catches both the initial
+  // auto-activation and any tracks that arrive late.
   useEffect(() => {
     const p = playerRef.current;
     if (!p) return;
-    for (const t of p.textTracks) {
-      if (t.kind !== "subtitles" && t.kind !== "captions") continue;
-      t.setMode(t.id === activeSubtitleId ? "showing" : "disabled");
-    }
+    const apply = () => {
+      for (const t of p.textTracks) {
+        if (t.kind !== "subtitles" && t.kind !== "captions") continue;
+        t.setMode(t.id === activeSubtitleId ? "showing" : "disabled");
+      }
+    };
+    apply();
+    p.textTracks.addEventListener("add", apply);
+    return () => {
+      p.textTracks.removeEventListener("add", apply);
+    };
   }, [activeSubtitleId, subtitles]);
 
   if (!videoUrl) {
@@ -281,7 +275,6 @@ export function VideoPlayer({
       onPlay={handlePlay}
       onPause={handlePause}
       onSeeked={handleSeeked}
-      onVolumeChange={handleVolumeChange}
       onLoadedMetadata={handleLoadedMetadata}
       onPlayFail={() => setAutoplayBlocked(true)}
       onAutoPlayFail={() => setAutoplayBlocked(true)}
@@ -290,10 +283,15 @@ export function VideoPlayer({
     >
       <MediaProvider>
         {subtitles.map((s) => (
+          // Route every subtitle through our same-origin proxy so the
+          // browser doesn't reject cross-origin fetches when the user's
+          // CDN doesn't return CORS headers (most don't, by default).
+          // The proxy normalizes everything to VTT regardless of source.
           <Track
             key={s.id}
             id={s.id}
-            src={s.url}
+            src={`/api/library/subtitle?url=${encodeURIComponent(s.url)}`}
+            type="vtt"
             kind="subtitles"
             label={s.label}
             lang={s.lang}
@@ -339,6 +337,24 @@ export function VideoPlayer({
 // Map a URL extension to one of Vidstack's accepted VideoMimeType values.
 // For unrecognized containers (.mkv, .mov, etc.), `video/mp4` works as a
 // no-probe hint — the browser plays based on the response's Content-Type.
+// Pick which subtitle to start with when a new video loads. Prefers a track
+// whose language matches the browser's current locale (so an "es" track
+// auto-activates for a Spanish viewer); otherwise falls back to the first
+// track. Returns null when no subtitles are attached.
+function pickInitialSubtitle(subtitles: Subtitle[]): string | null {
+  if (subtitles.length === 0) return null;
+  const browserLang = navigator.language
+    ?.split("-")[0]
+    ?.toLowerCase();
+  if (browserLang) {
+    const match = subtitles.find((s) =>
+      s.lang?.toLowerCase().startsWith(browserLang),
+    );
+    if (match) return match.id;
+  }
+  return subtitles[0]?.id ?? null;
+}
+
 function inferVideoMime(
   url: string,
 ):

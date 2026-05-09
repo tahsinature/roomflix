@@ -1,10 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { ServerWebSocket } from "bun";
-import {
-  type ClientMessage,
-  type ServerMessage,
-} from "./protocol.ts";
+import { type ClientMessage, type ServerMessage } from "./protocol.ts";
 import { getOrCreateRoom, removeSocket, type WsData } from "./rooms.ts";
 import { createStorage } from "./storage/index.ts";
 import { handleVideosRest } from "./api/videos.ts";
@@ -12,6 +9,7 @@ import { handleRoomsRest } from "./api/rooms.ts";
 import { handleHealthRest } from "./api/health.ts";
 import { handleProbeRest } from "./api/probe.ts";
 import { handleLibraryImportRest } from "./api/library_import.ts";
+import { handleSubtitleProxyRest } from "./api/subtitle_proxy.ts";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const IS_PROD = process.env.NODE_ENV === "production";
@@ -40,10 +38,7 @@ function broadcastViewers(roomId: string) {
   for (const ws of room.sockets) ws.send(payload);
 }
 
-async function handleClientMessage(
-  ws: ServerWebSocket<WsData>,
-  message: ClientMessage,
-) {
+async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientMessage) {
   const room = getOrCreateRoom(ws.data.roomId);
   const now = Date.now();
 
@@ -61,9 +56,6 @@ async function handleClientMessage(
       break;
     case "seek":
       room.state.currentTime = message.currentTime;
-      break;
-    case "setMuted":
-      room.state.muted = message.muted;
       break;
     case "setUrl":
       room.state.videoUrl = message.videoUrl;
@@ -127,6 +119,10 @@ const server = Bun.serve<WsData>({
       return handleLibraryImportRest(req, storage);
     }
 
+    if (url.pathname === "/api/library/subtitle") {
+      return handleSubtitleProxyRest(req, url);
+    }
+
     // In prod, serve the Vite build. In dev, Vite serves the frontend directly
     // and proxies /ws here — so a hit to any other path here is unexpected.
     if (HAS_CLIENT_BUILD) {
@@ -138,10 +134,7 @@ const server = Bun.serve<WsData>({
       return new Response(Bun.file(join(CLIENT_DIST, "index.html")));
     }
 
-    return new Response(
-      "roomflix server running. Start the Vite dev server for the UI.",
-      { status: 200 },
-    );
+    return new Response("roomflix server running. Start the Vite dev server for the UI.", { status: 200 });
   },
   websocket: {
     open(ws) {
@@ -174,7 +167,4 @@ const server = Bun.serve<WsData>({
   },
 });
 
-console.log(
-  `[roomflix] ${IS_PROD ? "prod" : "dev"} server on http://localhost:${server.port}` +
-    (HAS_CLIENT_BUILD ? " (serving client/dist)" : " (no client build; use Vite dev server)"),
-);
+console.log(`[roomflix] ${IS_PROD ? "prod" : "dev"} server on http://localhost:${server.port}` + (HAS_CLIENT_BUILD ? " (serving client/dist)" : " (no client build; use Vite dev server)"));

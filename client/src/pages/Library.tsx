@@ -3,9 +3,12 @@ import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowLeft,
+  Check,
   ChevronDown,
+  Copy,
   Download,
   ExternalLink,
+  HelpCircle,
   Library as LibraryIcon,
   Loader2,
   Pencil,
@@ -666,8 +669,18 @@ function AddVideoForm({
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <div className="text-xs uppercase tracking-widest text-muted-foreground">
-        Add a video
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-xs uppercase tracking-widest text-muted-foreground">
+          Add a video
+        </div>
+        <Link
+          to="/help"
+          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition hover:text-foreground"
+          title="How to host your video"
+        >
+          <HelpCircle className="h-3 w-3" />
+          Need a URL?
+        </Link>
       </div>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input
@@ -974,6 +987,7 @@ function SubtitlesPanel({
                   {s.url}
                 </p>
               </div>
+              <CopyIconButton text={s.url} label="subtitle URL" />
               <button
                 type="button"
                 onClick={() => remove(s.id)}
@@ -1107,9 +1121,12 @@ function EditVideoDialog({
           <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
             URL
           </label>
-          <p className="mt-2 truncate font-mono text-xs text-muted-foreground">
-            {video.url}
-          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <p className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+              {video.url}
+            </p>
+            <CopyIconButton text={video.url} label="video URL" />
+          </div>
         </section>
 
         <section>
@@ -1129,6 +1146,36 @@ function EditVideoDialog({
   );
 }
 
+// Small clipboard-copy button. Used inside the Edit Video modal for video
+// and subtitle URLs — handy for grabbing a URL when debugging or sharing.
+function CopyIconButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard blocked — user can still select the text manually */
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title={copied ? "Copied" : `Copy ${label}`}
+      aria-label={copied ? "Copied" : `Copy ${label}`}
+      className="shrink-0 rounded-md p-1.5 text-muted-foreground transition hover:bg-white/5 hover:text-foreground"
+    >
+      {copied ? (
+        <Check className="h-3.5 w-3.5 text-emerald-400" />
+      ) : (
+        <Copy className="h-3.5 w-3.5" />
+      )}
+    </button>
+  );
+}
+
 function EmptyState() {
   return (
     <Card>
@@ -1140,6 +1187,13 @@ function EmptyState() {
           Paste a URL into a room or use the form above. New URLs auto-save
           here.
         </p>
+        <Link
+          to="/help"
+          className="mt-3 inline-flex items-center gap-1 text-xs text-violet-300 transition hover:text-violet-200"
+        >
+          <HelpCircle className="h-3 w-3" />
+          Don't have a video URL yet? See the hosting guide.
+        </Link>
       </CardContent>
     </Card>
   );

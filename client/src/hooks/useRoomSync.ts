@@ -20,7 +20,6 @@ export type RoomSync = {
     play: (currentTime: number) => void;
     pause: (currentTime: number) => void;
     seek: (currentTime: number) => void;
-    setMuted: (muted: boolean) => void;
     setUrl: (videoUrl: string) => void;
   };
 };
@@ -88,7 +87,6 @@ export function useRoomSync(roomId: string): RoomSync {
       play: (currentTime: number) => send({ type: "play", currentTime }),
       pause: (currentTime: number) => send({ type: "pause", currentTime }),
       seek: (currentTime: number) => send({ type: "seek", currentTime }),
-      setMuted: (muted: boolean) => send({ type: "setMuted", muted }),
       setUrl: (videoUrl: string) => send({ type: "setUrl", videoUrl }),
     }),
     [send],
