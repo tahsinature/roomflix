@@ -51,5 +51,6 @@ jobs:
           username: ${{ steps.doppler.outputs.TUS_SSH_USERNAME }}
           key: ${{ steps.doppler.outputs.TUS_SSH_PRIVATE_KEY }}
           script: |
+            export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
             kubectl rollout restart deployment/roomflix
             kubectl rollout status deployment/roomflix
