@@ -51,6 +51,5 @@ jobs:
           username: ${{ steps.doppler.outputs.TUS_SSH_USERNAME }}
           key: ${{ steps.doppler.outputs.TUS_SSH_PRIVATE_KEY }}
           script: |
-            export KUBECONFIG=/home/tahsin/.kube/config
             kubectl rollout restart deployment/roomflix
             kubectl rollout status deployment/roomflix
