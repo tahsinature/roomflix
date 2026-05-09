@@ -1,15 +1,11 @@
 import type { RoomListItem } from "@shared/protocol";
 import { randomRoomId } from "@/lib/utils";
 
-// Find the most-recently-active room currently playing the given URL.
-// Returns null when no active room matches.
-export function findActiveRoomFor(url: string, rooms: RoomListItem[]): RoomListItem | null {
-  let best: RoomListItem | null = null;
-  for (const r of rooms) {
-    if (r.video?.url !== url) continue;
-    if (!best || r.updatedAt > best.updatedAt) best = r;
-  }
-  return best;
+// Find rooms currently playing the given URL, most-recently-active first.
+// Returns [] when no rooms match. Callers handle the multi-match case
+// (typically by surfacing a picker so the user can choose).
+export function findActiveRoomsFor(url: string, rooms: RoomListItem[]): RoomListItem[] {
+  return rooms.filter((r) => r.video?.url === url).sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 // Path for a brand-new room pre-loaded with the given URL. Room.tsx reads
