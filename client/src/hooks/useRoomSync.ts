@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  emptyRoomState,
-  type ClientMessage,
-  type RoomState,
-  type ServerMessage,
-} from "@shared/protocol";
+import { emptyRoomState, type ClientMessage, type RoomState, type ServerMessage } from "@shared/protocol";
 import { randomClientId } from "@/lib/utils";
 
 export type RoomSync = {

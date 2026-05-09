@@ -18,16 +18,7 @@ import {
   Upload,
   XCircle,
 } from "lucide-react";
-import type {
-  LibraryExportV1,
-  LibraryHealth,
-  LibraryImportResult,
-  ProbeResult,
-  RoomListItem,
-  Subtitle,
-  Video,
-  VideoHealth,
-} from "@shared/protocol";
+import type { LibraryExportV1, LibraryHealth, LibraryImportResult, ProbeResult, RoomListItem, Subtitle, Video, VideoHealth } from "@shared/protocol";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,10 +43,7 @@ export default function Library() {
     let cancelled = false;
     (async () => {
       try {
-        const [list, rs] = await Promise.all([
-          api.listVideos(),
-          api.listRooms().catch(() => []),
-        ]);
+        const [list, rs] = await Promise.all([api.listVideos(), api.listRooms().catch(() => [])]);
         if (cancelled) return;
         setVideos(list);
         setRooms(rs);
@@ -100,10 +88,7 @@ export default function Library() {
     void reverify();
   };
 
-  const handleUpdate = async (
-    id: string,
-    patch: { title?: string; subtitles?: Subtitle[] },
-  ) => {
+  const handleUpdate = async (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => {
     const updated = await api.updateVideo(id, patch);
     setVideos((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
     void reverify();
@@ -164,12 +149,9 @@ export default function Library() {
     setTimeout(revoke, 60_000);
   };
 
-  const [importStatus, setImportStatus] = useState<
-    | { kind: "idle" }
-    | { kind: "running" }
-    | { kind: "done"; result: LibraryImportResult }
-    | { kind: "error"; message: string }
-  >({ kind: "idle" });
+  const [importStatus, setImportStatus] = useState<{ kind: "idle" } | { kind: "running" } | { kind: "done"; result: LibraryImportResult } | { kind: "error"; message: string }>({
+    kind: "idle",
+  });
 
   const handleImport = async (input: File | string) => {
     setImportStatus({ kind: "running" });
@@ -178,9 +160,7 @@ export default function Library() {
       if (!text.trim()) throw new Error("Nothing to import.");
       const parsed = JSON.parse(text) as Partial<LibraryExportV1>;
       if (!parsed || !Array.isArray(parsed.videos)) {
-        throw new Error(
-          "Doesn't look like a Roomflix library export — expected a JSON object with a `videos` array.",
-        );
+        throw new Error("Doesn't look like a Roomflix library export — expected a JSON object with a `videos` array.");
       }
       const result = await api.importLibrary({
         version: 1,
@@ -219,11 +199,7 @@ export default function Library() {
         </CardContent>
       </Card>
 
-      {error && (
-        <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
-          {error}
-        </div>
-      )}
+      {error && <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
 
       {loading ? (
         <div className="text-sm text-muted-foreground">Loading library…</div>
@@ -232,14 +208,7 @@ export default function Library() {
       ) : (
         <ul className="flex flex-col gap-2">
           {videos.map((v) => (
-            <VideoRow
-              key={v.id}
-              video={v}
-              health={health?.videos[v.id]}
-              rooms={rooms}
-              onUpdate={handleUpdate}
-              onRemove={handleRemove}
-            />
+            <VideoRow key={v.id} video={v} health={health?.videos[v.id]} rooms={rooms} onUpdate={handleUpdate} onRemove={handleRemove} />
           ))}
         </ul>
       )}
@@ -247,11 +216,7 @@ export default function Library() {
   );
 }
 
-type ImportStatus =
-  | { kind: "idle" }
-  | { kind: "running" }
-  | { kind: "done"; result: LibraryImportResult }
-  | { kind: "error"; message: string };
+type ImportStatus = { kind: "idle" } | { kind: "running" } | { kind: "done"; result: LibraryImportResult } | { kind: "error"; message: string };
 
 function LibraryHeader({
   count,
@@ -284,9 +249,7 @@ function LibraryHeader({
             </Link>
           </Button>
           <div>
-            <div className="text-xs uppercase tracking-widest text-muted-foreground">
-              Saved
-            </div>
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">Saved</div>
             <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
               <LibraryIcon className="h-4 w-4 text-violet-300" />
               Library
@@ -297,45 +260,19 @@ function LibraryHeader({
           <span className="hidden text-xs text-muted-foreground sm:inline">
             {count} {count === 1 ? "video" : "videos"}
           </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setImportOpen(true)}
-            disabled={importStatus.kind === "running"}
-            aria-label="Import library"
-            title="Import library"
-          >
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} disabled={importStatus.kind === "running"} aria-label="Import library" title="Import library">
             <Upload className="h-3.5 w-3.5" />
             <span className="hidden lg:inline">Import</span>
           </Button>
-          <ExportMenu
-            disabled={count === 0}
-            onDownload={onExportDownload}
-            onOpenInTab={onExportOpenInTab}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onReverify}
-            disabled={verifying}
-            aria-label="Re-verify library"
-          >
-            <RefreshCw
-              className={cn("h-3.5 w-3.5", verifying && "animate-spin")}
-            />
-            <span className="hidden lg:inline">
-              {verifying ? "Verifying…" : "Verify"}
-            </span>
+          <ExportMenu disabled={count === 0} onDownload={onExportDownload} onOpenInTab={onExportOpenInTab} />
+          <Button variant="outline" size="sm" onClick={onReverify} disabled={verifying} aria-label="Re-verify library">
+            <RefreshCw className={cn("h-3.5 w-3.5", verifying && "animate-spin")} />
+            <span className="hidden lg:inline">{verifying ? "Verifying…" : "Verify"}</span>
           </Button>
         </div>
       </header>
 
-      {importStatus.kind !== "idle" && (
-        <ImportStatusBanner
-          status={importStatus}
-          onDismiss={onDismissImportStatus}
-        />
-      )}
+      {importStatus.kind !== "idle" && <ImportStatusBanner status={importStatus} onDismiss={onDismissImportStatus} />}
 
       <ImportDialog
         open={importOpen}
@@ -349,15 +286,7 @@ function LibraryHeader({
   );
 }
 
-function ExportMenu({
-  disabled,
-  onDownload,
-  onOpenInTab,
-}: {
-  disabled: boolean;
-  onDownload: () => void;
-  onOpenInTab: () => void;
-}) {
+function ExportMenu({ disabled, onDownload, onOpenInTab }: { disabled: boolean; onDownload: () => void; onOpenInTab: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -422,15 +351,7 @@ function ExportMenu({
   );
 }
 
-function ImportDialog({
-  open,
-  onClose,
-  onSubmit,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onSubmit: (input: File | string) => Promise<void>;
-}) {
+function ImportDialog({ open, onClose, onSubmit }: { open: boolean; onClose: () => void; onSubmit: (input: File | string) => Promise<void> }) {
   const [file, setFile] = useState<File | null>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -463,9 +384,7 @@ function ImportDialog({
     <Modal open={open} onClose={onClose} title="Import library">
       <div className="space-y-5">
         <section>
-          <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Upload a file
-          </label>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Upload a file</label>
           <div className="mt-2 flex items-center gap-2">
             <input
               ref={fileRef}
@@ -478,19 +397,12 @@ function ImportDialog({
                 setFile(f);
               }}
             />
-            <Button
-              variant="outline"
-              onClick={() => fileRef.current?.click()}
-              className="h-10"
-            >
+            <Button variant="outline" onClick={() => fileRef.current?.click()} className="h-10">
               <Upload className="h-3.5 w-3.5" />
               {file ? "Change file" : "Choose JSON file"}
             </Button>
             {file && (
-              <span
-                className="truncate text-xs text-muted-foreground"
-                title={file.name}
-              >
+              <span className="truncate text-xs text-muted-foreground" title={file.name}>
                 {file.name}
               </span>
             )}
@@ -511,22 +423,14 @@ function ImportDialog({
             rows={8}
             className="w-full rounded-md border border-border bg-input/60 p-3 font-mono text-xs text-foreground shadow-inner placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            Paste the contents of a previous export. File takes priority if
-            both are filled.
-          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">Paste the contents of a previous export. File takes priority if both are filled.</p>
         </section>
 
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose} disabled={busy} className="h-10">
             Cancel
           </Button>
-          <Button
-            variant="accent"
-            onClick={submit}
-            disabled={!canSubmit}
-            className="h-10"
-          >
+          <Button variant="accent" onClick={submit} disabled={!canSubmit} className="h-10">
             {busy ? "Importing…" : "Import"}
           </Button>
         </div>
@@ -535,13 +439,7 @@ function ImportDialog({
   );
 }
 
-function ImportStatusBanner({
-  status,
-  onDismiss,
-}: {
-  status: Exclude<ImportStatus, { kind: "idle" }>;
-  onDismiss: () => void;
-}) {
+function ImportStatusBanner({ status, onDismiss }: { status: Exclude<ImportStatus, { kind: "idle" }>; onDismiss: () => void }) {
   if (status.kind === "running") {
     return (
       <div className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.03] p-3 text-xs text-muted-foreground">
@@ -557,23 +455,14 @@ function ImportStatusBanner({
           <div className="font-medium">Import failed</div>
           <div className="text-foreground/70">{status.message}</div>
         </div>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="text-red-300/70 hover:text-red-200"
-          aria-label="Dismiss"
-        >
+        <button type="button" onClick={onDismiss} className="text-red-300/70 hover:text-red-200" aria-label="Dismiss">
           ✕
         </button>
       </div>
     );
   }
   const { imported, updated, skipped, errors } = status.result;
-  const parts = [
-    `Added ${imported}`,
-    `Updated ${updated}`,
-    `Unchanged ${skipped}`,
-  ];
+  const parts = [`Added ${imported}`, `Updated ${updated}`, `Unchanged ${skipped}`];
   if (errors.length > 0) {
     parts.push(`${errors.length} error${errors.length === 1 ? "" : "s"}`);
   }
@@ -589,37 +478,20 @@ function ImportStatusBanner({
                 {e.url || "(no url)"}: {e.reason}
               </li>
             ))}
-            {errors.length > 3 && (
-              <li className="text-foreground/60">
-                …and {errors.length - 3} more
-              </li>
-            )}
+            {errors.length > 3 && <li className="text-foreground/60">…and {errors.length - 3} more</li>}
           </ul>
         )}
       </div>
-      <button
-        type="button"
-        onClick={onDismiss}
-        className="text-emerald-300/70 hover:text-emerald-200"
-        aria-label="Dismiss"
-      >
+      <button type="button" onClick={onDismiss} className="text-emerald-300/70 hover:text-emerald-200" aria-label="Dismiss">
         ✕
       </button>
     </div>
   );
 }
 
-type AddPhase =
-  | { kind: "idle" }
-  | { kind: "probing" }
-  | { kind: "review"; probe: ProbeResult }
-  | { kind: "error"; message: string };
+type AddPhase = { kind: "idle" } | { kind: "probing" } | { kind: "review"; probe: ProbeResult } | { kind: "error"; message: string };
 
-function AddVideoForm({
-  onAdd,
-}: {
-  onAdd: (input: { url: string; title?: string }) => Promise<void>;
-}) {
+function AddVideoForm({ onAdd }: { onAdd: (input: { url: string; title?: string }) => Promise<void> }) {
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
   const [phase, setPhase] = useState<AddPhase>({ kind: "idle" });
@@ -670,14 +542,8 @@ function AddVideoForm({
   return (
     <form onSubmit={submit} className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <div className="text-xs uppercase tracking-widest text-muted-foreground">
-          Add a video
-        </div>
-        <Link
-          to="/help"
-          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition hover:text-foreground"
-          title="How to host your video"
-        >
+        <div className="text-xs uppercase tracking-widest text-muted-foreground">Add a video</div>
+        <Link to="/help" className="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition hover:text-foreground" title="How to host your video">
           <HelpCircle className="h-3 w-3" />
           Need a URL?
         </Link>
@@ -693,18 +559,8 @@ function AddVideoForm({
           spellCheck={false}
           disabled={probing}
         />
-        <Input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Title (optional)"
-          className="sm:w-56"
-          disabled={probing}
-        />
-        <Button
-          type="submit"
-          variant="accent"
-          disabled={!url.trim() || probing}
-        >
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title (optional)" className="sm:w-56" disabled={probing} />
+        <Button type="submit" variant="accent" disabled={!url.trim() || probing}>
           {probing ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -719,58 +575,31 @@ function AddVideoForm({
         </Button>
       </div>
 
-      {phase.kind === "review" && (
-        <ProbeReview
-          probe={phase.probe}
-          onConfirm={() => create(true)}
-          onCancel={() => setPhase({ kind: "idle" })}
-        />
-      )}
+      {phase.kind === "review" && <ProbeReview probe={phase.probe} onConfirm={() => create(true)} onCancel={() => setPhase({ kind: "idle" })} />}
 
-      {phase.kind === "error" && (
-        <p className="text-xs text-red-300">{phase.message}</p>
-      )}
+      {phase.kind === "error" && <p className="text-xs text-red-300">{phase.message}</p>}
     </form>
   );
 }
 
-function ProbeReview({
-  probe,
-  onConfirm,
-  onCancel,
-}: {
-  probe: ProbeResult;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
+function ProbeReview({ probe, onConfirm, onCancel }: { probe: ProbeResult; onConfirm: () => void; onCancel: () => void }) {
   const isGone = probe.verdict === "gone";
   return (
     <div
       className={cn(
         "flex flex-col gap-2 rounded-md border p-3 text-xs",
-        isGone
-          ? "border-red-500/30 bg-red-500/10 text-red-200"
-          : "border-amber-400/30 bg-amber-400/10 text-amber-200",
+        isGone ? "border-red-500/30 bg-red-500/10 text-red-200" : "border-amber-400/30 bg-amber-400/10 text-amber-200",
       )}
     >
       <div className="flex items-start gap-2">
-        {isGone ? (
-          <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
-        ) : (
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-        )}
+        {isGone ? <XCircle className="mt-0.5 h-4 w-4 shrink-0" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}
         <div className="min-w-0 flex-1">
-          <div className="font-medium">
-            {isGone ? "URL not reachable" : "Couldn't confirm this is a video"}
-          </div>
-          <div className="text-foreground/70">
-            {probe.message ?? "No additional information"}
-          </div>
+          <div className="font-medium">{isGone ? "URL not reachable" : "Couldn't confirm this is a video"}</div>
+          <div className="text-foreground/70">{probe.message ?? "No additional information"}</div>
           {(probe.contentType || probe.contentLength !== undefined) && (
             <div className="mt-1 font-mono text-[11px] text-foreground/60">
               {probe.contentType ?? "type unknown"}
-              {probe.contentLength !== undefined &&
-                `  ·  ${formatBytes(probe.contentLength)}`}
+              {probe.contentLength !== undefined && `  ·  ${formatBytes(probe.contentLength)}`}
             </div>
           )}
         </div>
@@ -780,12 +609,7 @@ function ProbeReview({
           {isGone ? "Edit URL" : "Cancel"}
         </Button>
         {!isGone && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onConfirm}
-          >
+          <Button type="button" variant="outline" size="sm" onClick={onConfirm}>
             Add anyway
           </Button>
         )}
@@ -815,10 +639,7 @@ function VideoRow({
   video: Video;
   health: VideoHealth | undefined;
   rooms: RoomListItem[];
-  onUpdate: (
-    id: string,
-    patch: { title?: string; subtitles?: Subtitle[] },
-  ) => Promise<void>;
+  onUpdate: (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
@@ -853,27 +674,16 @@ function VideoRow({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <HealthDot status={health?.video} />
-            <span className="truncate text-sm font-medium text-foreground">
-              {video.title}
-            </span>
+            <span className="truncate text-sm font-medium text-foreground">{video.title}</span>
             <SubtitleBadge subtitles={video.subtitles} health={health} />
           </div>
-          <p
-            className="mt-1 truncate font-mono text-xs text-muted-foreground"
-            title={video.url}
-          >
+          <p className="mt-1 truncate font-mono text-xs text-muted-foreground" title={video.url}>
             {urlFilename(video.url)}
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <PlayButton video={video} rooms={rooms} health={health} />
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => setEditOpen(true)}
-            aria-label="Edit video"
-            title="Edit video"
-          >
+          <Button size="icon" variant="ghost" onClick={() => setEditOpen(true)} aria-label="Edit video" title="Edit video">
             <Pencil className="h-4 w-4" />
           </Button>
           <Button
@@ -885,23 +695,12 @@ function VideoRow({
             disabled={busy}
             className={cn(armedDelete && "animate-pulse")}
           >
-            <Trash2
-              className={cn(
-                "h-4 w-4",
-                armedDelete ? "text-white" : "text-red-300",
-              )}
-            />
+            <Trash2 className={cn("h-4 w-4", armedDelete ? "text-white" : "text-red-300")} />
           </Button>
         </div>
       </div>
 
-      <EditVideoDialog
-        video={video}
-        health={health}
-        open={editOpen}
-        onClose={() => setEditOpen(false)}
-        onUpdate={onUpdate}
-      />
+      <EditVideoDialog video={video} health={health} open={editOpen} onClose={() => setEditOpen(false)} onUpdate={onUpdate} />
     </li>
   );
 }
@@ -913,10 +712,7 @@ function SubtitlesPanel({
 }: {
   video: Video;
   health: VideoHealth | undefined;
-  onUpdate: (
-    id: string,
-    patch: { title?: string; subtitles?: Subtitle[] },
-  ) => Promise<void>;
+  onUpdate: (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => Promise<void>;
 }) {
   const [url, setUrl] = useState("");
   const [label, setLabel] = useState("");
@@ -967,25 +763,14 @@ function SubtitlesPanel({
       {video.subtitles.length > 0 && (
         <ul className="flex flex-col gap-1.5">
           {video.subtitles.map((s) => (
-            <li
-              key={s.id}
-              className="flex items-center gap-2 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-1.5"
-            >
+            <li key={s.id} className="flex items-center gap-2 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-1.5">
               <HealthDot status={health?.subtitles?.[s.id]} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="truncate text-xs font-medium text-foreground/90">
-                    {s.label || s.url}
-                  </span>
-                  {s.lang && (
-                    <span className="rounded bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-violet-200">
-                      {s.lang}
-                    </span>
-                  )}
+                  <span className="truncate text-xs font-medium text-foreground/90">{s.label || s.url}</span>
+                  {s.lang && <span className="rounded bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-violet-200">{s.lang}</span>}
                 </div>
-                <p className="truncate font-mono text-[10px] text-muted-foreground">
-                  {s.url}
-                </p>
+                <p className="truncate font-mono text-[10px] text-muted-foreground">{s.url}</p>
               </div>
               <CopyIconButton text={s.url} label="subtitle URL" />
               <button
@@ -1011,25 +796,9 @@ function SubtitlesPanel({
           autoCorrect="off"
           spellCheck={false}
         />
-        <Input
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          placeholder="Label (e.g. English)"
-          className="h-10 sm:w-40"
-        />
-        <Input
-          value={lang}
-          onChange={(e) => setLang(e.target.value)}
-          placeholder="Lang (e.g. en)"
-          className="h-10 sm:w-28"
-          autoCapitalize="off"
-        />
-        <Button
-          type="submit"
-          variant="outline"
-          disabled={!url.trim() || busy}
-          className="h-10 shrink-0"
-        >
+        <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label (e.g. English)" className="h-10 sm:w-40" />
+        <Input value={lang} onChange={(e) => setLang(e.target.value)} placeholder="Lang (e.g. en)" className="h-10 sm:w-28" autoCapitalize="off" />
+        <Button type="submit" variant="outline" disabled={!url.trim() || busy} className="h-10 shrink-0">
           <Plus className="h-4 w-4" />
           Add
         </Button>
@@ -1056,10 +825,7 @@ function EditVideoDialog({
   health: VideoHealth | undefined;
   open: boolean;
   onClose: () => void;
-  onUpdate: (
-    id: string,
-    patch: { title?: string; subtitles?: Subtitle[] },
-  ) => Promise<void>;
+  onUpdate: (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => Promise<void>;
 }) {
   const [draftTitle, setDraftTitle] = useState(video.title);
   const [savingTitle, setSavingTitle] = useState(false);
@@ -1091,9 +857,7 @@ function EditVideoDialog({
     <Modal open={open} onClose={onClose} title="Edit video">
       <div className="space-y-6">
         <section>
-          <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Title
-          </label>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Title</label>
           <div className="mt-2 flex gap-2">
             <Input
               value={draftTitle}
@@ -1105,12 +869,7 @@ function EditVideoDialog({
               autoFocus
               className="h-10"
             />
-            <Button
-              variant={dirty ? "accent" : "outline"}
-              onClick={saveTitle}
-              disabled={!dirty || savingTitle}
-              className="h-10 shrink-0"
-            >
+            <Button variant={dirty ? "accent" : "outline"} onClick={saveTitle} disabled={!dirty || savingTitle} className="h-10 shrink-0">
               {savingTitle ? "Saving…" : "Save"}
             </Button>
           </div>
@@ -1118,27 +877,17 @@ function EditVideoDialog({
         </section>
 
         <section>
-          <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-            URL
-          </label>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">URL</label>
           <div className="mt-2 flex items-center gap-2">
-            <p className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-              {video.url}
-            </p>
+            <p className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">{video.url}</p>
             <CopyIconButton text={video.url} label="video URL" />
           </div>
         </section>
 
         <section>
-          <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Subtitles
-          </label>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Subtitles</label>
           <div className="mt-2">
-            <SubtitlesPanel
-              video={video}
-              health={health}
-              onUpdate={onUpdate}
-            />
+            <SubtitlesPanel video={video} health={health} onUpdate={onUpdate} />
           </div>
         </section>
       </div>
@@ -1167,11 +916,7 @@ function CopyIconButton({ text, label }: { text: string; label: string }) {
       aria-label={copied ? "Copied" : `Copy ${label}`}
       className="shrink-0 rounded-md p-1.5 text-muted-foreground transition hover:bg-white/5 hover:text-foreground"
     >
-      {copied ? (
-        <Check className="h-3.5 w-3.5 text-emerald-400" />
-      ) : (
-        <Copy className="h-3.5 w-3.5" />
-      )}
+      {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
     </button>
   );
 }
@@ -1180,17 +925,9 @@ function EmptyState() {
   return (
     <Card>
       <CardContent className="p-10 text-center">
-        <div className="text-sm font-medium text-foreground/80">
-          No videos saved yet
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Paste a URL into a room or use the form above. New URLs auto-save
-          here.
-        </p>
-        <Link
-          to="/help"
-          className="mt-3 inline-flex items-center gap-1 text-xs text-violet-300 transition hover:text-violet-200"
-        >
+        <div className="text-sm font-medium text-foreground/80">No videos saved yet</div>
+        <p className="mt-1 text-xs text-muted-foreground">Paste a URL into a room or use the form above. New URLs auto-save here.</p>
+        <Link to="/help" className="mt-3 inline-flex items-center gap-1 text-xs text-violet-300 transition hover:text-violet-200">
           <HelpCircle className="h-3 w-3" />
           Don't have a video URL yet? See the hosting guide.
         </Link>
@@ -1198,4 +935,3 @@ function EmptyState() {
     </Card>
   );
 }
-

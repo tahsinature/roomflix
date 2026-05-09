@@ -29,8 +29,10 @@ RUN apk add --no-cache tini
 
 WORKDIR /app
 
-# Server has no runtime deps — it uses Bun built-ins (Bun.serve, Bun.file).
-# So we copy only source + the built client; no node_modules.
+# Workspace root needs node_modules (Bun hoists deps here) plus the server
+# source. Hono is the only runtime dep right now; the rest is Bun built-ins.
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./
 COPY --from=builder /app/server ./server
 COPY --from=builder /app/client/dist ./client/dist
 

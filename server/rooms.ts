@@ -1,5 +1,5 @@
 import type { ServerWebSocket } from "bun";
-import { emptyRoomState, type RoomState } from "./protocol.ts";
+import { emptyRoomState, type RoomState } from "@/protocol.ts";
 
 export type WsData = { roomId: string; clientId: string };
 
@@ -30,9 +30,7 @@ export function getRoom(id: string): Room | undefined {
 
 // Snapshot of rooms. By default skips rooms with no live sockets (those are
 // in the pre-sweep grace period). Pass `includeEmpty: true` to include them.
-export function listRooms(
-  opts: { includeEmpty?: boolean } = {},
-): { id: string; viewers: number; state: Room["state"] }[] {
+export function listRooms(opts: { includeEmpty?: boolean } = {}): { id: string; viewers: number; state: Room["state"] }[] {
   const out: { id: string; viewers: number; state: Room["state"] }[] = [];
   for (const room of rooms.values()) {
     if (opts.includeEmpty || room.sockets.size > 0) {

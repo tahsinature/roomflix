@@ -1,5 +1,5 @@
-import type { Subtitle, Video } from "../protocol.ts";
-import type { VideoRepo } from "./types.ts";
+import type { Subtitle, Video } from "@/protocol.ts";
+import type { VideoRepo } from "@/storage/types.ts";
 
 function randomId(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -24,11 +24,7 @@ export class InMemoryVideoRepo implements VideoRepo {
     return null;
   }
 
-  async create(input: {
-    url: string;
-    title?: string;
-    subtitles?: Subtitle[];
-  }): Promise<Video> {
+  async create(input: { url: string; title?: string; subtitles?: Subtitle[] }): Promise<Video> {
     const url = input.url.trim();
     const existing = await this.findByUrl(url);
     if (existing) return existing;
@@ -46,20 +42,13 @@ export class InMemoryVideoRepo implements VideoRepo {
     return video;
   }
 
-  async update(
-    id: string,
-    patch: { title?: string; subtitles?: Subtitle[] },
-  ): Promise<Video | null> {
+  async update(id: string, patch: { title?: string; subtitles?: Subtitle[] }): Promise<Video | null> {
     const existing = this.byId.get(id);
     if (!existing) return null;
     const updated: Video = {
       ...existing,
-      ...(patch.title !== undefined
-        ? { title: patch.title.trim() || existing.url }
-        : {}),
-      ...(patch.subtitles !== undefined
-        ? { subtitles: patch.subtitles.map(normalizeSubtitle) }
-        : {}),
+      ...(patch.title !== undefined ? { title: patch.title.trim() || existing.url } : {}),
+      ...(patch.subtitles !== undefined ? { subtitles: patch.subtitles.map(normalizeSubtitle) } : {}),
       updatedAt: Date.now(),
     };
     this.byId.set(id, updated);
@@ -81,4 +70,3 @@ function normalizeSubtitle(s: Subtitle): Subtitle {
     lang: s.lang?.trim() ?? "",
   };
 }
-

@@ -3,10 +3,7 @@ import { randomRoomId } from "@/lib/utils";
 
 // Find the most-recently-active room currently playing the given URL.
 // Returns null when no active room matches.
-export function findActiveRoomFor(
-  url: string,
-  rooms: RoomListItem[],
-): RoomListItem | null {
+export function findActiveRoomFor(url: string, rooms: RoomListItem[]): RoomListItem | null {
   let best: RoomListItem | null = null;
   for (const r of rooms) {
     if (r.video?.url !== url) continue;
@@ -24,9 +21,7 @@ export function pathForNewRoomPlaying(url: string): string {
 // Whitelist of extensions any browser might handle (some only work in
 // specific browsers — that's the player's problem to surface). URLs without
 // any extension are treated as unknown and not blocked here.
-const VIDEO_EXTS = new Set([
-  "mp4", "webm", "mkv", "mov", "m4v", "ogv", "ogg", "avi", "3gp", "mpeg", "mpg",
-]);
+const VIDEO_EXTS = new Set(["mp4", "webm", "mkv", "mov", "m4v", "ogv", "ogg", "avi", "3gp", "mpeg", "mpg"]);
 
 // Returns true when the URL has an extension that's *clearly not* a video
 // container (e.g. .bin, .pdf, .zip). Used to gate Play upfront so the user

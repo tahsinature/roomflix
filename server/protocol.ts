@@ -104,9 +104,7 @@ export type ClientMessage =
   | { type: "setUrl"; videoUrl: string };
 
 // Messages sent by the server to clients.
-export type ServerMessage =
-  | { type: "state"; state: RoomState; viewers: number; serverTime: number }
-  | { type: "viewers"; viewers: number };
+export type ServerMessage = { type: "state"; state: RoomState; viewers: number; serverTime: number } | { type: "viewers"; viewers: number };
 
 export function emptyRoomState(): RoomState {
   return {

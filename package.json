@@ -9,9 +9,12 @@
     "dev:server": "bun run --cwd server dev",
     "dev:client": "bun run --cwd client dev",
     "build": "bun run --cwd client build",
-    "start": "NODE_ENV=production bun run --cwd server start"
+    "start": "NODE_ENV=production bun run --cwd server start",
+    "format": "prettier --write \"{client,server}/**/*.{ts,tsx,json,md,css}\" \"!**/dist/**\" \"!**/node_modules/**\"",
+    "format:check": "prettier --check \"{client,server}/**/*.{ts,tsx,json,md,css}\" \"!**/dist/**\" \"!**/node_modules/**\""
   },
   "devDependencies": {
+    "prettier": "^3.8.3",
     "typescript": "^5.6.3"
   }
 }

@@ -1,11 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import {
-  ArrowRight,
-  Clapperboard,
-  Heart,
-  Library as LibraryIcon,
-} from "lucide-react";
+import { ArrowRight, Clapperboard, Heart, Library as LibraryIcon } from "lucide-react";
 import type { LibraryHealth, RoomListItem, Video } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,17 +40,11 @@ export default function Home() {
       </h1>
 
       <p className="mt-5 max-w-xl text-center text-base leading-relaxed text-muted-foreground">
-        Press play together — from anywhere. Share a link, pick a video, and
-        watch in perfect sync.
+        Press play together — from anywhere. Share a link, pick a video, and watch in perfect sync.
       </p>
 
       <div className="mt-12 flex w-full max-w-md flex-col items-stretch gap-4 animate-fade-in">
-        <Button
-          variant="accent"
-          size="lg"
-          className="w-full text-base shadow-2xl shadow-violet-500/25"
-          onClick={createRoom}
-        >
+        <Button variant="accent" size="lg" className="w-full text-base shadow-2xl shadow-violet-500/25" onClick={createRoom}>
           <Clapperboard className="h-5 w-5" />
           Start a movie night
           <ArrowRight className="h-4 w-4" />
@@ -68,9 +57,7 @@ export default function Home() {
           onSubmit={joinRoom}
           className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] py-1 pl-4 pr-1 transition-colors focus-within:border-white/20 focus-within:bg-white/[0.05]"
         >
-          <span className="shrink-0 text-xs text-muted-foreground">
-            Have a room?
-          </span>
+          <span className="shrink-0 text-xs text-muted-foreground">Have a room?</span>
           <Input
             value={joinId}
             onChange={(e) => setJoinId(e.target.value)}
@@ -80,13 +67,7 @@ export default function Home() {
             spellCheck={false}
             className="h-8 flex-1 border-0 bg-transparent px-1 text-sm shadow-none focus-visible:ring-0"
           />
-          <Button
-            type="submit"
-            variant="ghost"
-            size="sm"
-            disabled={!joinId.trim()}
-            className="h-7 shrink-0 rounded-full px-3 text-xs"
-          >
+          <Button type="submit" variant="ghost" size="sm" disabled={!joinId.trim()} className="h-7 shrink-0 rounded-full px-3 text-xs">
             Join
             <ArrowRight className="h-3 w-3" />
           </Button>
@@ -125,11 +106,7 @@ function RecentLibrary() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      api.listVideos().catch(() => [] as Video[]),
-      api.listRooms().catch(() => [] as RoomListItem[]),
-      api.libraryHealth().catch(() => null),
-    ]).then(([list, rs, h]) => {
+    Promise.all([api.listVideos().catch(() => [] as Video[]), api.listRooms().catch(() => [] as RoomListItem[]), api.libraryHealth().catch(() => null)]).then(([list, rs, h]) => {
       if (cancelled) return;
       setVideos(list);
       setRooms(rs);
@@ -146,12 +123,7 @@ function RecentLibrary() {
 
   if (videos.length === 0) {
     return (
-      <Button
-        asChild
-        variant="ghost"
-        size="sm"
-        className="mt-6 text-muted-foreground"
-      >
+      <Button asChild variant="ghost" size="sm" className="mt-6 text-muted-foreground">
         <Link to="/library">
           <LibraryIcon className="h-3.5 w-3.5" />
           Open library
@@ -166,13 +138,8 @@ function RecentLibrary() {
   return (
     <section className="mt-10 w-full max-w-xl">
       <header className="mb-3 flex items-center justify-between px-1">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          Recent
-        </h2>
-        <Link
-          to="/library"
-          className="flex items-center gap-1 text-xs text-muted-foreground transition hover:text-foreground"
-        >
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Recent</h2>
+        <Link to="/library" className="flex items-center gap-1 text-xs text-muted-foreground transition hover:text-foreground">
           <LibraryIcon className="h-3 w-3" />
           {hasMore ? `See all ${videos.length}` : "Open library"}
         </Link>
@@ -185,21 +152,12 @@ function RecentLibrary() {
             className="glass flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/[0.06] hover:shadow-lg hover:shadow-violet-500/5"
           >
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-foreground">
-                {v.title}
-              </div>
-              <div
-                className="truncate font-mono text-[11px] text-muted-foreground"
-                title={v.url}
-              >
+              <div className="truncate text-sm font-medium text-foreground">{v.title}</div>
+              <div className="truncate font-mono text-[11px] text-muted-foreground" title={v.url}>
                 {urlFilename(v.url)}
               </div>
             </div>
-            <PlayButton
-              video={v}
-              rooms={rooms}
-              health={health?.videos[v.id]}
-            />
+            <PlayButton video={v} rooms={rooms} health={health?.videos[v.id]} />
           </li>
         ))}
       </ul>

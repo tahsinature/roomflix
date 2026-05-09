@@ -9,8 +9,7 @@ import { cn } from "@/lib/utils";
 
 export default function Room() {
   const { roomId = "" } = useParams();
-  const { state, viewers, serverTime, connected, stateLoaded, actions } =
-    useRoomSync(roomId);
+  const { state, viewers, serverTime, connected, stateLoaded, actions } = useRoomSync(roomId);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [copied, setCopied] = useState(false);
@@ -49,13 +48,7 @@ export default function Room() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-6 sm:px-6 sm:py-8">
-      <RoomHeader
-        viewers={viewers}
-        connected={connected}
-        copied={copied}
-        onCopy={copyLink}
-        onChangeUrl={actions.setUrl}
-      />
+      <RoomHeader viewers={viewers} connected={connected} copied={copied} onCopy={copyLink} onChangeUrl={actions.setUrl} />
 
       <div className="flex flex-1 flex-col justify-center gap-4 py-6">
         <VideoPlayer
@@ -82,13 +75,7 @@ export default function Room() {
   );
 }
 
-function RoomHeader(props: {
-  viewers: number;
-  connected: boolean;
-  copied: boolean;
-  onCopy: () => void;
-  onChangeUrl: (url: string) => void;
-}) {
+function RoomHeader(props: { viewers: number; connected: boolean; copied: boolean; onCopy: () => void; onChangeUrl: (url: string) => void }) {
   return (
     <header className="flex flex-wrap items-center justify-between gap-3">
       <Button asChild variant="ghost" size="icon">
@@ -98,57 +85,26 @@ function RoomHeader(props: {
       </Button>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Badge
-          aria-label={`${props.viewers} ${props.viewers === 1 ? "viewer" : "viewers"}`}
-        >
+        <Badge aria-label={`${props.viewers} ${props.viewers === 1 ? "viewer" : "viewers"}`}>
           <Users className="h-3.5 w-3.5" />
           {props.viewers}
-          <span className="hidden lg:inline">
-            {props.viewers === 1 ? " viewer" : " viewers"}
-          </span>
+          <span className="hidden lg:inline">{props.viewers === 1 ? " viewer" : " viewers"}</span>
         </Badge>
-        <Badge
-          className={cn(
-            props.connected
-              ? "text-emerald-300"
-              : "text-amber-300 animate-pulse",
-          )}
-          aria-label={props.connected ? "Connected" : "Reconnecting"}
-        >
-          {props.connected ? (
-            <Wifi className="h-3.5 w-3.5" />
-          ) : (
-            <WifiOff className="h-3.5 w-3.5" />
-          )}
-          <span className="hidden lg:inline">
-            {props.connected ? "Connected" : "Reconnecting…"}
-          </span>
+        <Badge className={cn(props.connected ? "text-emerald-300" : "text-amber-300 animate-pulse")} aria-label={props.connected ? "Connected" : "Reconnecting"}>
+          {props.connected ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
+          <span className="hidden lg:inline">{props.connected ? "Connected" : "Reconnecting…"}</span>
         </Badge>
         <LibraryPicker onPick={props.onChangeUrl} />
-        <Button
-          variant="outline"
-          size="sm"
-          aria-label="Copy link"
-          onClick={props.onCopy}
-        >
-          {props.copied ? (
-            <Check className="h-3.5 w-3.5 text-emerald-400" />
-          ) : (
-            <Copy className="h-3.5 w-3.5" />
-          )}
-          <span className="hidden lg:inline">
-            {props.copied ? "Copied" : "Copy link"}
-          </span>
+        <Button variant="outline" size="sm" aria-label="Copy link" onClick={props.onCopy}>
+          {props.copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+          <span className="hidden lg:inline">{props.copied ? "Copied" : "Copy link"}</span>
         </Button>
       </div>
     </header>
   );
 }
 
-function Badge({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLSpanElement>) {
+function Badge({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
   return (
     <span
       className={cn(

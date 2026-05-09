@@ -1,88 +1,71 @@
-import type { Subtitle } from "../protocol.ts";
-import type { Storage } from "../storage/index.ts";
-import { invalidateHealthCache } from "./health.ts";
+import { Hono } from "hono";
 
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json" },
+import type { Subtitle } from "@/protocol.ts";
+import type { Storage } from "@/storage/index.ts";
+import { invalidateHealthCache } from "@/api/health.ts";
+
+// REST routes for video library entries.
+//   GET    /api/videos              list all
+//   POST   /api/videos              { url, title?, subtitles? } → create (idempotent on url)
+//   GET    /api/videos/:id          fetch one
+//   PATCH  /api/videos/:id          { title?, subtitles? } → patch
+//   DELETE /api/videos/:id          remove
+export function buildVideosRouter(storage: Storage) {
+  const app = new Hono();
+
+  app.get("/", async (c) => c.json(await storage.videos.list()));
+
+  app.post("/", async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { url?: unknown; title?: unknown; subtitles?: unknown } | null;
+    const inputUrl = typeof body?.url === "string" ? body.url.trim() : "";
+    if (!inputUrl) return c.json({ error: "url is required" }, 400);
+
+    const existing = await storage.videos.findByUrl(inputUrl);
+    if (existing) return c.json(existing);
+
+    const created = await storage.videos.create({
+      url: inputUrl,
+      title: typeof body?.title === "string" ? body.title : undefined,
+      subtitles: parseSubtitles(body?.subtitles),
+    });
+    invalidateHealthCache();
+    return c.json(created, 201);
   });
-}
 
-async function readJson<T>(req: Request): Promise<T | null> {
-  try {
-    return (await req.json()) as T;
-  } catch {
-    return null;
-  }
-}
+  app.get("/:id", async (c) => {
+    const video = await storage.videos.get(c.req.param("id"));
+    return video ? c.json(video) : c.json({ error: "not found" }, 404);
+  });
 
-// Routes:
-//   GET    /api/videos
-//   POST   /api/videos          { url, title? }
-//   GET    /api/videos/:id
-//   PATCH  /api/videos/:id      { title? }
-//   DELETE /api/videos/:id
-export async function handleVideosRest(req: Request, url: URL, storage: Storage): Promise<Response> {
-  const segments = url.pathname.split("/").filter(Boolean);
-  const id = segments[2];
+  app.patch("/:id", async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { title?: unknown; subtitles?: unknown } | null;
+    if (!body) return c.json({ error: "invalid body" }, 400);
 
-  if (!id) {
-    if (req.method === "GET") {
-      return json(await storage.videos.list());
-    }
-    if (req.method === "POST") {
-      const body = await readJson<{
-        url?: unknown;
-        title?: unknown;
-        subtitles?: unknown;
-      }>(req);
-      const inputUrl = typeof body?.url === "string" ? body.url.trim() : "";
-      if (!inputUrl) return json({ error: "url is required" }, 400);
-      const inputTitle =
-        typeof body?.title === "string" ? body.title : undefined;
-      const inputSubtitles = parseSubtitles(body?.subtitles);
-      const existing = await storage.videos.findByUrl(inputUrl);
-      if (existing) return json(existing);
-      const created = await storage.videos.create({
-        url: inputUrl,
-        title: inputTitle,
-        subtitles: inputSubtitles,
-      });
-      invalidateHealthCache();
-      return json(created, 201);
-    }
-    return json({ error: "method not allowed" }, 405);
-  }
-
-  if (req.method === "GET") {
-    const video = await storage.videos.get(id);
-    if (!video) return json({ error: "not found" }, 404);
-    return json(video);
-  }
-  if (req.method === "PATCH") {
-    const body = await readJson<{ title?: unknown; subtitles?: unknown }>(req);
-    if (!body) return json({ error: "invalid body" }, 400);
     const patch: { title?: string; subtitles?: Subtitle[] } = {};
     if (typeof body.title === "string") patch.title = body.title;
     const subs = parseSubtitles(body.subtitles);
     if (subs !== undefined) patch.subtitles = subs;
-    const updated = await storage.videos.update(id, patch);
-    if (!updated) return json({ error: "not found" }, 404);
+
+    const updated = await storage.videos.update(c.req.param("id"), patch);
+    if (!updated) return c.json({ error: "not found" }, 404);
     invalidateHealthCache();
-    return json(updated);
-  }
-  if (req.method === "DELETE") {
-    const removed = await storage.videos.remove(id);
-    if (!removed) return json({ error: "not found" }, 404);
+    return c.json(updated);
+  });
+
+  app.delete("/:id", async (c) => {
+    const removed = await storage.videos.remove(c.req.param("id"));
+    if (!removed) return c.json({ error: "not found" }, 404);
     invalidateHealthCache();
-    return new Response(null, { status: 204 });
-  }
-  return json({ error: "method not allowed" }, 405);
+    return c.body(null, 204);
+  });
+
+  return app;
 }
 
+// Coerces unknown input to a Subtitle[] when given an array; returns
+// undefined otherwise so callers can distinguish "don't touch" from
+// "explicitly empty".
 function parseSubtitles(raw: unknown): Subtitle[] | undefined {
-  if (raw === undefined) return undefined;
   if (!Array.isArray(raw)) return undefined;
   const out: Subtitle[] = [];
   for (const item of raw) {

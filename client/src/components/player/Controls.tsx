@@ -1,24 +1,5 @@
-import {
-  Controls as VControls,
-  FullscreenButton,
-  MuteButton,
-  PIPButton,
-  PlayButton,
-  Time,
-  TimeSlider,
-  Tooltip,
-  VolumeSlider,
-  useMediaState,
-} from "@vidstack/react";
-import {
-  Maximize,
-  Minimize,
-  Pause,
-  PictureInPicture,
-  Play,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
+import { Controls as VControls, FullscreenButton, MuteButton, PIPButton, PlayButton, Time, TimeSlider, Tooltip, VolumeSlider, useMediaState } from "@vidstack/react";
+import { Maximize, Minimize, Pause, PictureInPicture, Play, Volume2, VolumeX } from "lucide-react";
 
 import type { Subtitle } from "@shared/protocol";
 import { SubtitleToggle } from "./SubtitleToggle";
@@ -32,11 +13,7 @@ type Props = {
 const ICON_BTN =
   "inline-flex h-9 w-9 items-center justify-center rounded-md text-white/90 transition hover:bg-white/10 active:scale-95 disabled:opacity-40 outline-none focus:outline-none focus-visible:outline-none [&:focus]:shadow-none [&:focus-visible]:shadow-none";
 
-export function Controls({
-  subtitles,
-  activeSubtitleId,
-  onSelectSubtitle,
-}: Props) {
+export function Controls({ subtitles, activeSubtitleId, onSelectSubtitle }: Props) {
   return (
     <VControls.Root className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-end opacity-0 transition-[opacity,transform] duration-200 ease-out data-[visible]:opacity-100">
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
@@ -52,11 +29,7 @@ export function Controls({
           <div className="ml-auto flex items-center gap-1 sm:gap-2">
             <VolumeControl />
 
-            <SubtitleToggle
-              subtitles={subtitles}
-              activeId={activeSubtitleId}
-              onSelect={onSelectSubtitle}
-            />
+            <SubtitleToggle subtitles={subtitles} activeId={activeSubtitleId} onSelect={onSelectSubtitle} />
 
             <PiPControl />
             <FullscreenControl />
@@ -73,11 +46,7 @@ function PlayPauseButton() {
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
         <PlayButton className={ICON_BTN} aria-label={paused ? "Play" : "Pause"}>
-          {paused ? (
-            <Play className="h-5 w-5 fill-current" />
-          ) : (
-            <Pause className="h-5 w-5 fill-current" />
-          )}
+          {paused ? <Play className="h-5 w-5 fill-current" /> : <Pause className="h-5 w-5 fill-current" />}
         </PlayButton>
       </Tooltip.Trigger>
       <Tooltip.Content className={tooltipClass} placement="top">
@@ -106,15 +75,8 @@ function VolumeControl() {
     <div className="group flex items-center">
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <MuteButton
-            className={ICON_BTN}
-            aria-label={effectivelyMuted ? "Unmute" : "Mute"}
-          >
-            {effectivelyMuted ? (
-              <VolumeX className="h-5 w-5" />
-            ) : (
-              <Volume2 className="h-5 w-5" />
-            )}
+          <MuteButton className={ICON_BTN} aria-label={effectivelyMuted ? "Unmute" : "Mute"}>
+            {effectivelyMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
           </MuteButton>
         </Tooltip.Trigger>
         <Tooltip.Content className={tooltipClass} placement="top">
@@ -160,15 +122,8 @@ function FullscreenControl() {
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <FullscreenButton
-          className={ICON_BTN}
-          aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-        >
-          {isFullscreen ? (
-            <Minimize className="h-5 w-5" />
-          ) : (
-            <Maximize className="h-5 w-5" />
-          )}
+        <FullscreenButton className={ICON_BTN} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
+          {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
         </FullscreenButton>
       </Tooltip.Trigger>
       <Tooltip.Content className={tooltipClass} placement="top">
@@ -182,10 +137,7 @@ function TimeScrubber() {
   return (
     <TimeSlider.Root className="group relative flex h-5 w-full cursor-pointer touch-none select-none items-center outline-none focus:outline-none focus-visible:outline-none">
       <TimeSlider.Track className="relative h-1 w-full overflow-hidden rounded-full bg-white/20 transition-[height] duration-150 group-hover:h-1.5">
-        <TimeSlider.Progress
-          className="absolute inset-y-0 left-0 rounded-full bg-white/30 will-change-[width]"
-          style={{ width: "var(--slider-progress, 0%)" }}
-        />
+        <TimeSlider.Progress className="absolute inset-y-0 left-0 rounded-full bg-white/30 will-change-[width]" style={{ width: "var(--slider-progress, 0%)" }} />
         <TimeSlider.TrackFill
           className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-violet-400 via-indigo-400 to-sky-400 will-change-[width]"
           style={{ width: "var(--slider-fill, 0%)" }}
@@ -199,5 +151,4 @@ function TimeScrubber() {
   );
 }
 
-const tooltipClass =
-  "rounded-md border border-white/10 bg-black/85 px-2 py-1 text-xs font-medium text-white shadow-lg backdrop-blur";
+const tooltipClass = "rounded-md border border-white/10 bg-black/85 px-2 py-1 text-xs font-medium text-white shadow-lg backdrop-blur";

@@ -1,15 +1,17 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { ServerWebSocket } from "bun";
-import { type ClientMessage, type ServerMessage } from "./protocol.ts";
-import { getOrCreateRoom, removeSocket, type WsData } from "./rooms.ts";
-import { createStorage } from "./storage/index.ts";
-import { handleVideosRest } from "./api/videos.ts";
-import { handleRoomsRest } from "./api/rooms.ts";
-import { handleHealthRest } from "./api/health.ts";
-import { handleProbeRest } from "./api/probe.ts";
-import { handleLibraryImportRest } from "./api/library_import.ts";
-import { handleSubtitleProxyRest } from "./api/subtitle_proxy.ts";
+import { Hono } from "hono";
+
+import { type ClientMessage, type ServerMessage } from "@/protocol.ts";
+import { getOrCreateRoom, removeSocket, type WsData } from "@/rooms.ts";
+import { createStorage } from "@/storage/index.ts";
+import { buildVideosRouter } from "@/api/videos.ts";
+import { buildRoomsRouter } from "@/api/rooms.ts";
+import { buildHealthRouter } from "@/api/health.ts";
+import { buildProbeRouter } from "@/api/probe.ts";
+import { buildLibraryImportRouter } from "@/api/library_import.ts";
+import { buildSubtitleProxyRouter } from "@/api/subtitle_proxy.ts";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const IS_PROD = process.env.NODE_ENV === "production";
@@ -19,22 +21,43 @@ const HAS_CLIENT_BUILD = existsSync(CLIENT_DIST);
 
 const storage = createStorage();
 
+// HTTP routes via Hono. The WebSocket /ws path is handled separately in
+// Bun.serve below — Hono doesn't own WS upgrades for our pattern (we need
+// per-room socket bookkeeping that lives outside any framework).
+const app = new Hono();
+
+app.get("/healthz", (c) => c.text("ok"));
+
+app.route("/api/videos", buildVideosRouter(storage));
+app.route("/api/rooms", buildRoomsRouter(storage));
+app.route("/api/library/health", buildHealthRouter(storage));
+app.route("/api/library/probe", buildProbeRouter());
+app.route("/api/library/import", buildLibraryImportRouter(storage));
+app.route("/api/library/subtitle", buildSubtitleProxyRouter());
+
+// SPA fallback: in prod, serve the Vite build for any unmatched path. In
+// dev the Vite server handles the UI and proxies /ws + /api here.
+app.all("*", async (c) => {
+  if (!HAS_CLIENT_BUILD) {
+    return c.text("roomflix server running. Start the Vite dev server for the UI.");
+  }
+  const path = c.req.path === "/" ? "/index.html" : c.req.path;
+  const file = Bun.file(join(CLIENT_DIST, path));
+  if (await file.exists()) return new Response(file);
+  // Unknown route → return index.html so React Router can resolve it.
+  return new Response(Bun.file(join(CLIENT_DIST, "index.html")));
+});
+
 function broadcastState(roomId: string) {
   const room = getOrCreateRoom(roomId);
-  const message: ServerMessage = {
-    type: "state",
-    state: room.state,
-    viewers: room.sockets.size,
-    serverTime: Date.now(),
-  };
+  const message: ServerMessage = { type: "state", state: room.state, viewers: room.sockets.size, serverTime: Date.now() };
   const payload = JSON.stringify(message);
   for (const ws of room.sockets) ws.send(payload);
 }
 
 function broadcastViewers(roomId: string) {
   const room = getOrCreateRoom(roomId);
-  const message: ServerMessage = { type: "viewers", viewers: room.sockets.size };
-  const payload = JSON.stringify(message);
+  const payload = JSON.stringify({ type: "viewers", viewers: room.sockets.size } satisfies ServerMessage);
   for (const ws of room.sockets) ws.send(payload);
 }
 
@@ -44,7 +67,7 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
 
   switch (message.type) {
     case "hello":
-      // Client already sent hello on connect; no-op, state is pushed on open.
+      // Client already sent hello on connect; no-op, state was pushed on open.
       return;
     case "play":
       room.state.playing = true;
@@ -80,72 +103,26 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
 
 const server = Bun.serve<WsData>({
   port: PORT,
-  async fetch(req, srv) {
+  fetch(req, srv) {
     const url = new URL(req.url);
 
-    // WebSocket upgrade: /ws?room=<id>&client=<id>
+    // WebSocket upgrade: /ws?room=<id>&client=<id>. Handled before Hono
+    // because srv.upgrade() needs the raw Bun server reference.
     if (url.pathname === "/ws") {
       const roomId = url.searchParams.get("room");
       const clientId = url.searchParams.get("client");
-      if (!roomId || !clientId) {
-        return new Response("missing room or client", { status: 400 });
-      }
+      if (!roomId || !clientId) return new Response("missing room or client", { status: 400 });
       const ok = srv.upgrade(req, { data: { roomId, clientId } });
-      if (ok) return;
-      return new Response("upgrade failed", { status: 500 });
+      return ok ? undefined : new Response("upgrade failed", { status: 500 });
     }
 
-    if (url.pathname === "/healthz") {
-      return new Response("ok");
-    }
-
-    if (url.pathname === "/api/videos" || url.pathname.startsWith("/api/videos/")) {
-      return handleVideosRest(req, url, storage);
-    }
-
-    if (url.pathname === "/api/rooms") {
-      return handleRoomsRest(req, url, storage);
-    }
-
-    if (url.pathname === "/api/library/health") {
-      return handleHealthRest(req, url, storage);
-    }
-
-    if (url.pathname === "/api/library/probe") {
-      return handleProbeRest(req);
-    }
-
-    if (url.pathname === "/api/library/import") {
-      return handleLibraryImportRest(req, storage);
-    }
-
-    if (url.pathname === "/api/library/subtitle") {
-      return handleSubtitleProxyRest(req, url);
-    }
-
-    // In prod, serve the Vite build. In dev, Vite serves the frontend directly
-    // and proxies /ws here — so a hit to any other path here is unexpected.
-    if (HAS_CLIENT_BUILD) {
-      const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
-      const filePath = join(CLIENT_DIST, pathname);
-      const file = Bun.file(filePath);
-      if (await file.exists()) return new Response(file);
-      // SPA fallback: unknown routes return index.html so React Router works.
-      return new Response(Bun.file(join(CLIENT_DIST, "index.html")));
-    }
-
-    return new Response("roomflix server running. Start the Vite dev server for the UI.", { status: 200 });
+    return app.fetch(req);
   },
   websocket: {
     open(ws) {
       const room = getOrCreateRoom(ws.data.roomId);
       room.sockets.add(ws);
-      const snapshot: ServerMessage = {
-        type: "state",
-        state: room.state,
-        viewers: room.sockets.size,
-        serverTime: Date.now(),
-      };
+      const snapshot: ServerMessage = { type: "state", state: room.state, viewers: room.sockets.size, serverTime: Date.now() };
       ws.send(JSON.stringify(snapshot));
       broadcastViewers(ws.data.roomId);
     },
@@ -167,4 +144,6 @@ const server = Bun.serve<WsData>({
   },
 });
 
-console.log(`[roomflix] ${IS_PROD ? "prod" : "dev"} server on http://localhost:${server.port}` + (HAS_CLIENT_BUILD ? " (serving client/dist)" : " (no client build; use Vite dev server)"));
+console.log(
+  `[roomflix] ${IS_PROD ? "prod" : "dev"} server on http://localhost:${server.port}` + (HAS_CLIENT_BUILD ? " (serving client/dist)" : " (no client build; use Vite dev server)"),
+);

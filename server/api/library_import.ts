@@ -1,94 +1,76 @@
-import type { LibraryImportResult, Subtitle } from "../protocol.ts";
-import type { Storage } from "../storage/index.ts";
-import { invalidateHealthCache } from "./health.ts";
+import { Hono } from "hono";
 
-// POST /api/library/import { videos: [{ url, title?, subtitles?: [...] }] }
+import type { LibraryImportResult, Subtitle } from "@/protocol.ts";
+import type { Storage } from "@/storage/index.ts";
+import { invalidateHealthCache } from "@/api/health.ts";
+
+// POST /api/library/import { videos: [{ url, title?, subtitles? }] }
 //
-// Last-import-wins semantics: existing entries are *patched* with the
-// imported title/subtitles when they differ. Only entries already
-// identical are skipped. Idempotent — running an import twice yields the
-// same final state and counts everything as skipped on the second run.
-export async function handleLibraryImportRest(
-  req: Request,
-  storage: Storage,
-): Promise<Response> {
-  if (req.method !== "POST") {
-    return json({ error: "method not allowed" }, 405);
-  }
+// Last-import-wins semantics: existing entries get *patched* when their
+// title or subtitles differ from the import. Identical entries are
+// counted as skipped. Idempotent — re-importing an unchanged file marks
+// everything skipped.
+export function buildLibraryImportRouter(storage: Storage) {
+  const app = new Hono();
 
-  const body = (await req.json().catch(() => null)) as
-    | { videos?: unknown }
-    | null;
-  if (!body || !Array.isArray(body.videos)) {
-    return json({ error: "expected { videos: [...] }" }, 400);
-  }
-
-  const result: LibraryImportResult = {
-    imported: 0,
-    updated: 0,
-    skipped: 0,
-    errors: [],
-  };
-
-  for (const raw of body.videos) {
-    if (!raw || typeof raw !== "object") {
-      result.errors.push({ url: "", reason: "entry is not an object" });
-      continue;
+  app.post("/", async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { videos?: unknown } | null;
+    if (!body || !Array.isArray(body.videos)) {
+      return c.json({ error: "expected { videos: [...] }" }, 400);
     }
-    const r = raw as Record<string, unknown>;
-    if (typeof r.url !== "string" || !r.url.trim()) {
-      result.errors.push({
-        url: typeof r.url === "string" ? r.url : "",
-        reason: "missing url",
-      });
-      continue;
-    }
-    const url = r.url.trim();
-    // parseSubtitles returns undefined when the field is missing or not an
-    // array (so we don't touch existing subtitles); returns an array
-    // otherwise (including [] for "explicitly cleared").
-    const subsParsed = parseSubtitles(r.subtitles);
-    const titleParsed = typeof r.title === "string" ? r.title : undefined;
 
-    try {
-      const existing = await storage.videos.findByUrl(url);
-      if (!existing) {
-        await storage.videos.create({
-          url,
-          title: titleParsed,
-          subtitles: subsParsed,
+    const result: LibraryImportResult = { imported: 0, updated: 0, skipped: 0, errors: [] };
+
+    for (const raw of body.videos) {
+      if (!raw || typeof raw !== "object") {
+        result.errors.push({ url: "", reason: "entry is not an object" });
+        continue;
+      }
+      const r = raw as Record<string, unknown>;
+      if (typeof r.url !== "string" || !r.url.trim()) {
+        result.errors.push({ url: typeof r.url === "string" ? r.url : "", reason: "missing url" });
+        continue;
+      }
+      const url = r.url.trim();
+      // parseSubtitles returns undefined when the field is missing or
+      // non-array (so we leave existing subtitles untouched), otherwise an
+      // array — including [] for "explicitly cleared".
+      const subsParsed = parseSubtitles(r.subtitles);
+      const titleParsed = typeof r.title === "string" ? r.title : undefined;
+
+      try {
+        const existing = await storage.videos.findByUrl(url);
+        if (!existing) {
+          await storage.videos.create({ url, title: titleParsed, subtitles: subsParsed });
+          result.imported++;
+          continue;
+        }
+
+        // Only patch the fields that actually differ — keeps updatedAt
+        // stable for unchanged entries.
+        const titleChanged = titleParsed !== undefined && titleParsed.trim() !== "" && titleParsed !== existing.title;
+        const subsChanged = subsParsed !== undefined && !subtitlesEqual(subsParsed, existing.subtitles);
+
+        if (!titleChanged && !subsChanged) {
+          result.skipped++;
+          continue;
+        }
+
+        await storage.videos.update(existing.id, {
+          title: titleChanged ? titleParsed : undefined,
+          subtitles: subsChanged ? subsParsed : undefined,
         });
-        result.imported++;
-        continue;
+        result.updated++;
+      } catch (err) {
+        result.errors.push({ url, reason: (err as Error).message });
       }
-
-      // Detect what actually changed so we don't churn the updatedAt for
-      // unchanged entries.
-      const titleChanged =
-        titleParsed !== undefined &&
-        titleParsed.trim() !== "" &&
-        titleParsed !== existing.title;
-      const subsChanged =
-        subsParsed !== undefined &&
-        !subtitlesEqual(subsParsed, existing.subtitles);
-
-      if (!titleChanged && !subsChanged) {
-        result.skipped++;
-        continue;
-      }
-
-      await storage.videos.update(existing.id, {
-        title: titleChanged ? titleParsed : undefined,
-        subtitles: subsChanged ? subsParsed : undefined,
-      });
-      result.updated++;
-    } catch (err) {
-      result.errors.push({ url, reason: (err as Error).message });
     }
-  }
 
-  if (result.imported > 0 || result.updated > 0) invalidateHealthCache();
-  return json(result);
+    if (result.imported > 0 || result.updated > 0) invalidateHealthCache();
+    return c.json(result);
+  });
+
+  return app;
 }
 
 function parseSubtitles(raw: unknown): Subtitle[] | undefined {
@@ -115,16 +97,7 @@ function subtitlesEqual(a: Subtitle[], b: Subtitle[]): boolean {
   for (let i = 0; i < a.length; i++) {
     const x = a[i]!;
     const y = b[i]!;
-    if (x.url !== y.url || x.label !== y.label || x.lang !== y.lang) {
-      return false;
-    }
+    if (x.url !== y.url || x.label !== y.label || x.lang !== y.lang) return false;
   }
   return true;
-}
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json" },
-  });
 }

@@ -2,11 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Ban, Play, Users } from "lucide-react";
 import type { RoomListItem, Video, VideoHealth } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
-import {
-  findActiveRoomFor,
-  pathForNewRoomPlaying,
-  urlIsClearlyNotVideo,
-} from "@/lib/play";
+import { findActiveRoomFor, pathForNewRoomPlaying, urlIsClearlyNotVideo } from "@/lib/play";
 
 type Props = {
   video: Pick<Video, "url">;
@@ -27,16 +23,7 @@ export function PlayButton({ video, rooms, health, size = "sm" }: Props) {
 
   if (isGone || notVideo) {
     return (
-      <Button
-        variant="outline"
-        size={size}
-        disabled
-        title={
-          isGone
-            ? "URL is unreachable. Verify it on the library page."
-            : "This URL doesn't look like a video file."
-        }
-      >
+      <Button variant="outline" size={size} disabled title={isGone ? "URL is unreachable. Verify it on the library page." : "This URL doesn't look like a video file."}>
         <Ban className="h-3.5 w-3.5" />
         {isGone ? "Unavailable" : "Not a video"}
       </Button>
@@ -44,9 +31,7 @@ export function PlayButton({ video, rooms, health, size = "sm" }: Props) {
   }
 
   const onClick = () => {
-    const target = active
-      ? `/room/${encodeURIComponent(active.id)}`
-      : pathForNewRoomPlaying(video.url);
+    const target = active ? `/room/${encodeURIComponent(active.id)}` : pathForNewRoomPlaying(video.url);
     navigate(target);
   };
 

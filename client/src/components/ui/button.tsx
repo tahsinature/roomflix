@@ -8,15 +8,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default:
-          "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_1px_0_0_hsl(0_0%_100%/0.08)_inset]",
-        accent:
-          "text-white shadow-[0_4px_24px_-6px_hsl(262_83%_58%/0.6)] bg-gradient-to-br from-violet-500 via-indigo-500 to-sky-500 hover:brightness-110",
-        outline:
-          "border border-border bg-transparent hover:bg-muted/40 hover:text-foreground",
+        default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_1px_0_0_hsl(0_0%_100%/0.08)_inset]",
+        accent: "text-white shadow-[0_4px_24px_-6px_hsl(262_83%_58%/0.6)] bg-gradient-to-br from-violet-500 via-indigo-500 to-sky-500 hover:brightness-110",
+        outline: "border border-border bg-transparent hover:bg-muted/40 hover:text-foreground",
         ghost: "hover:bg-muted/40",
-        destructive:
-          "bg-red-500/90 text-white hover:bg-red-500",
+        destructive: "bg-red-500/90 text-white hover:bg-red-500",
       },
       size: {
         default: "h-10 px-4 py-2",
@@ -32,24 +28,14 @@ const buttonVariants = cva(
   },
 );
 
-export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
   asChild?: boolean;
 }
 
-export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : "button";
-    return (
-      <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
-        ref={ref}
-        {...props}
-      />
-    );
-  },
-);
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({ className, variant, size, asChild = false, ...props }, ref) => {
+  const Comp = asChild ? Slot : "button";
+  return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
+});
 Button.displayName = "Button";
 
 export { buttonVariants };

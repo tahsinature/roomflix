@@ -1,22 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Captions,
-  Gesture,
-  MediaPlayer,
-  MediaPlayerInstance,
-  MediaProvider,
-  Track,
-  useMediaRemote,
-  useMediaState,
-} from "@vidstack/react";
-import {
-  AlertTriangle,
-  HelpCircle,
-  Link2,
-  Loader2,
-  Play,
-  RefreshCw,
-} from "lucide-react";
+import { Captions, Gesture, MediaPlayer, MediaPlayerInstance, MediaProvider, Track, useMediaRemote, useMediaState } from "@vidstack/react";
+import { AlertTriangle, HelpCircle, Link2, Loader2, Play, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import "@vidstack/react/player/styles/base.css";
 
@@ -42,23 +26,11 @@ type Props = {
 
 const DRIFT_TOLERANCE_S = 1.0;
 const STALLED_TIMEOUT_MS = 15_000;
-const PLAYER_FRAME_CLASS =
-  "relative aspect-video w-full overflow-hidden rounded-xl bg-black ring-1 ring-white/5 shadow-2xl shadow-black/60";
+const PLAYER_FRAME_CLASS = "relative aspect-video w-full overflow-hidden rounded-xl bg-black ring-1 ring-white/5 shadow-2xl shadow-black/60";
 
 type PlaybackErrorKind = "network" | "format" | "stalled";
 
-export function VideoPlayer({
-  videoUrl,
-  subtitles,
-  playing,
-  currentTime,
-  updatedAt,
-  serverTime,
-  onPlay,
-  onPause,
-  onSeek,
-  onLoadUrl,
-}: Props) {
+export function VideoPlayer({ videoUrl, subtitles, playing, currentTime, updatedAt, serverTime, onPlay, onPause, onSeek, onLoadUrl }: Props) {
   const playerRef = useRef<MediaPlayerInstance>(null);
   // While Date.now() < this timestamp, ignore feedback events from the
   // player — we're applying remote state and don't want it to echo back.
@@ -70,8 +42,7 @@ export function VideoPlayer({
   //   "format"  — browser definitively can't decode this container/codec
   //   "network" — Vidstack/<video> fired an actual error event
   //   "stalled" — we never got loadedmetadata within the timeout (silent hang)
-  const [playbackError, setPlaybackError] =
-    useState<PlaybackErrorKind | null>(null);
+  const [playbackError, setPlaybackError] = useState<PlaybackErrorKind | null>(null);
   // Set true once loadedmetadata fires for the current source, so the stalled
   // timeout knows whether the source is actually progressing.
   const metadataLoadedRef = useRef(false);
@@ -299,31 +270,15 @@ export function VideoPlayer({
           // browser doesn't reject cross-origin fetches when the user's
           // CDN doesn't return CORS headers (most don't, by default).
           // The proxy normalizes everything to VTT regardless of source.
-          <Track
-            key={s.id}
-            id={s.id}
-            src={`/api/library/subtitle?url=${encodeURIComponent(s.url)}`}
-            type="vtt"
-            kind="subtitles"
-            label={s.label}
-            lang={s.lang}
-          />
+          <Track key={s.id} id={s.id} src={`/api/library/subtitle?url=${encodeURIComponent(s.url)}`} type="vtt" kind="subtitles" label={s.label} lang={s.lang} />
         ))}
       </MediaProvider>
 
       <Captions className="pointer-events-none absolute inset-x-0 bottom-16 z-20 mx-auto max-w-[90%] text-center text-base font-medium text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)] sm:bottom-20 sm:text-lg" />
 
-      <Gesture
-        className="absolute inset-0 z-10 block h-full w-full"
-        event="pointerup"
-        action="toggle:paused"
-      />
+      <Gesture className="absolute inset-0 z-10 block h-full w-full" event="pointerup" action="toggle:paused" />
 
-      <Controls
-        subtitles={subtitles}
-        activeSubtitleId={activeSubtitleId}
-        onSelectSubtitle={setActiveSubtitleId}
-      />
+      <Controls subtitles={subtitles} activeSubtitleId={activeSubtitleId} onSelectSubtitle={setActiveSubtitleId} />
 
       <LoadingOverlay hasError={playbackError !== null} />
       <PrePlayCover url={videoUrl} hasError={playbackError !== null} />
@@ -355,27 +310,15 @@ export function VideoPlayer({
 // track. Returns null when no subtitles are attached.
 function pickInitialSubtitle(subtitles: Subtitle[]): string | null {
   if (subtitles.length === 0) return null;
-  const browserLang = navigator.language
-    ?.split("-")[0]
-    ?.toLowerCase();
+  const browserLang = navigator.language?.split("-")[0]?.toLowerCase();
   if (browserLang) {
-    const match = subtitles.find((s) =>
-      s.lang?.toLowerCase().startsWith(browserLang),
-    );
+    const match = subtitles.find((s) => s.lang?.toLowerCase().startsWith(browserLang));
     if (match) return match.id;
   }
   return subtitles[0]?.id ?? null;
 }
 
-function inferVideoMime(
-  url: string,
-):
-  | "video/mp4"
-  | "video/webm"
-  | "video/ogg"
-  | "video/3gp"
-  | "video/avi"
-  | "video/mpeg" {
+function inferVideoMime(url: string): "video/mp4" | "video/webm" | "video/ogg" | "video/3gp" | "video/avi" | "video/mpeg" {
   const ext = url.split("?")[0].split("#")[0].split(".").pop()?.toLowerCase();
   switch (ext) {
     case "webm":
@@ -453,13 +396,7 @@ function LoadingOverlay({ hasError }: { hasError: boolean }) {
 // — fills the otherwise-blank black frame with the filename + a play button.
 // Vanishes once started=true. Reads Vidstack media state, so it lives
 // inside <MediaPlayer>.
-function PrePlayCover({
-  url,
-  hasError,
-}: {
-  url: string;
-  hasError: boolean;
-}) {
+function PrePlayCover({ url, hasError }: { url: string; hasError: boolean }) {
   const canPlay = useMediaState("canPlay");
   const started = useMediaState("started");
   const remote = useMediaRemote();
@@ -467,22 +404,12 @@ function PrePlayCover({
   return (
     <div className="absolute inset-0 z-[20] flex flex-col items-center justify-center gap-5 bg-gradient-to-b from-black/40 via-black/20 to-black/70 backdrop-blur-[2px]">
       <div className="flex flex-col items-center gap-1 px-6 text-center">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
-          Ready to play
-        </div>
-        <h2
-          className="line-clamp-2 max-w-xl text-lg font-semibold text-white sm:text-2xl"
-          title={url}
-        >
+        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">Ready to play</div>
+        <h2 className="line-clamp-2 max-w-xl text-lg font-semibold text-white sm:text-2xl" title={url}>
           {urlFilename(url)}
         </h2>
       </div>
-      <Button
-        variant="accent"
-        size="lg"
-        onClick={() => remote.play()}
-        className="shadow-2xl shadow-violet-500/30"
-      >
+      <Button variant="accent" size="lg" onClick={() => remote.play()} className="shadow-2xl shadow-violet-500/30">
         <Play className="h-5 w-5 fill-current" />
         Play
       </Button>
@@ -490,15 +417,7 @@ function PrePlayCover({
   );
 }
 
-function ErrorFrame({
-  kind,
-  url,
-  onRetry,
-}: {
-  kind: PlaybackErrorKind;
-  url: string;
-  onRetry?: () => void;
-}) {
+function ErrorFrame({ kind, url, onRetry }: { kind: PlaybackErrorKind; url: string; onRetry?: () => void }) {
   const message = (() => {
     switch (kind) {
       case "format":
@@ -526,9 +445,7 @@ function ErrorFrame({
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/85 px-6 text-center backdrop-blur-sm">
       <AlertTriangle className="h-8 w-8 text-amber-300" />
-      <div className="text-base font-medium text-foreground/90">
-        {message.title}
-      </div>
+      <div className="text-base font-medium text-foreground/90">{message.title}</div>
       <p className="max-w-md text-xs text-muted-foreground">{message.body}</p>
       {showRetry && (
         <Button variant="outline" size="sm" onClick={onRetry} className="mt-2">
@@ -540,11 +457,7 @@ function ErrorFrame({
   );
 }
 
-function EmptyPlayerState({
-  onLoadUrl,
-}: {
-  onLoadUrl: (url: string) => void;
-}) {
+function EmptyPlayerState({ onLoadUrl }: { onLoadUrl: (url: string) => void }) {
   const [input, setInput] = useState("");
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -559,23 +472,15 @@ function EmptyPlayerState({
       <div
         className="absolute inset-0 h-full w-full opacity-40"
         style={{
-          background:
-            "radial-gradient(600px 300px at 50% 40%, hsl(262 83% 58% / 0.25), transparent 60%)",
+          background: "radial-gradient(600px 300px at 50% 40%, hsl(262 83% 58% / 0.25), transparent 60%)",
         }}
       />
       <div className="relative space-y-1.5">
-        <div className="text-base font-semibold text-foreground/85 sm:text-lg">
-          No video loaded
-        </div>
-        <div className="text-xs sm:text-sm">
-          Paste a public video URL to get started.
-        </div>
+        <div className="text-base font-semibold text-foreground/85 sm:text-lg">No video loaded</div>
+        <div className="text-xs sm:text-sm">Paste a public video URL to get started.</div>
       </div>
 
-      <form
-        onSubmit={submit}
-        className="relative flex w-full max-w-xl flex-col gap-2 sm:flex-row"
-      >
+      <form onSubmit={submit} className="relative flex w-full max-w-xl flex-col gap-2 sm:flex-row">
         <div className="relative flex-1">
           <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -594,10 +499,7 @@ function EmptyPlayerState({
         </Button>
       </form>
 
-      <Link
-        to="/help"
-        className="relative inline-flex items-center gap-1 text-[11px] text-muted-foreground transition hover:text-foreground"
-      >
+      <Link to="/help" className="relative inline-flex items-center gap-1 text-[11px] text-muted-foreground transition hover:text-foreground">
         <HelpCircle className="h-3 w-3" />
         Don't have a URL? See the hosting guide
       </Link>

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { InMemoryVideoRepo } from "../storage/memory.ts";
+import { InMemoryVideoRepo } from "@/storage/memory.ts";
 
 describe("InMemoryVideoRepo", () => {
   test("create stores a video with a generated id and empty subtitles", async () => {
@@ -52,4 +52,3 @@ describe("InMemoryVideoRepo", () => {
     expect(await repo.remove(v.id)).toBe(false);
   });
 });
-

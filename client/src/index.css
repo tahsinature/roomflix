@@ -27,43 +27,26 @@
        The rose pulls the palette warmer than the previous violet+sky combo —
        reads more "movie night" than "developer tool". */
     background:
-      radial-gradient(1200px 600px at 10% -20%, hsl(262 83% 58% / 0.18), transparent 60%),
-      radial-gradient(900px 500px at 110% 30%, hsl(340 82% 60% / 0.12), transparent 55%),
-      radial-gradient(800px 400px at 50% 110%, hsl(28 90% 60% / 0.08), transparent 60%),
-      hsl(var(--background));
+      radial-gradient(1200px 600px at 10% -20%, hsl(262 83% 58% / 0.18), transparent 60%), radial-gradient(900px 500px at 110% 30%, hsl(340 82% 60% / 0.12), transparent 55%),
+      radial-gradient(800px 400px at 50% 110%, hsl(28 90% 60% / 0.08), transparent 60%), hsl(var(--background));
   }
 }
 
 @layer utilities {
   .glass {
-    background: linear-gradient(
-      180deg,
-      hsl(0 0% 100% / 0.03) 0%,
-      hsl(0 0% 100% / 0.01) 100%
-    );
+    background: linear-gradient(180deg, hsl(0 0% 100% / 0.03) 0%, hsl(0 0% 100% / 0.01) 100%);
     backdrop-filter: blur(12px);
     border: 1px solid hsl(0 0% 100% / 0.06);
   }
   .gradient-border {
     background:
       linear-gradient(hsl(var(--card)), hsl(var(--card))) padding-box,
-      linear-gradient(
-          135deg,
-          hsl(262 83% 58% / 0.5),
-          hsl(199 89% 48% / 0.25),
-          hsl(0 0% 100% / 0.05)
-        )
-        border-box;
+      linear-gradient(135deg, hsl(262 83% 58% / 0.5), hsl(199 89% 48% / 0.25), hsl(0 0% 100% / 0.05)) border-box;
     border: 1px solid transparent;
   }
   .text-gradient {
     /* Warmer tail (rose) on the wordmark so it pairs with the new ambient. */
-    background: linear-gradient(
-      135deg,
-      #fff 0%,
-      hsl(262 83% 78%) 50%,
-      hsl(340 82% 75%) 100%
-    );
+    background: linear-gradient(135deg, #fff 0%, hsl(262 83% 78%) 50%, hsl(340 82% 75%) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -72,17 +55,34 @@
   /* Slow-drifting ambient orbs behind the hero. They're huge + heavily
      blurred so the eye doesn't track the motion — it just feels alive. */
   @keyframes orb-drift-a {
-    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-    50% { transform: translate3d(40px, -30px, 0) scale(1.08); }
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(40px, -30px, 0) scale(1.08);
+    }
   }
   @keyframes orb-drift-b {
-    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-    50% { transform: translate3d(-50px, 40px, 0) scale(1.05); }
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(-50px, 40px, 0) scale(1.05);
+    }
   }
-  .orb-a { animation: orb-drift-a 22s ease-in-out infinite; }
-  .orb-b { animation: orb-drift-b 28s ease-in-out infinite; }
+  .orb-a {
+    animation: orb-drift-a 22s ease-in-out infinite;
+  }
+  .orb-b {
+    animation: orb-drift-b 28s ease-in-out infinite;
+  }
   @media (prefers-reduced-motion: reduce) {
-    .orb-a, .orb-b { animation: none; }
+    .orb-a,
+    .orb-b {
+      animation: none;
+    }
   }
 }
 

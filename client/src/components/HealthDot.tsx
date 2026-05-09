@@ -22,11 +22,5 @@ export function HealthDot({ status }: { status?: HealthStatus }) {
         return { color: "bg-white/20", label: "Not yet checked" };
     }
   })();
-  return (
-    <span
-      className={cn("h-2 w-2 shrink-0 rounded-full", meta.color)}
-      title={meta.label}
-      aria-label={meta.label}
-    />
-  );
+  return <span className={cn("h-2 w-2 shrink-0 rounded-full", meta.color)} title={meta.label} aria-label={meta.label} />;
 }
