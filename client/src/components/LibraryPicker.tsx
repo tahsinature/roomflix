@@ -70,14 +70,15 @@ export function LibraryPicker({ onPick }: Props) {
 
   return (
     <div ref={ref} className="relative">
-      <Button type="button" variant="outline" size="sm" aria-label="Library" onClick={() => setOpen((o) => !o)}>
+      <Button type="button" variant="outline" size="sm" aria-label="Library" onClick={() => setOpen((o) => !o)} className="h-9 w-9 px-0 lg:w-auto lg:px-3">
         <ListVideo className="h-3.5 w-3.5" />
         <span className="hidden lg:inline">Library</span>
       </Button>
       {open && (
         // z-50 so the dropdown sits above the player's error/loading overlays
-        // (which use z-25 and z-30) when expanded.
-        <div className="absolute right-0 top-full z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] border border-border bg-bg-elevated p-1 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.7)]">
+        // (which use z-25 and z-30). Solid lighter shade + backdrop blur so
+        // the panel reads as elevated rather than bleeding into the player.
+        <div className="absolute right-0 top-full z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] border border-white/10 bg-[#16181f]/95 p-1 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)] backdrop-blur-xl">
           <div className="px-2 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Pick from library</div>
           {loading ? (
             <div className="px-3 py-4 text-xs text-muted-foreground">Loading…</div>

@@ -42,7 +42,7 @@ export function Modal({ open, title, onClose, children, className }: Props) {
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={cn("my-8 w-full max-w-2xl border border-border bg-bg-elevated shadow-[0_24px_60px_-24px_rgba(0,0,0,0.8)]", className)}
+        className={cn("my-8 w-full max-w-2xl border border-white/10 bg-[#16181f]/95 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)] backdrop-blur-xl", className)}
       >
         <header className="flex items-center justify-between border-b border-border px-5 py-3">
           <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-foreground">{title}</h3>

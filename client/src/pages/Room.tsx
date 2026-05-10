@@ -102,12 +102,14 @@ function RoomHeader(props: { roomId: string; viewers: number; connected: boolean
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Badge aria-label={`${props.viewers} ${props.viewers === 1 ? "viewer" : "viewers"}`}>
-          <Users className="h-3.5 w-3.5" />
+        <Chrome aria-label={`${props.viewers} ${props.viewers === 1 ? "viewer" : "viewers"}`}>
+          {/* Mobile: just the number centered (keeps the 36×36 square shape).
+              lg+: icon + number + "viewer(s)" label, full pill. */}
+          <Users className="hidden h-3.5 w-3.5 lg:inline" />
           <span className="tabular-nums">{props.viewers}</span>
           <span className="hidden lg:inline">{props.viewers === 1 ? " viewer" : " viewers"}</span>
-        </Badge>
-        <Badge
+        </Chrome>
+        <Chrome
           className={cn(
             "border-transparent",
             props.connected ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300" : "border-amber-300/30 bg-amber-300/10 text-amber-200",
@@ -120,9 +122,9 @@ function RoomHeader(props: { roomId: string; viewers: number; connected: boolean
             <WifiOff className="h-3.5 w-3.5 animate-pulse-soft" />
           )}
           <span className="hidden lg:inline">{props.connected ? "Live" : "Reconnecting…"}</span>
-        </Badge>
+        </Chrome>
         <LibraryPicker onPick={props.onChangeUrl} />
-        <Button variant="outline" size="sm" aria-label="Copy link" onClick={props.onCopy}>
+        <Button variant="outline" size="sm" aria-label="Copy link" onClick={props.onCopy} className="h-9 w-9 px-0 lg:w-auto lg:px-3">
           {props.copied ? <Check className="h-3.5 w-3.5 text-live" /> : <Copy className="h-3.5 w-3.5" />}
           <span className="hidden lg:inline">{props.copied ? "Copied" : "Copy link"}</span>
         </Button>
@@ -131,11 +133,15 @@ function RoomHeader(props: { roomId: string; viewers: number; connected: boolean
   );
 }
 
-function Badge({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
+// Status pill used in the room header. Square 36×36 on mobile so all chrome
+// items share the same shape; on lg+ it stretches and shows full labels next
+// to the icon. Static (non-interactive) — the corresponding action buttons
+// (Library, Copy) match this size with their own h-9/w-9 mobile overrides.
+function Chrome({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 border border-border bg-bg-elevated/50 px-2.5 py-1 font-mono text-xs text-muted-foreground",
+        "inline-flex h-9 w-9 items-center justify-center gap-1.5 border border-border bg-bg-elevated/50 font-mono text-xs text-muted-foreground lg:w-auto lg:gap-1.5 lg:px-3",
         className,
       )}
       {...props}

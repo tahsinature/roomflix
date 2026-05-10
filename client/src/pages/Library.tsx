@@ -314,7 +314,7 @@ function ExportMenu({ disabled, onDownload, onOpenInTab }: { disabled: boolean; 
         <ChevronDown className="h-3 w-3 opacity-60" />
       </Button>
       {open && (
-        <div className="absolute right-0 top-full z-30 mt-2 min-w-[12rem] border border-border bg-bg-elevated p-1 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.7)]">
+        <div className="absolute right-0 top-full z-30 mt-2 min-w-[12rem] border border-white/10 bg-[#16181f]/95 p-1 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)] backdrop-blur-xl">
           <button type="button" onClick={() => choose(onDownload)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition hover:bg-white/[0.04]">
             <Download className="h-3.5 w-3.5 text-muted-foreground" />
             Download file

@@ -120,7 +120,7 @@ function RoomPickerButton({ rooms, size }: { rooms: RoomListItem[]; size: "sm" |
           <div
             ref={popoverRef}
             style={{ position: "fixed", top: pos.top, right: pos.right, zIndex: 100 }}
-            className="min-w-[16rem] border border-border bg-bg-elevated p-1 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.7)]"
+            className="min-w-[16rem] border border-white/10 bg-[#16181f]/95 p-1 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)] backdrop-blur-xl"
           >
             <div className="px-3 pb-1.5 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Pick a room</div>
             {rooms.map((r) => (

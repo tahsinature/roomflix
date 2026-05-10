@@ -50,7 +50,7 @@ export function SubtitleToggle({ subtitles, activeId, onSelect }: Props) {
         <Captions className="h-5 w-5" />
       </button>
       {open && (
-        <div className="absolute bottom-full right-0 z-40 mb-2 min-w-[14rem] origin-bottom-right border border-border bg-black/90 p-1.5 text-sm shadow-[0_24px_60px_-24px_rgba(0,0,0,0.7)] backdrop-blur-xl">
+        <div className="absolute bottom-full right-0 z-40 mb-2 min-w-[14rem] origin-bottom-right border border-white/10 bg-[#16181f]/95 p-1.5 text-sm shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)] backdrop-blur-xl">
           <div className="px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">Subtitles</div>
           <button type="button" className={cn(RADIO_ITEM, activeId === null && "bg-accent/15 text-white")} onClick={() => pick(null)}>
             <span>Off</span>
