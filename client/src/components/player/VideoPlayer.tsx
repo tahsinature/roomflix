@@ -34,7 +34,17 @@ type Props = {
 
 const DRIFT_TOLERANCE_S = 1.0;
 const STALLED_TIMEOUT_MS = 15_000;
+
+// Frame for the live MediaPlayer — must always be aspect-video so the video
+// itself doesn't get distorted or letterboxed at the wrong ratio.
 const PLAYER_FRAME_CLASS = "relative aspect-video w-full overflow-hidden bg-black border border-border shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]";
+
+// Frame for placeholder states (empty / loading / format-error). On phones
+// aspect-video gives ~200px which can't fit the URL form, so we drop to a
+// content-sized box with a min-height floor. On sm+ (≥640px) the aspect ratio
+// kicks back in to match the eventual video frame's visual rhythm.
+const STATIC_FRAME_CLASS =
+  "relative min-h-[24rem] w-full overflow-hidden bg-black border border-border shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] sm:aspect-video sm:min-h-0";
 
 type PlaybackErrorKind = "network" | "format" | "stalled";
 
@@ -234,7 +244,7 @@ export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentT
   }, [activeSubtitleId, subtitles]);
 
   if (!videoUrl) {
-    return <div className={PLAYER_FRAME_CLASS}>{loadingIncoming ? <LoadingFrame /> : <EmptyPlayerState onLoadUrl={onLoadUrl} />}</div>;
+    return <div className={STATIC_FRAME_CLASS}>{loadingIncoming ? <LoadingFrame /> : <EmptyPlayerState onLoadUrl={onLoadUrl} />}</div>;
   }
 
   // Format-incompatible: don't even mount Vidstack — saves the bandwidth of
@@ -242,7 +252,7 @@ export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentT
   // visible state.
   if (playbackError === "format") {
     return (
-      <div className={PLAYER_FRAME_CLASS}>
+      <div className={STATIC_FRAME_CLASS}>
         <ErrorFrame kind="format" url={videoUrl} />
       </div>
     );
