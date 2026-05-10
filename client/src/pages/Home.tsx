@@ -1,18 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Clapperboard, Library as LibraryIcon } from "lucide-react";
 import type { LibraryHealth, RoomListItem, Video } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { PlayButton } from "@/components/PlayButton";
 import { api } from "@/lib/api";
 import { randomRoomId, urlFilename } from "@/lib/utils";
 
 const RECENT_LIMIT = 4;
 
+// Sample IDs cycled by the JOIN field's typing effect. Mix of friendly
+// branded names (matches the SyncPreview's `room://aurora-cat` example) and
+// 6-char IDs (what the system actually generates).
+const SAMPLE_ROOM_IDS = ["aurora-cat", "k3p7q2", "velvet-fox", "n2hc6r", "neon-owl"];
+
 export default function Home() {
   const navigate = useNavigate();
   const [joinId, setJoinId] = useState("");
+  const [joinFocused, setJoinFocused] = useState(false);
 
   const createRoom = () => {
     navigate(`/room/${randomRoomId()}`);
@@ -23,6 +28,12 @@ export default function Home() {
     const id = joinId.trim().toLowerCase();
     if (id) navigate(`/room/${encodeURIComponent(id)}`);
   };
+
+  // Pause the typing animation once the user engages with the field — once
+  // they're typing, we don't want a phantom placeholder competing with their
+  // actual text or the OS caret.
+  const showTyping = joinId.length === 0 && !joinFocused;
+  const typed = useTypingPlaceholder(SAMPLE_ROOM_IDS, showTyping);
 
   return (
     <main className="relative">
@@ -51,25 +62,53 @@ export default function Home() {
             <ArrowRight className="h-4 w-4" />
           </Button>
 
-          {/* Quiet secondary join: terminal-style input that anchors the
-              "Have a room?" prompt to its left. */}
+          {/* Quiet secondary join. Terminal-style: JOIN label, divider, ›
+              prompt, then a typable area. When empty + unfocused, a fake
+              placeholder types itself out cycling through example IDs with
+              a blinking caret — vanishes the moment the user clicks in. */}
           <form
             onSubmit={joinRoom}
-            className="flex items-center gap-2 border border-border bg-bg-elevated/40 px-3 py-1.5 text-left transition-colors focus-within:border-border-hover focus-within:bg-bg-elevated/70"
+            className="group flex h-11 items-stretch border border-border bg-bg-elevated/40 transition-colors focus-within:border-accent/50 focus-within:bg-bg-elevated/70"
           >
-            <span className="shrink-0 text-[11px] uppercase tracking-[0.18em] text-text-dim">Join</span>
-            <Input
-              value={joinId}
-              onChange={(e) => setJoinId(e.target.value)}
-              placeholder="room-id"
-              autoCapitalize="off"
-              autoCorrect="off"
-              spellCheck={false}
-              className="h-8 flex-1 border-0 bg-transparent px-1 text-sm shadow-none focus-visible:bg-transparent"
-            />
-            <Button type="submit" variant="ghost" size="sm" disabled={!joinId.trim()} className="h-7 shrink-0 px-3 text-xs">
-              <ArrowRight className="h-3 w-3" />
-            </Button>
+            <label
+              htmlFor="home-join-input"
+              className="flex shrink-0 cursor-text items-center px-4 text-[11px] uppercase tracking-[0.18em] text-text-dim transition-colors group-focus-within:text-muted-foreground"
+            >
+              Join
+            </label>
+            <span className="my-2 w-px bg-border" aria-hidden />
+            <div className="relative flex flex-1 items-center pl-3 pr-1">
+              <span className="pointer-events-none mr-1 text-text-dim transition-colors group-focus-within:text-accent" aria-hidden>
+                ›
+              </span>
+              <div className="relative flex-1">
+                <input
+                  id="home-join-input"
+                  value={joinId}
+                  onChange={(e) => setJoinId(e.target.value)}
+                  onFocus={() => setJoinFocused(true)}
+                  onBlur={() => setJoinFocused(false)}
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className="w-full bg-transparent font-mono text-sm text-foreground caret-accent focus:outline-none"
+                />
+                {showTyping && (
+                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center font-mono text-sm text-text-dim" aria-hidden>
+                    {typed}
+                    <span className="ml-px inline-block h-[1.05em] w-[2px] bg-foreground/70 animate-caret-blink" />
+                  </span>
+                )}
+              </div>
+              <button
+                type="submit"
+                disabled={!joinId.trim()}
+                aria-label="Join room"
+                className="ml-1 flex h-7 w-7 shrink-0 items-center justify-center text-text-dim transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
           </form>
         </div>
 
@@ -239,6 +278,43 @@ function RecentLibrary() {
       </ul>
     </section>
   );
+}
+
+// Cycles through `words` typing each one out, pausing, erasing, and moving
+// on. Returns the current visible substring. `enabled` pauses the loop
+// without clearing the text — flip it to false when the user focuses the
+// real input so the phantom placeholder doesn't fight the OS caret.
+function useTypingPlaceholder(words: string[], enabled: boolean): string {
+  const [text, setText] = useState("");
+  const [idx, setIdx] = useState(0);
+  const [deleting, setDeleting] = useState(false);
+  // Hold the latest enabled flag so the running timeout can bail out without
+  // restarting the entire effect on every flip.
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
+
+  useEffect(() => {
+    if (!enabled) return;
+    const word = words[idx % words.length] ?? "";
+    const isComplete = !deleting && text === word;
+    const isEmpty = deleting && text.length === 0;
+    const delay = isComplete ? 1700 : isEmpty ? 350 : deleting ? 45 : 95;
+
+    const t = setTimeout(() => {
+      if (!enabledRef.current) return;
+      if (isComplete) {
+        setDeleting(true);
+      } else if (isEmpty) {
+        setDeleting(false);
+        setIdx((i) => i + 1);
+      } else {
+        setText((cur) => (deleting ? cur.slice(0, -1) : word.slice(0, cur.length + 1)));
+      }
+    }, delay);
+    return () => clearTimeout(t);
+  }, [text, idx, deleting, enabled, words]);
+
+  return text;
 }
 
 function SiteFooter() {

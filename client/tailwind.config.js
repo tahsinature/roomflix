@@ -73,6 +73,12 @@ export default {
           "0%, 100%": { opacity: "1", transform: "scale(1)" },
           "50%": { opacity: "0.6", transform: "scale(0.85)" },
         },
+        // Crisp on/off blink, like a real terminal caret. steps(1) keeps the
+        // change instant rather than fading.
+        "caret-blink": {
+          "0%, 49%": { opacity: "1" },
+          "50%, 100%": { opacity: "0" },
+        },
         shimmer: {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
@@ -82,6 +88,7 @@ export default {
         "fade-in": "fade-in 0.4s ease-out",
         "fade-up": "fade-up 0.6s ease-out both",
         "pulse-soft": "pulse-soft 2s ease-in-out infinite",
+        "caret-blink": "caret-blink 1s steps(1) infinite",
         shimmer: "shimmer 6s linear infinite",
       },
     },

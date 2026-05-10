@@ -512,7 +512,7 @@ function EmptyPlayerState({ onLoadUrl }: { onLoadUrl: (url: string) => void }) {
             autoFocus
           />
         </div>
-        <Button type="submit" variant="accent" disabled={!input.trim()}>
+        <Button type="submit" variant="accent" disabled={!input.trim()} className="h-11">
           Load video
         </Button>
       </form>
