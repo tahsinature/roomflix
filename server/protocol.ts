@@ -83,6 +83,9 @@ export type ProbeResult = {
 // viewer muting their phone shouldn't mute everyone else.
 export type RoomState = {
   videoUrl: string | null;
+  // Resolved library title for videoUrl. Server fills this on setUrl from
+  // the library entry. Null when there's no URL loaded.
+  videoTitle: string | null;
   // Snapshot of the library entry's subtitles at the time of the last setUrl.
   // Empty if the URL has no library entry. Selection (which one to show) is
   // per-viewer, not in here.
@@ -109,6 +112,7 @@ export type ServerMessage = { type: "state"; state: RoomState; viewers: number; 
 export function emptyRoomState(): RoomState {
   return {
     videoUrl: null,
+    videoTitle: null,
     subtitles: [],
     playing: false,
     currentTime: 0,

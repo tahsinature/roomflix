@@ -4,9 +4,9 @@ import type { Subtitle } from "@shared/protocol";
 import { cn } from "@/lib/utils";
 
 const ICON_BTN =
-  "inline-flex h-9 w-9 items-center justify-center rounded-md text-white/90 transition hover:bg-white/10 active:scale-95 outline-none focus:outline-none focus-visible:outline-none [&:focus]:shadow-none [&:focus-visible]:shadow-none";
+  "inline-flex h-9 w-9 items-center justify-center text-white/90 transition hover:bg-white/10 active:scale-95 outline-none focus:outline-none focus-visible:outline-none [&:focus]:shadow-none [&:focus-visible]:shadow-none";
 
-const RADIO_ITEM = "flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-white/85 transition hover:bg-white/[0.08]";
+const RADIO_ITEM = "flex w-full cursor-pointer items-center justify-between gap-2 px-2.5 py-1.5 text-left text-sm text-white/85 transition hover:bg-white/[0.08]";
 
 type Props = {
   subtitles: Subtitle[];
@@ -46,18 +46,18 @@ export function SubtitleToggle({ subtitles, activeId, onSelect }: Props) {
 
   return (
     <div ref={ref} className="relative">
-      <button type="button" className={cn(ICON_BTN, activeId && "text-violet-300")} aria-label="Subtitles" title="Subtitles" onClick={() => setOpen((o) => !o)}>
+      <button type="button" className={cn(ICON_BTN, activeId && "text-accent")} aria-label="Subtitles" title="Subtitles" onClick={() => setOpen((o) => !o)}>
         <Captions className="h-5 w-5" />
       </button>
       {open && (
-        <div className="absolute bottom-full right-0 z-40 mb-2 min-w-[14rem] origin-bottom-right rounded-xl border border-white/10 bg-black/90 p-1.5 text-sm shadow-2xl shadow-black/60 backdrop-blur-xl">
-          <div className="px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-widest text-white/40">Subtitles</div>
-          <button type="button" className={cn(RADIO_ITEM, activeId === null && "bg-violet-500/15 text-white")} onClick={() => pick(null)}>
+        <div className="absolute bottom-full right-0 z-40 mb-2 min-w-[14rem] origin-bottom-right border border-border bg-black/90 p-1.5 text-sm shadow-[0_24px_60px_-24px_rgba(0,0,0,0.7)] backdrop-blur-xl">
+          <div className="px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">Subtitles</div>
+          <button type="button" className={cn(RADIO_ITEM, activeId === null && "bg-accent/15 text-white")} onClick={() => pick(null)}>
             <span>Off</span>
             {activeId === null && <Dot />}
           </button>
           {subtitles.map((s) => (
-            <button key={s.id} type="button" className={cn(RADIO_ITEM, activeId === s.id && "bg-violet-500/15 text-white")} onClick={() => pick(s.id)}>
+            <button key={s.id} type="button" className={cn(RADIO_ITEM, activeId === s.id && "bg-accent/15 text-white")} onClick={() => pick(s.id)}>
               <span className="flex min-w-0 flex-col">
                 <span className="truncate">{s.label}</span>
                 {s.lang && <span className="text-[10px] uppercase tracking-wider text-white/40">{s.lang}</span>}
@@ -72,5 +72,5 @@ export function SubtitleToggle({ subtitles, activeId, onSelect }: Props) {
 }
 
 function Dot() {
-  return <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />;
+  return <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />;
 }

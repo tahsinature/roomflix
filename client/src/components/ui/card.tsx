@@ -1,8 +1,11 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+// Flat bordered surface — no rounding, no gradient border. Sits on the page
+// background and reads as a "panel" rather than a floating chip. Inner padding
+// is left to the consumer via CardContent.
 export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("rounded-2xl gradient-border bg-card/80 text-card-foreground shadow-2xl shadow-black/40", className)} {...props} />
+  <div ref={ref} className={cn("border border-border bg-card/60 text-card-foreground", className)} {...props} />
 ));
 Card.displayName = "Card";
 
@@ -12,7 +15,7 @@ export const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<
 CardHeader.displayName = "CardHeader";
 
 export const CardTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(({ className, ...props }, ref) => (
-  <h3 ref={ref} className={cn("text-xl font-semibold leading-tight tracking-tight", className)} {...props} />
+  <h3 ref={ref} className={cn("text-base font-semibold leading-tight tracking-tight", className)} {...props} />
 ));
 CardTitle.displayName = "CardTitle";
 

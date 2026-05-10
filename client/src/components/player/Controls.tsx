@@ -11,14 +11,14 @@ type Props = {
 };
 
 const ICON_BTN =
-  "inline-flex h-9 w-9 items-center justify-center rounded-md text-white/90 transition hover:bg-white/10 active:scale-95 disabled:opacity-40 outline-none focus:outline-none focus-visible:outline-none [&:focus]:shadow-none [&:focus-visible]:shadow-none";
+  "inline-flex h-9 w-9 items-center justify-center text-white/90 transition hover:bg-white/10 active:scale-95 disabled:opacity-40 outline-none focus:outline-none focus-visible:outline-none [&:focus]:shadow-none [&:focus-visible]:shadow-none";
 
 export function Controls({ subtitles, activeSubtitleId, onSelectSubtitle }: Props) {
   return (
     <VControls.Root className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-end opacity-0 transition-[opacity,transform] duration-200 ease-out data-[visible]:opacity-100">
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
 
-      <VControls.Group className="pointer-events-auto relative flex flex-col gap-1 px-3 pb-2 pt-1 sm:px-4 sm:pb-3">
+      <VControls.Group className="pointer-events-auto relative flex flex-col gap-1.5 px-3 pb-2 pt-1 sm:px-4 sm:pb-3">
         <TimeScrubber />
 
         <div className="flex items-center gap-1 sm:gap-2">
@@ -58,10 +58,10 @@ function PlayPauseButton() {
 
 function TimeReadout() {
   return (
-    <div className="ml-1 flex items-center gap-1 font-mono text-xs tabular-nums text-white/80">
+    <div className="ml-1 flex items-center gap-1 font-mono text-xs tabular-nums text-white/85">
       <Time type="current" />
-      <span className="text-white/40">/</span>
-      <Time type="duration" />
+      <span className="text-white/35">/</span>
+      <Time type="duration" className="text-white/55" />
     </div>
   );
 }
@@ -86,13 +86,10 @@ function VolumeControl() {
 
       <VolumeSlider.Root className="relative hidden h-9 w-0 items-center overflow-hidden transition-[width] duration-200 outline-none group-hover:w-20 group-focus-within:w-20 focus:outline-none focus-visible:outline-none sm:flex">
         <VolumeSlider.Track className="relative mx-2 h-1 flex-1 rounded-full bg-white/20">
-          <VolumeSlider.TrackFill
-            className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-violet-400 to-indigo-400 will-change-[width]"
-            style={{ width: "var(--slider-fill, 0%)" }}
-          />
+          <VolumeSlider.TrackFill className="absolute inset-y-0 left-0 rounded-full bg-white will-change-[width]" style={{ width: "var(--slider-fill, 0%)" }} />
         </VolumeSlider.Track>
         <VolumeSlider.Thumb
-          className="absolute h-3 w-3 -translate-x-1/2 rounded-full bg-white shadow-md ring-1 ring-violet-400/40 will-change-transform"
+          className="absolute h-3 w-3 -translate-x-1/2 rounded-full bg-white shadow-md ring-1 ring-white/30 will-change-transform"
           style={{ left: "var(--slider-fill, 0%)" }}
         />
       </VolumeSlider.Root>
@@ -136,19 +133,16 @@ function FullscreenControl() {
 function TimeScrubber() {
   return (
     <TimeSlider.Root className="group relative flex h-5 w-full cursor-pointer touch-none select-none items-center outline-none focus:outline-none focus-visible:outline-none">
-      <TimeSlider.Track className="relative h-1 w-full overflow-hidden rounded-full bg-white/20 transition-[height] duration-150 group-hover:h-1.5">
-        <TimeSlider.Progress className="absolute inset-y-0 left-0 rounded-full bg-white/30 will-change-[width]" style={{ width: "var(--slider-progress, 0%)" }} />
-        <TimeSlider.TrackFill
-          className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-violet-400 via-indigo-400 to-sky-400 will-change-[width]"
-          style={{ width: "var(--slider-fill, 0%)" }}
-        />
+      <TimeSlider.Track className="relative h-1 w-full overflow-hidden rounded-full bg-white/15 transition-[height] duration-150 group-hover:h-1.5">
+        <TimeSlider.Progress className="absolute inset-y-0 left-0 rounded-full bg-white/25 will-change-[width]" style={{ width: "var(--slider-progress, 0%)" }} />
+        <TimeSlider.TrackFill className="absolute inset-y-0 left-0 rounded-full bg-accent will-change-[width]" style={{ width: "var(--slider-fill, 0%)" }} />
       </TimeSlider.Track>
       <TimeSlider.Thumb
-        className="absolute h-3.5 w-3.5 -translate-x-1/2 rounded-full bg-white opacity-0 shadow-lg ring-2 ring-violet-400/60 transition-opacity duration-150 will-change-transform group-hover:opacity-100"
+        className="absolute h-3.5 w-3.5 -translate-x-1/2 rounded-full bg-white opacity-0 shadow-lg ring-2 ring-accent/60 transition-opacity duration-150 will-change-transform group-hover:opacity-100"
         style={{ left: "var(--slider-fill, 0%)" }}
       />
     </TimeSlider.Root>
   );
 }
 
-const tooltipClass = "rounded-md border border-white/10 bg-black/85 px-2 py-1 text-xs font-medium text-white shadow-lg backdrop-blur";
+const tooltipClass = "border border-border bg-black/90 px-2.5 py-1 font-mono text-[11px] font-medium text-white/90 shadow-lg backdrop-blur";

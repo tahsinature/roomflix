@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, Clapperboard, Heart, Library as LibraryIcon } from "lucide-react";
+import { ArrowRight, Clapperboard, Library as LibraryIcon } from "lucide-react";
 import type { LibraryHealth, RoomListItem, Video } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { PlayButton } from "@/components/PlayButton";
 import { api } from "@/lib/api";
 import { randomRoomId, urlFilename } from "@/lib/utils";
 
-const RECENT_LIMIT = 3;
+const RECENT_LIMIT = 4;
 
 export default function Home() {
   const navigate = useNavigate();
@@ -25,75 +25,151 @@ export default function Home() {
   };
 
   return (
-    <main className="relative mx-auto flex min-h-screen max-w-5xl flex-col items-center justify-center px-6 py-16">
+    <main className="relative">
       <BackgroundOrbs />
+      <SiteNav onStart={createRoom} />
 
-      <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-muted-foreground backdrop-blur">
-        <Heart className="h-3 w-3 fill-rose-400/70 text-rose-300" />
-        For couples, friends, and movie clubs
-      </div>
+      {/* ── Hero ───────────────────────────────────────────────────────── */}
+      <section className="relative flex min-h-[100vh] flex-col items-center justify-center px-6 pb-24 pt-32 text-center sm:pt-40">
+        <div className="fade-up inline-flex items-center gap-2 border border-border bg-bg-elevated/40 px-3 py-1.5 text-[12px] text-muted-foreground backdrop-blur">
+          <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgb(52_211_153/0.7)]" />
+          <span className="font-medium tracking-wide">live sync · no signup needed</span>
+        </div>
 
-      <h1 className="mt-6 text-center text-5xl font-bold tracking-tight sm:text-6xl">
-        <span className="text-gradient">Roomflix.</span>
-        <br />
-        <span className="text-foreground/90">Movie nights, miles apart.</span>
-      </h1>
+        <h1 className="mt-7 max-w-3xl text-balance text-[44px] font-bold leading-[1.05] tracking-tightest sm:text-[60px] lg:text-[72px]">
+          Movie nights, <em className="accent-em">miles apart.</em>
+        </h1>
 
-      <p className="mt-5 max-w-xl text-center text-base leading-relaxed text-muted-foreground">
-        Press play together — from anywhere. Share a link, pick a video, and watch in perfect sync.
-      </p>
+        <p className="fade-up-d1 mt-7 max-w-xl text-base leading-[1.7] text-muted-foreground sm:text-[17px]">
+          Share a room link, drop a video URL, and watch in perfect sync. <span className="text-foreground/85">No accounts, no apps, no buffering wars.</span>
+        </p>
 
-      <div className="mt-12 flex w-full max-w-md flex-col items-stretch gap-4 animate-fade-in">
-        <Button variant="accent" size="lg" className="w-full text-base shadow-2xl shadow-violet-500/25" onClick={createRoom}>
-          <Clapperboard className="h-5 w-5" />
-          Start a movie night
-          <ArrowRight className="h-4 w-4" />
-        </Button>
-
-        {/* Quiet secondary join — pill-shaped so it reads as a single
-            atomic input, not a competing form. The "Have a room?" prefix
-            anchors the intent without needing a divider line. */}
-        <form
-          onSubmit={joinRoom}
-          className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] py-1 pl-4 pr-1 transition-colors focus-within:border-white/20 focus-within:bg-white/[0.05]"
-        >
-          <span className="shrink-0 text-xs text-muted-foreground">Have a room?</span>
-          <Input
-            value={joinId}
-            onChange={(e) => setJoinId(e.target.value)}
-            placeholder="room-id"
-            autoCapitalize="off"
-            autoCorrect="off"
-            spellCheck={false}
-            className="h-8 flex-1 border-0 bg-transparent px-1 text-sm shadow-none focus-visible:ring-0"
-          />
-          <Button type="submit" variant="ghost" size="sm" disabled={!joinId.trim()} className="h-7 shrink-0 rounded-full px-3 text-xs">
-            Join
-            <ArrowRight className="h-3 w-3" />
+        <div className="fade-up-d3 mt-10 flex w-full max-w-md flex-col items-stretch gap-3">
+          <Button variant="accent" size="lg" className="w-full text-base" onClick={createRoom}>
+            <Clapperboard className="h-5 w-5" />
+            Start a movie night
+            <ArrowRight className="h-4 w-4" />
           </Button>
-        </form>
-      </div>
 
-      <RecentLibrary />
+          {/* Quiet secondary join: terminal-style input that anchors the
+              "Have a room?" prompt to its left. */}
+          <form
+            onSubmit={joinRoom}
+            className="flex items-center gap-2 border border-border bg-bg-elevated/40 px-3 py-1.5 text-left transition-colors focus-within:border-border-hover focus-within:bg-bg-elevated/70"
+          >
+            <span className="shrink-0 text-[11px] uppercase tracking-[0.18em] text-text-dim">Join</span>
+            <Input
+              value={joinId}
+              onChange={(e) => setJoinId(e.target.value)}
+              placeholder="room-id"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              className="h-8 flex-1 border-0 bg-transparent px-1 text-sm shadow-none focus-visible:bg-transparent"
+            />
+            <Button type="submit" variant="ghost" size="sm" disabled={!joinId.trim()} className="h-7 shrink-0 px-3 text-xs">
+              <ArrowRight className="h-3 w-3" />
+            </Button>
+          </form>
+        </div>
 
-      <footer className="flex flex-col items-center gap-1 pt-12 text-center text-xs text-muted-foreground/70">
-        <span>Made for the people you watch with. No accounts, no tracking.</span>
-        <Link to="/help" className="transition hover:text-foreground">
-          How to host your video →
-        </Link>
-      </footer>
+        <SyncPreview />
+
+        <RecentLibrary />
+      </section>
+
+      <SiteFooter />
     </main>
   );
 }
 
-// Two slow-drifting blurred gradient orbs behind the hero. They sit fixed
-// to the viewport so the warmth carries past the fold; pointer-events-none
-// keeps them out of the way; -z-10 places them under all foreground content.
+// Two large blurred glow orbs that sit fixed behind the page. The coral one
+// pulls warmth from the hero; the indigo + cyan ones add cool counter-tones
+// further down. Pointer-events:none keeps them out of the way of clicks.
 function BackgroundOrbs() {
   return (
     <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-      <div className="orb-a absolute -left-32 top-[-10%] h-[36rem] w-[36rem] rounded-full bg-violet-600/20 blur-3xl" />
-      <div className="orb-b absolute -right-32 top-[40%] h-[32rem] w-[32rem] rounded-full bg-rose-500/15 blur-3xl" />
+      <div className="glow-orb glow-orb-coral absolute -right-32 -top-40 h-[36rem] w-[36rem]" />
+      <div className="glow-orb glow-orb-indigo absolute -left-40 top-[30%] h-[32rem] w-[32rem]" />
+      <div className="glow-orb glow-orb-cyan absolute bottom-[-10%] left-[40%] h-[24rem] w-[24rem]" />
+    </div>
+  );
+}
+
+// Top navigation: brand on the left, a pair of utility links + a CTA on the
+// right. Sticky + backdrop-blurred so the warmth carries underneath.
+function SiteNav({ onStart }: { onStart: () => void }) {
+  return (
+    <nav className="fade-up fixed inset-x-0 top-0 z-40 flex items-center justify-between border-b border-border bg-background/70 px-5 py-3.5 backdrop-blur-xl backdrop-saturate-150 sm:px-8">
+      <Link to="/" className="flex items-center gap-2.5 text-foreground transition hover:opacity-80">
+        <BrandMark />
+        <span className="text-[15px] font-bold tracking-tight">
+          Roomflix<span className="text-accent">.</span>
+        </span>
+      </Link>
+      <div className="flex items-center gap-2 sm:gap-5">
+        <Link to="/library" className="hidden text-[13px] text-muted-foreground transition hover:text-foreground sm:inline">
+          Library
+        </Link>
+        <Link to="/help" className="hidden text-[13px] text-muted-foreground transition hover:text-foreground sm:inline">
+          Help
+        </Link>
+        <Button variant="accent" size="sm" onClick={onStart}>
+          Start
+          <ArrowRight className="h-3 w-3" />
+        </Button>
+      </div>
+    </nav>
+  );
+}
+
+// Tiny inline logo — square frame with a coral play triangle. Mono and
+// minimal so it pairs with the wordmark.
+function BrandMark() {
+  return (
+    <span className="relative inline-flex h-7 w-7 items-center justify-center border border-accent/40 bg-accent/10 shadow-[0_0_18px_hsl(0_100%_65%/0.25)]">
+      <span className="block h-0 w-0 border-y-[5px] border-l-[7px] border-y-transparent border-l-accent" style={{ marginLeft: "1.5px" }} aria-hidden />
+    </span>
+  );
+}
+
+// "Sync preview" — a small terminal-style panel in the hero showing what a
+// live room looks like. Uses staggered fade-ups so the lines feel like they're
+// being printed in. Anchors the abstract "press play together" promise in
+// something concrete the visitor can read.
+function SyncPreview() {
+  return (
+    <div className="fade-up-d4 mt-16 w-full max-w-[640px]">
+      <div className="border border-border bg-bg-elevated">
+        <div className="flex items-center gap-2 border-b border-border bg-white/[0.02] px-4 py-2.5">
+          <span className="term-dot bg-[#ff5f57]" />
+          <span className="term-dot bg-[#ffbd2e]" />
+          <span className="term-dot bg-[#28c840]" />
+          <span className="flex-1 text-center text-[11px] text-text-dim">room://aurora-cat</span>
+          <span className="text-[10px] text-text-dim opacity-0 sm:opacity-100">●REC</span>
+        </div>
+        <div className="space-y-1.5 p-5 text-left font-mono text-[13px] leading-[1.9]">
+          <div className="fade-up-d1 flex items-center gap-3 text-foreground">
+            <span className="text-accent">▶</span>
+            <span>playing</span>
+            <span className="ml-auto tabular-nums text-text-dim">00:42:18 / 01:48:00</span>
+          </div>
+          <div className="fade-up-d2 flex items-center gap-3 text-foreground">
+            <span className="text-live">✓</span>
+            <span>in sync</span>
+            <span className="ml-auto tabular-nums text-text-dim">±0.04s drift</span>
+          </div>
+          <div className="fade-up-d3 flex items-center gap-3 text-foreground">
+            <span className="text-cyan">⊙</span>
+            <span>2 viewers connected</span>
+            <span className="ml-auto text-text-dim">@you · @sam</span>
+          </div>
+          <div className="fade-up-d4 flex items-center gap-3 text-muted-foreground">
+            <span className="text-text-dim">↗</span>
+            <span>link copied · share to invite</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -123,7 +199,7 @@ function RecentLibrary() {
 
   if (videos.length === 0) {
     return (
-      <Button asChild variant="ghost" size="sm" className="mt-6 text-muted-foreground">
+      <Button asChild variant="ghost" size="sm" className="mt-10 text-muted-foreground">
         <Link to="/library">
           <LibraryIcon className="h-3.5 w-3.5" />
           Open library
@@ -136,24 +212,24 @@ function RecentLibrary() {
   const hasMore = videos.length > RECENT_LIMIT;
 
   return (
-    <section className="mt-10 w-full max-w-xl">
-      <header className="mb-3 flex items-center justify-between px-1">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Recent</h2>
+    <section className="mt-20 w-full max-w-[640px] text-left">
+      <header className="mb-4 flex items-center justify-between">
+        <span className="section-label muted">Recent</span>
         <Link to="/library" className="flex items-center gap-1 text-xs text-muted-foreground transition hover:text-foreground">
           <LibraryIcon className="h-3 w-3" />
           {hasMore ? `See all ${videos.length}` : "Open library"}
         </Link>
       </header>
 
-      <ul className="flex flex-col gap-2">
+      <ul className="border-y border-border">
         {recent.map((v) => (
           <li
             key={v.id}
-            className="glass flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/[0.06] hover:shadow-lg hover:shadow-violet-500/5"
+            className="flex items-center gap-3 border-b border-border px-3 py-3 transition-colors last:border-b-0 hover:bg-white/[0.02]"
           >
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium text-foreground">{v.title}</div>
-              <div className="truncate font-mono text-[11px] text-muted-foreground" title={v.url}>
+              <div className="truncate font-mono text-[11px] text-text-dim" title={v.url}>
                 {urlFilename(v.url)}
               </div>
             </div>
@@ -162,5 +238,23 @@ function RecentLibrary() {
         ))}
       </ul>
     </section>
+  );
+}
+
+function SiteFooter() {
+  return (
+    <footer className="border-t border-border px-6 py-10 text-center text-[12px] text-text-dim">
+      <p className="mx-auto max-w-md leading-relaxed">
+        Made for the people you watch with. <span className="text-muted-foreground">No accounts. No tracking. Direct video URLs only.</span>
+      </p>
+      <div className="mt-4 flex justify-center gap-6 text-[12px]">
+        <Link to="/library" className="text-muted-foreground transition hover:text-foreground">
+          Library
+        </Link>
+        <Link to="/help" className="text-muted-foreground transition hover:text-foreground">
+          How to host
+        </Link>
+      </div>
+    </footer>
   );
 }

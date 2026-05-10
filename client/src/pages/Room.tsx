@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Check, Copy, Users, Wifi, WifiOff } from "lucide-react";
+import { ArrowLeft, Check, Copy, Users, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { LibraryPicker } from "@/components/LibraryPicker";
@@ -58,11 +58,12 @@ export default function Room() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-6 sm:px-6 sm:py-8">
-      <RoomHeader viewers={viewers} connected={connected} copied={copied} onCopy={copyLink} onChangeUrl={actions.setUrl} />
+      <RoomHeader roomId={roomId} viewers={viewers} connected={connected} copied={copied} onCopy={copyLink} onChangeUrl={actions.setUrl} />
 
       <div className="flex flex-1 flex-col justify-center gap-4 py-6">
         <VideoPlayer
           videoUrl={state.videoUrl}
+          videoTitle={state.videoTitle}
           subtitles={state.subtitles}
           playing={state.playing}
           currentTime={state.currentTime}
@@ -76,38 +77,53 @@ export default function Room() {
         />
       </div>
 
-      <footer className="flex flex-col items-center gap-2 pt-6 text-center text-xs text-muted-foreground">
-        <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 font-mono text-xs font-medium text-foreground/80 backdrop-blur">
-          #{roomId}
-        </span>
+      <footer className="flex flex-col items-center gap-2 pt-6 text-center text-xs text-text-dim">
         <span>Anyone in this room can control playback. Be nice.</span>
       </footer>
     </main>
   );
 }
 
-function RoomHeader(props: { viewers: number; connected: boolean; copied: boolean; onCopy: () => void; onChangeUrl: (url: string) => void }) {
+function RoomHeader(props: { roomId: string; viewers: number; connected: boolean; copied: boolean; onCopy: () => void; onChangeUrl: (url: string) => void }) {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3">
-      <Button asChild variant="ghost" size="icon">
-        <Link to="/" aria-label="Back to home">
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-      </Button>
+    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+      <div className="flex items-center gap-3">
+        <Button asChild variant="ghost" size="icon">
+          <Link to="/" aria-label="Back to home">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+        </Button>
+        <div className="flex flex-col leading-tight">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Room</span>
+          <span className="font-mono text-sm font-medium text-foreground" title={`Room ID: ${props.roomId}`}>
+            #{props.roomId}
+          </span>
+        </div>
+      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <Badge aria-label={`${props.viewers} ${props.viewers === 1 ? "viewer" : "viewers"}`}>
           <Users className="h-3.5 w-3.5" />
-          {props.viewers}
+          <span className="tabular-nums">{props.viewers}</span>
           <span className="hidden lg:inline">{props.viewers === 1 ? " viewer" : " viewers"}</span>
         </Badge>
-        <Badge className={cn(props.connected ? "text-emerald-300" : "text-amber-300 animate-pulse")} aria-label={props.connected ? "Connected" : "Reconnecting"}>
-          {props.connected ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
-          <span className="hidden lg:inline">{props.connected ? "Connected" : "Reconnecting…"}</span>
+        <Badge
+          className={cn(
+            "border-transparent",
+            props.connected ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300" : "border-amber-300/30 bg-amber-300/10 text-amber-200",
+          )}
+          aria-label={props.connected ? "Connected" : "Reconnecting"}
+        >
+          {props.connected ? (
+            <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgb(52_211_153/0.7)]" />
+          ) : (
+            <WifiOff className="h-3.5 w-3.5 animate-pulse-soft" />
+          )}
+          <span className="hidden lg:inline">{props.connected ? "Live" : "Reconnecting…"}</span>
         </Badge>
         <LibraryPicker onPick={props.onChangeUrl} />
         <Button variant="outline" size="sm" aria-label="Copy link" onClick={props.onCopy}>
-          {props.copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+          {props.copied ? <Check className="h-3.5 w-3.5 text-live" /> : <Copy className="h-3.5 w-3.5" />}
           <span className="hidden lg:inline">{props.copied ? "Copied" : "Copy link"}</span>
         </Button>
       </div>
@@ -119,7 +135,7 @@ function Badge({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-muted-foreground backdrop-blur",
+        "inline-flex items-center gap-1.5 border border-border bg-bg-elevated/50 px-2.5 py-1 font-mono text-xs text-muted-foreground",
         className,
       )}
       {...props}

@@ -63,9 +63,9 @@ export function PlayButton({ video, rooms, health, size = "sm" }: Props) {
 function RoomPickerButton({ rooms, size }: { rooms: RoomListItem[]; size: "sm" | "default" }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  // The popover is portaled to <body> so it escapes the surrounding stacking
-  // contexts (each library row creates one via backdrop-filter on `.glass`).
-  // We track the trigger's screen position to anchor the floating popover.
+  // The popover is portaled to <body> so it escapes any surrounding stacking
+  // contexts and overflow-clipped ancestors. We track the trigger's screen
+  // position to anchor the floating popover next to it.
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
@@ -120,9 +120,9 @@ function RoomPickerButton({ rooms, size }: { rooms: RoomListItem[]; size: "sm" |
           <div
             ref={popoverRef}
             style={{ position: "fixed", top: pos.top, right: pos.right, zIndex: 100 }}
-            className="min-w-[16rem] overflow-hidden rounded-xl border border-white/10 bg-card/95 p-1 shadow-2xl shadow-black/40 backdrop-blur"
+            className="min-w-[16rem] border border-border bg-bg-elevated p-1 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.7)]"
           >
-            <div className="px-3 pb-1.5 pt-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Pick a room</div>
+            <div className="px-3 pb-1.5 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Pick a room</div>
             {rooms.map((r) => (
               <button
                 key={r.id}
@@ -131,14 +131,14 @@ function RoomPickerButton({ rooms, size }: { rooms: RoomListItem[]; size: "sm" |
                   navigate(`/room/${encodeURIComponent(r.id)}`);
                   setOpen(false);
                 }}
-                className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left transition hover:bg-white/5"
+                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-white/[0.04]"
               >
                 <span className="font-mono text-sm text-foreground">#{r.id}</span>
                 <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
                   <span>
                     {r.viewers} {r.viewers === 1 ? "viewer" : "viewers"}
                   </span>
-                  <span className="text-muted-foreground/70">· {timeAgo(r.updatedAt)}</span>
+                  <span className="text-text-dim">· {timeAgo(r.updatedAt)}</span>
                 </span>
               </button>
             ))}

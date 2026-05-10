@@ -4,89 +4,189 @@
 
 @layer base {
   :root {
-    --background: 240 10% 4%;
-    --foreground: 0 0% 98%;
-    --card: 240 8% 7%;
-    --card-foreground: 0 0% 98%;
-    --muted: 240 4% 14%;
-    --muted-foreground: 240 5% 65%;
-    --accent: 262 83% 58%;
+    --bg: 230 14% 5%;
+    --bg-elevated: 232 17% 8%;
+    --bg-card: 230 16% 10%;
+
+    --background: var(--bg);
+    --foreground: 230 11% 92%;
+    --card: var(--bg-card);
+    --card-foreground: 230 11% 92%;
+    --muted: 230 12% 14%;
+    --muted-foreground: 230 6% 53%;
+    --text-dim: 230 8% 32%;
+
+    --accent: 0 100% 65%;
+    --accent-bright: 0 100% 71%;
     --accent-foreground: 0 0% 100%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 10% 4%;
-    --border: 240 6% 18%;
-    --input: 240 6% 14%;
-    --ring: 262 83% 58%;
-    --radius: 0.75rem;
+    --primary: 230 11% 92%;
+    --primary-foreground: 230 14% 5%;
+    --border: 230 12% 100% / 0.06;
+    --border-hover: 230 12% 100% / 0.12;
+    --input: 230 12% 12%;
+    --ring: 0 100% 65%;
+    --radius: 0px;
+
+    --green: 142 71% 45%;
+    --cyan: 173 100% 45%;
   }
 
   body {
-    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, "Menlo", monospace;
     min-height: 100vh;
-    /* Three-tone ambient: violet (top-left), rose (right), amber (bottom).
-       The rose pulls the palette warmer than the previous violet+sky combo —
-       reads more "movie night" than "developer tool". */
-    background:
-      radial-gradient(1200px 600px at 10% -20%, hsl(262 83% 58% / 0.18), transparent 60%), radial-gradient(900px 500px at 110% 30%, hsl(340 82% 60% / 0.12), transparent 55%),
-      radial-gradient(800px 400px at 50% 110%, hsl(28 90% 60% / 0.08), transparent 60%), hsl(var(--background));
+    background: hsl(var(--bg));
+    color: hsl(var(--foreground));
+    -webkit-font-smoothing: antialiased;
+    overflow-x: clip;
+  }
+
+  /* Fractal noise overlay — sits above everything but pointer-events:none.
+     Keeps the dark surfaces from looking flat / cheap. No blend mode (overlay
+     desaturates small bright UI like status dots); just a low-opacity SVG. */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+    will-change: transform;
   }
 }
 
 @layer utilities {
-  .glass {
-    background: linear-gradient(180deg, hsl(0 0% 100% / 0.03) 0%, hsl(0 0% 100% / 0.01) 100%);
-    backdrop-filter: blur(12px);
-    border: 1px solid hsl(0 0% 100% / 0.06);
+  /* ── Glow orbs ── huge blurred radial gradients dropped behind the hero.
+     Fixed-positioned so the warmth carries past the fold; pointer-events:none
+     keeps them out of the way of clicks. */
+  .glow-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(120px);
+    pointer-events: none;
+    will-change: transform;
   }
-  .gradient-border {
-    background:
-      linear-gradient(hsl(var(--card)), hsl(var(--card))) padding-box,
-      linear-gradient(135deg, hsl(262 83% 58% / 0.5), hsl(199 89% 48% / 0.25), hsl(0 0% 100% / 0.05)) border-box;
-    border: 1px solid transparent;
+  .glow-orb-coral {
+    background: radial-gradient(circle, hsl(var(--accent) / 0.14), transparent 70%);
   }
-  .text-gradient {
-    /* Warmer tail (rose) on the wordmark so it pairs with the new ambient. */
-    background: linear-gradient(135deg, #fff 0%, hsl(262 83% 78%) 50%, hsl(340 82% 75%) 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+  .glow-orb-indigo {
+    background: radial-gradient(circle, hsl(245 80% 60% / 0.08), transparent 70%);
+  }
+  .glow-orb-cyan {
+    background: radial-gradient(circle, hsl(var(--cyan) / 0.07), transparent 70%);
   }
 
-  /* Slow-drifting ambient orbs behind the hero. They're huge + heavily
-     blurred so the eye doesn't track the motion — it just feels alive. */
-  @keyframes orb-drift-a {
-    0%,
-    100% {
-      transform: translate3d(0, 0, 0) scale(1);
+  /* ── Section labels ── small uppercase mono with a leading 24px tick.
+     Used as the "—— SECTION NAME" prefix all over ClawShip's layout. */
+  .section-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: hsl(var(--accent));
+  }
+  .section-label::before {
+    content: "";
+    width: 24px;
+    height: 1px;
+    background: hsl(var(--accent));
+  }
+  .section-label.muted {
+    color: hsl(var(--muted-foreground));
+  }
+  .section-label.muted::before {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+
+  /* ── Accent text helper ── e.g. <em> in a headline gets coral + a soft
+     gradient underline. Mirrors ClawShip's hero h1 em treatment. */
+  .accent-em {
+    font-style: normal;
+    color: hsl(var(--accent));
+    position: relative;
+  }
+  .accent-em::after {
+    content: "";
+    position: absolute;
+    bottom: 0.05em;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, hsl(var(--accent)), transparent);
+    opacity: 0.45;
+  }
+
+  /* ── Entry animations ── fade up on first paint, used for staggered hero
+     content. ClawShip's `fadeUp` keyframe at 0.5s ease-out. */
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
     }
-    50% {
-      transform: translate3d(40px, -30px, 0) scale(1.08);
+    to {
+      opacity: 1;
+      transform: translateY(0);
     }
   }
-  @keyframes orb-drift-b {
-    0%,
-    100% {
-      transform: translate3d(0, 0, 0) scale(1);
-    }
-    50% {
-      transform: translate3d(-50px, 40px, 0) scale(1.05);
-    }
+  .fade-up {
+    animation: fadeUp 0.6s ease-out both;
   }
-  .orb-a {
-    animation: orb-drift-a 22s ease-in-out infinite;
+  .fade-up-d1 {
+    animation: fadeUp 0.6s ease-out 0.1s both;
   }
-  .orb-b {
-    animation: orb-drift-b 28s ease-in-out infinite;
+  .fade-up-d2 {
+    animation: fadeUp 0.6s ease-out 0.25s both;
   }
+  .fade-up-d3 {
+    animation: fadeUp 0.6s ease-out 0.4s both;
+  }
+  .fade-up-d4 {
+    animation: fadeUp 0.6s ease-out 0.55s both;
+  }
+
+  /* ── Inset highlight + outer glow ── ClawShip's primary button signature. */
+  .accent-glow {
+    box-shadow:
+      0 0 28px hsl(var(--accent) / 0.18),
+      inset 0 1px 0 hsl(0 0% 100% / 0.18);
+  }
+  .accent-glow-lg {
+    box-shadow:
+      0 0 40px hsl(var(--accent) / 0.22),
+      inset 0 1px 0 hsl(0 0% 100% / 0.18);
+  }
+
+  /* ── Terminal traffic-light dots for window-style components. */
+  .term-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+  }
+
+  /* Used for fields/textareas where placeholder + caret should look mono. */
+  .font-display {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+  }
+  .font-serif-em {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-weight: 400;
+    font-style: italic;
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .orb-a,
-    .orb-b {
+    .fade-up,
+    .fade-up-d1,
+    .fade-up-d2,
+    .fade-up-d3,
+    .fade-up-d4 {
       animation: none;
     }
   }
 }
 
-/* Scrollbar */
+/* Scrollbar — slim, dark, matches the new palette. */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -95,9 +195,8 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted));
-  border-radius: 8px;
+  background: hsl(230 12% 18%);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--border));
+  background: hsl(230 12% 26%);
 }

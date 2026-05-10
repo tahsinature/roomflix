@@ -33,7 +33,7 @@ export function Modal({ open, title, onClose, children, className }: Props) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm animate-fade-in sm:items-center"
+      className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm animate-fade-in sm:items-center"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -42,11 +42,11 @@ export function Modal({ open, title, onClose, children, className }: Props) {
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={cn("my-8 w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-card shadow-2xl shadow-black/60", className)}
+        className={cn("my-8 w-full max-w-2xl border border-border bg-bg-elevated shadow-[0_24px_60px_-24px_rgba(0,0,0,0.8)]", className)}
       >
-        <header className="flex items-center justify-between border-b border-white/5 px-5 py-3">
-          <h3 className="text-sm font-semibold tracking-tight text-foreground">{title}</h3>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-muted-foreground transition hover:bg-white/5 hover:text-foreground">
+        <header className="flex items-center justify-between border-b border-border px-5 py-3">
+          <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-foreground">{title}</h3>
+          <button type="button" onClick={onClose} aria-label="Close" className="p-1 text-muted-foreground transition hover:bg-white/[0.04] hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         </header>

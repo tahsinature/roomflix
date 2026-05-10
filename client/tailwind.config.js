@@ -6,10 +6,13 @@ export default {
     extend: {
       colors: {
         border: "hsl(var(--border))",
+        "border-hover": "hsl(var(--border-hover))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        "bg-elevated": "hsl(var(--bg-elevated))",
+        "text-dim": "hsl(var(--text-dim))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -20,25 +23,55 @@ export default {
         },
         accent: {
           DEFAULT: "hsl(var(--accent))",
+          bright: "hsl(var(--accent-bright))",
           foreground: "hsl(var(--accent-foreground))",
         },
         card: {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        coral: {
+          DEFAULT: "hsl(var(--accent))",
+          glow: "hsl(var(--accent) / 0.15)",
+        },
+        live: "hsl(var(--green))",
+        cyan: {
+          DEFAULT: "hsl(var(--cyan))",
+        },
       },
+      // Sharp corners everywhere — only `rounded-full` keeps a pill/circle shape
+      // for status dots and the like. Mirrors ClawShip's brutalist 0px radius.
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        none: "0",
+        sm: "0",
+        DEFAULT: "0",
+        md: "0",
+        lg: "0",
+        xl: "0",
+        "2xl": "0",
+        "3xl": "0",
+        full: "9999px",
       },
       fontFamily: {
-        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ['"JetBrains Mono"', "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+        mono: ['"JetBrains Mono"', "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+        serif: ['"Instrument Serif"', "Georgia", "serif"],
+      },
+      letterSpacing: {
+        tightest: "-0.04em",
       },
       keyframes: {
         "fade-in": {
           from: { opacity: "0", transform: "translateY(4px)" },
           to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "fade-up": {
+          from: { opacity: "0", transform: "translateY(24px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "pulse-soft": {
+          "0%, 100%": { opacity: "1", transform: "scale(1)" },
+          "50%": { opacity: "0.6", transform: "scale(0.85)" },
         },
         shimmer: {
           "0%": { backgroundPosition: "-200% 0" },
@@ -47,6 +80,8 @@ export default {
       },
       animation: {
         "fade-in": "fade-in 0.4s ease-out",
+        "fade-up": "fade-up 0.6s ease-out both",
+        "pulse-soft": "pulse-soft 2s ease-in-out infinite",
         shimmer: "shimmer 6s linear infinite",
       },
     },

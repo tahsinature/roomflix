@@ -85,12 +85,14 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
       room.state.currentTime = 0;
       room.state.playing = false;
       // Auto-save (idempotent on URL) and snapshot the library entry's
-      // subtitles into room state. Errors here shouldn't block playback.
+      // title + subtitles into room state. Errors here shouldn't block playback.
       try {
         const entry = await storage.videos.create({ url: message.videoUrl });
+        room.state.videoTitle = entry.title;
         room.state.subtitles = entry.subtitles;
       } catch (err) {
         console.error("[roomflix] library lookup failed", err);
+        room.state.videoTitle = null;
         room.state.subtitles = [];
       }
       break;

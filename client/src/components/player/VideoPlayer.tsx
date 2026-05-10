@@ -13,6 +13,9 @@ import { TitleBar } from "./TitleBar";
 
 type Props = {
   videoUrl: string | null;
+  // Synced library title for videoUrl. Falls back to the URL's filename when
+  // unset (older rooms or pre-resolution states).
+  videoTitle?: string | null;
   subtitles: Subtitle[];
   playing: boolean;
   currentTime: number;
@@ -31,11 +34,11 @@ type Props = {
 
 const DRIFT_TOLERANCE_S = 1.0;
 const STALLED_TIMEOUT_MS = 15_000;
-const PLAYER_FRAME_CLASS = "relative aspect-video w-full overflow-hidden rounded-xl bg-black ring-1 ring-white/5 shadow-2xl shadow-black/60";
+const PLAYER_FRAME_CLASS = "relative aspect-video w-full overflow-hidden bg-black border border-border shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]";
 
 type PlaybackErrorKind = "network" | "format" | "stalled";
 
-export function VideoPlayer({ videoUrl, subtitles, playing, currentTime, updatedAt, serverTime, onPlay, onPause, onSeek, onLoadUrl, loadingIncoming = false }: Props) {
+export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentTime, updatedAt, serverTime, onPlay, onPause, onSeek, onLoadUrl, loadingIncoming = false }: Props) {
   const playerRef = useRef<MediaPlayerInstance>(null);
   // While Date.now() < this timestamp, ignore feedback events from the
   // player — we're applying remote state and don't want it to echo back.
@@ -280,11 +283,11 @@ export function VideoPlayer({ videoUrl, subtitles, playing, currentTime, updated
 
       <Gesture className="absolute inset-0 z-10 block h-full w-full" event="pointerup" action="toggle:paused" />
 
-      <TitleBar title={urlFilename(videoUrl)} />
+      <TitleBar title={videoTitle || urlFilename(videoUrl)} />
       <Controls subtitles={subtitles} activeSubtitleId={activeSubtitleId} onSelectSubtitle={setActiveSubtitleId} />
 
       <LoadingOverlay hasError={playbackError !== null} />
-      <PrePlayCover url={videoUrl} hasError={playbackError !== null} />
+      <PrePlayCover url={videoUrl} title={videoTitle ?? null} hasError={playbackError !== null} />
 
       {playbackError && (
         <div className="absolute inset-0 z-30 animate-fade-in">
@@ -293,7 +296,7 @@ export function VideoPlayer({ videoUrl, subtitles, playing, currentTime, updated
       )}
 
       {autoplayBlocked && !playbackError && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in">
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/75 backdrop-blur-sm animate-fade-in">
           <Button variant="accent" size="lg" onClick={tryResumePlayback}>
             <Play className="h-5 w-5 fill-current" />
             Tap to join playback
@@ -389,8 +392,8 @@ function LoadingOverlay({ hasError }: { hasError: boolean }) {
   if (canPlay && !waiting) return null;
   return (
     <div className="pointer-events-none absolute inset-0 z-[25] flex flex-col items-center justify-center gap-2 bg-black/30 backdrop-blur-[1px]">
-      <Loader2 className="h-8 w-8 animate-spin text-violet-300/90" />
-      <span className="text-xs font-medium text-white/70">Loading video…</span>
+      <Loader2 className="h-8 w-8 animate-spin text-accent/90" />
+      <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-white/65">Loading video…</span>
     </div>
   );
 }
@@ -399,20 +402,21 @@ function LoadingOverlay({ hasError }: { hasError: boolean }) {
 // — fills the otherwise-blank black frame with the filename + a play button.
 // Vanishes once started=true. Reads Vidstack media state, so it lives
 // inside <MediaPlayer>.
-function PrePlayCover({ url, hasError }: { url: string; hasError: boolean }) {
+function PrePlayCover({ url, title, hasError }: { url: string; title: string | null; hasError: boolean }) {
   const canPlay = useMediaState("canPlay");
   const started = useMediaState("started");
   const remote = useMediaRemote();
   if (hasError || !canPlay || started) return null;
+  const display = title || urlFilename(url);
   return (
-    <div className="absolute inset-0 z-[20] flex flex-col items-center justify-center gap-5 bg-gradient-to-b from-black/40 via-black/20 to-black/70 backdrop-blur-[2px]">
-      <div className="flex flex-col items-center gap-1 px-6 text-center">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">Ready to play</div>
-        <h2 className="line-clamp-2 max-w-xl text-lg font-semibold text-white sm:text-2xl" title={url}>
-          {urlFilename(url)}
+    <div className="absolute inset-0 z-[20] flex flex-col items-center justify-center gap-6 bg-gradient-to-b from-black/40 via-black/20 to-black/70 backdrop-blur-[2px]">
+      <div className="flex flex-col items-center gap-2 px-6 text-center">
+        <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-accent">Ready to play</div>
+        <h2 className="line-clamp-2 max-w-xl font-mono text-lg font-semibold text-white sm:text-2xl" title={url}>
+          {display}
         </h2>
       </div>
-      <Button variant="accent" size="lg" onClick={() => remote.play()} className="shadow-2xl shadow-violet-500/30">
+      <Button variant="accent" size="lg" onClick={() => remote.play()}>
         <Play className="h-5 w-5 fill-current" />
         Play
       </Button>
@@ -446,10 +450,10 @@ function ErrorFrame({ kind, url, onRetry }: { kind: PlaybackErrorKind; url: stri
   const showRetry = kind !== "format" && onRetry;
 
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/85 px-6 text-center backdrop-blur-sm">
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/90 px-6 text-center backdrop-blur-sm">
       <AlertTriangle className="h-8 w-8 text-amber-300" />
-      <div className="text-base font-medium text-foreground/90">{message.title}</div>
-      <p className="max-w-md text-xs text-muted-foreground">{message.body}</p>
+      <div className="font-mono text-base font-medium text-white/95">{message.title}</div>
+      <p className="max-w-md text-xs leading-relaxed text-white/65">{message.body}</p>
       {showRetry && (
         <Button variant="outline" size="sm" onClick={onRetry} className="mt-2">
           <RefreshCw className="h-3.5 w-3.5" />
@@ -463,9 +467,9 @@ function ErrorFrame({ kind, url, onRetry }: { kind: PlaybackErrorKind; url: stri
 function LoadingFrame() {
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
-      <div className="absolute inset-0 h-full w-full opacity-40" style={{ background: "radial-gradient(600px 300px at 50% 40%, hsl(262 83% 58% / 0.25), transparent 60%)" }} />
-      <Loader2 className="relative h-8 w-8 animate-spin text-violet-300/90" />
-      <span className="relative text-xs text-white/70 sm:text-sm">Loading video…</span>
+      <div className="absolute inset-0 h-full w-full opacity-50" style={{ background: "radial-gradient(600px 300px at 50% 40%, hsl(0 100% 65% / 0.18), transparent 60%)" }} />
+      <Loader2 className="relative h-8 w-8 animate-spin text-accent/90" />
+      <span className="relative font-mono text-[11px] uppercase tracking-[0.18em] text-white/65 sm:text-xs">Loading video…</span>
     </div>
   );
 }
@@ -481,21 +485,22 @@ function EmptyPlayerState({ onLoadUrl }: { onLoadUrl: (url: string) => void }) {
   };
 
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 px-4 text-center text-muted-foreground sm:px-8">
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 px-4 text-center text-muted-foreground sm:px-8">
       <div
-        className="absolute inset-0 h-full w-full opacity-40"
+        className="absolute inset-0 h-full w-full opacity-50"
         style={{
-          background: "radial-gradient(600px 300px at 50% 40%, hsl(262 83% 58% / 0.25), transparent 60%)",
+          background: "radial-gradient(600px 300px at 50% 40%, hsl(0 100% 65% / 0.15), transparent 60%)",
         }}
       />
-      <div className="relative space-y-1.5">
-        <div className="text-base font-semibold text-foreground/85 sm:text-lg">No video loaded</div>
-        <div className="text-xs sm:text-sm">Paste a public video URL to get started.</div>
+      <div className="relative flex flex-col items-center gap-2">
+        <span className="section-label">Empty room</span>
+        <div className="font-mono text-base font-semibold text-foreground/90 sm:text-lg">No video loaded</div>
+        <div className="text-xs text-muted-foreground sm:text-sm">Paste a public video URL to get started.</div>
       </div>
 
       <form onSubmit={submit} className="relative flex w-full max-w-xl flex-col gap-2 sm:flex-row">
         <div className="relative flex-1">
-          <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-dim" />
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -512,7 +517,7 @@ function EmptyPlayerState({ onLoadUrl }: { onLoadUrl: (url: string) => void }) {
         </Button>
       </form>
 
-      <Link to="/help" className="relative inline-flex items-center gap-1 text-[11px] text-muted-foreground transition hover:text-foreground">
+      <Link to="/help" className="relative inline-flex items-center gap-1.5 text-[11px] text-muted-foreground transition hover:text-foreground">
         <HelpCircle className="h-3 w-3" />
         Don't have a URL? See the hosting guide
       </Link>
