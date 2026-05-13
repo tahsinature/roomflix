@@ -9,8 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1045.0",
     "@radix-ui/react-slot": "^1.1.0",
     "@vidstack/react": "1.12.13",
+    "buffer": "^6.0.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.454.0",
@@ -18,7 +20,8 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
     "tailwind-merge": "^2.5.4",
-    "vidstack": "0.6.15"
+    "vidstack": "0.6.15",
+    "wavesurfer.js": "^7.12.6"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

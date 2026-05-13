@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 
 import type { ProbeResult } from "@/protocol.ts";
-import { fetchProbe, urlLooksLikeVideo } from "@/probe.ts";
+import { fetchProbe, urlLooksLikeMedia } from "@/probe.ts";
 
 // POST /api/library/probe  { url } → ProbeResult
 //
@@ -25,20 +25,21 @@ export function buildProbeRouter() {
 
 function classify(url: string, probe: Awaited<ReturnType<typeof fetchProbe>>): ProbeResult {
   if (probe.kind === "ok") {
-    const looksVideo = probe.contentType?.startsWith("video/") || urlLooksLikeVideo(url);
-    if (looksVideo) {
-      return { verdict: "ok", contentType: probe.contentType, contentLength: probe.contentLength };
+    const ct = probe.contentType;
+    const looksMedia = ct?.startsWith("video/") || ct?.startsWith("audio/") || urlLooksLikeMedia(url);
+    if (looksMedia) {
+      return { verdict: "ok", contentType: ct, contentLength: probe.contentLength };
     }
     return {
       verdict: "uncertain",
-      contentType: probe.contentType,
+      contentType: ct,
       contentLength: probe.contentLength,
-      message: probe.contentType ? `Content type is "${probe.contentType}" — not a video` : "Server didn't return a content type",
+      message: ct ? `Content type is "${ct}" — not a video or audio file` : "Server didn't return a content type",
     };
   }
 
   if (probe.kind === "head-disallowed") {
-    if (urlLooksLikeVideo(url)) {
+    if (urlLooksLikeMedia(url)) {
       return { verdict: "ok", message: "Inferred from URL extension (host doesn't allow HEAD)" };
     }
     return { verdict: "uncertain", message: "Host doesn't allow HEAD requests, can't verify content type" };

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, Clapperboard, Library as LibraryIcon } from "lucide-react";
+import { ArrowRight, Clapperboard, Database, Library as LibraryIcon } from "lucide-react";
 import type { LibraryHealth, RoomListItem, Video } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
 import { PlayButton } from "@/components/PlayButton";
@@ -149,6 +149,9 @@ function SiteNav({ onStart }: { onStart: () => void }) {
       <div className="flex items-center gap-2 sm:gap-5">
         <Link to="/library" className="hidden text-[13px] text-muted-foreground transition hover:text-foreground sm:inline">
           Library
+        </Link>
+        <Link to="/storage" className="hidden text-[13px] text-muted-foreground transition hover:text-foreground sm:inline">
+          Storage
         </Link>
         <Link to="/help" className="hidden text-[13px] text-muted-foreground transition hover:text-foreground sm:inline">
           Help
@@ -326,6 +329,10 @@ function SiteFooter() {
       <div className="mt-4 flex justify-center gap-6 text-[12px]">
         <Link to="/library" className="text-muted-foreground transition hover:text-foreground">
           Library
+        </Link>
+        <Link to="/storage" className="inline-flex items-center gap-1 text-muted-foreground transition hover:text-foreground">
+          <Database className="h-3 w-3" />
+          Storage
         </Link>
         <Link to="/help" className="text-muted-foreground transition hover:text-foreground">
           How to host

@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { HealthDot } from "@/components/HealthDot";
 import { SubtitleBadge } from "@/components/SubtitleBadge";
-import { urlIsClearlyNotVideo } from "@/lib/play";
+import { urlIsClearlyNotMedia } from "@/lib/play";
 import { cn, urlFilename } from "@/lib/utils";
 
 type Props = {
@@ -91,9 +91,9 @@ export function LibraryPicker({ onPick }: Props) {
               {videos.map((v) => {
                 const vh = health?.videos[v.id];
                 const isGone = vh?.video === "gone";
-                const notVideo = urlIsClearlyNotVideo(v.url);
-                const disabled = isGone || notVideo;
-                const reason = isGone ? "URL is unreachable" : notVideo ? "Doesn't look like a video" : undefined;
+                const notMedia = urlIsClearlyNotMedia(v.url);
+                const disabled = isGone || notMedia;
+                const reason = isGone ? "URL is unreachable" : notMedia ? "Doesn't look like a media file" : undefined;
                 return (
                   <li key={v.id}>
                     <button

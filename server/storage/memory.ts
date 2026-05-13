@@ -33,7 +33,7 @@ export class InMemoryVideoRepo implements VideoRepo {
     const video: Video = {
       id: randomId(),
       url,
-      title: input.title?.trim() || url,
+      title: input.title?.trim() || defaultTitleFromUrl(url),
       subtitles: input.subtitles ? input.subtitles.map(normalizeSubtitle) : [],
       addedAt: now,
       updatedAt: now,
@@ -42,12 +42,22 @@ export class InMemoryVideoRepo implements VideoRepo {
     return video;
   }
 
-  async update(id: string, patch: { title?: string; subtitles?: Subtitle[] }): Promise<Video | null> {
+  async update(id: string, patch: { url?: string; title?: string; subtitles?: Subtitle[] }): Promise<Video | null> {
     const existing = this.byId.get(id);
     if (!existing) return null;
+    const nextUrl = patch.url !== undefined ? patch.url.trim() : existing.url;
+    // Title falls back to the current title or a filename derived from the
+    // (possibly new) URL — keeps the display sane when only the URL changed.
+    const nextTitle =
+      patch.title !== undefined
+        ? patch.title.trim() || defaultTitleFromUrl(nextUrl)
+        : existing.title === existing.url || existing.title === defaultTitleFromUrl(existing.url)
+          ? defaultTitleFromUrl(nextUrl)
+          : existing.title;
     const updated: Video = {
       ...existing,
-      ...(patch.title !== undefined ? { title: patch.title.trim() || existing.url } : {}),
+      url: nextUrl,
+      title: nextTitle,
       ...(patch.subtitles !== undefined ? { subtitles: patch.subtitles.map(normalizeSubtitle) } : {}),
       updatedAt: Date.now(),
     };
@@ -57,6 +67,24 @@ export class InMemoryVideoRepo implements VideoRepo {
 
   async remove(id: string): Promise<boolean> {
     return this.byId.delete(id);
+  }
+}
+
+// Default display title when the caller didn't provide one — last path
+// segment of the URL, percent-decoded. Falls back to the full URL when
+// parsing fails (typically: scheme-less or otherwise malformed input).
+function defaultTitleFromUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    const last = u.pathname.split("/").filter(Boolean).pop();
+    if (!last) return u.hostname || url;
+    try {
+      return decodeURIComponent(last);
+    } catch {
+      return last;
+    }
+  } catch {
+    return url;
   }
 }
 

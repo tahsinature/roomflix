@@ -12,7 +12,7 @@ export interface VideoRepo {
   // already exists. A SQL impl would back this with a UNIQUE(url) constraint
   // and ON CONFLICT DO NOTHING semantics.
   create(input: { url: string; title?: string; subtitles?: Subtitle[] }): Promise<Video>;
-  update(id: string, patch: { title?: string; subtitles?: Subtitle[] }): Promise<Video | null>;
+  update(id: string, patch: { url?: string; title?: string; subtitles?: Subtitle[] }): Promise<Video | null>;
   remove(id: string): Promise<boolean>;
 }
 

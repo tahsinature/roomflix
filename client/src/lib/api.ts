@@ -24,7 +24,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  updateVideo: (id: string, patch: { title?: string; subtitles?: Subtitle[] }) =>
+  updateVideo: (id: string, patch: { url?: string; title?: string; subtitles?: Subtitle[] }) =>
     request<Video>(`/api/videos/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify(patch),

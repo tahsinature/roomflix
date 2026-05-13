@@ -3,9 +3,10 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Check, Copy, Users, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
+import { AudioPlayer } from "@/components/player/AudioPlayer";
 import { LibraryPicker } from "@/components/LibraryPicker";
 import { useRoomSync } from "@/hooks/useRoomSync";
-import { cn } from "@/lib/utils";
+import { cn, mediaKind } from "@/lib/utils";
 
 export default function Room() {
   const { roomId = "" } = useParams();
@@ -61,20 +62,34 @@ export default function Room() {
       <RoomHeader roomId={roomId} viewers={viewers} connected={connected} copied={copied} onCopy={copyLink} onChangeUrl={actions.setUrl} />
 
       <div className="flex flex-1 flex-col justify-center gap-4 py-6">
-        <VideoPlayer
-          videoUrl={state.videoUrl}
-          videoTitle={state.videoTitle}
-          subtitles={state.subtitles}
-          playing={state.playing}
-          currentTime={state.currentTime}
-          updatedAt={state.updatedAt}
-          serverTime={serverTime}
-          onPlay={actions.play}
-          onPause={actions.pause}
-          onSeek={actions.seek}
-          onLoadUrl={actions.setUrl}
-          loadingIncoming={incomingPending}
-        />
+        {state.videoUrl && mediaKind(state.videoUrl) === "audio" ? (
+          <AudioPlayer
+            url={state.videoUrl}
+            title={state.videoTitle}
+            playing={state.playing}
+            currentTime={state.currentTime}
+            updatedAt={state.updatedAt}
+            serverTime={serverTime}
+            onPlay={actions.play}
+            onPause={actions.pause}
+            onSeek={actions.seek}
+          />
+        ) : (
+          <VideoPlayer
+            videoUrl={state.videoUrl}
+            videoTitle={state.videoTitle}
+            subtitles={state.subtitles}
+            playing={state.playing}
+            currentTime={state.currentTime}
+            updatedAt={state.updatedAt}
+            serverTime={serverTime}
+            onPlay={actions.play}
+            onPause={actions.pause}
+            onSeek={actions.seek}
+            onLoadUrl={actions.setUrl}
+            loadingIncoming={incomingPending}
+          />
+        )}
       </div>
 
       <footer className="flex flex-col items-center gap-2 pt-6 text-center text-xs text-text-dim">

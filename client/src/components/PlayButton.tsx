@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Ban, ChevronDown, Play, Users } from "lucide-react";
 import type { RoomListItem, Video, VideoHealth } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
-import { findActiveRoomsFor, pathForNewRoomPlaying, urlIsClearlyNotVideo } from "@/lib/play";
+import { findActiveRoomsFor, pathForNewRoomPlaying, urlIsClearlyNotMedia } from "@/lib/play";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -24,13 +24,13 @@ export function PlayButton({ video, rooms, health, size = "sm" }: Props) {
   const navigate = useNavigate();
   const matching = findActiveRoomsFor(video.url, rooms);
   const isGone = health?.video === "gone";
-  const notVideo = urlIsClearlyNotVideo(video.url);
+  const notMedia = urlIsClearlyNotMedia(video.url);
 
-  if (isGone || notVideo) {
+  if (isGone || notMedia) {
     return (
-      <Button variant="outline" size={size} disabled title={isGone ? "URL is unreachable. Verify it on the library page." : "This URL doesn't look like a video file."}>
+      <Button variant="outline" size={size} disabled title={isGone ? "URL is unreachable. Verify it on the library page." : "This URL doesn't look like a media file."}>
         <Ban className="h-3.5 w-3.5" />
-        {isGone ? "Unavailable" : "Not a video"}
+        {isGone ? "Unavailable" : "Not media"}
       </Button>
     );
   }

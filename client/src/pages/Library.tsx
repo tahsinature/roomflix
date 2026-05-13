@@ -1,13 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowLeft,
-  Check,
-  ChevronDown,
-  Copy,
-  Download,
-  ExternalLink,
+  Database,
   HelpCircle,
   Library as LibraryIcon,
   Loader2,
@@ -23,10 +19,13 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { HealthDot } from "@/components/HealthDot";
-import { Modal } from "@/components/Modal";
+import { ConfigFileDialog } from "@/components/ConfigFileDialog";
+import { EditVideoDialog } from "@/components/EditVideoDialog";
+import { ExportMenu } from "@/components/ExportMenu";
 import { PlayButton } from "@/components/PlayButton";
 import { SubtitleBadge } from "@/components/SubtitleBadge";
-import { cn, urlFilename } from "@/lib/utils";
+import { copyJsonToClipboard, downloadJsonFile, openJsonInNewTab } from "@/lib/jsonExport";
+import { cn, formatBytes, urlFilename } from "@/lib/utils";
 
 export default function Library() {
   const [videos, setVideos] = useState<Video[]>([]);
@@ -98,49 +97,33 @@ export default function Library() {
     setVideos((prev) => prev.filter((v) => v.id !== id));
   };
 
-  // Build the export payload once and let the caller decide what to do
-  // with the resulting blob URL — download, open in a new tab, etc.
-  const buildExportBlobUrl = (): { url: string; filename: string; revoke: () => void } => {
-    const payload: LibraryExportV1 = {
-      version: 1,
-      exportedAt: Date.now(),
-      videos: videos.map((v) => ({
-        url: v.url,
-        title: v.title,
-        subtitles: v.subtitles.map((s) => ({
-          url: s.url,
-          label: s.label,
-          lang: s.lang,
-        })),
+  const handleClearAll = async () => {
+    // Fan out deletes in parallel — no bulk-delete API, but for typical
+    // library sizes (tens of entries) this is fine. Individual failures
+    // are swallowed so one bad row doesn't strand the rest.
+    const targets = videos;
+    await Promise.all(targets.map((v) => api.deleteVideo(v.id).catch(() => undefined)));
+    setVideos([]);
+    setError("");
+  };
+
+  const buildExportPayload = (): LibraryExportV1 => ({
+    version: 1,
+    exportedAt: Date.now(),
+    videos: videos.map((v) => ({
+      url: v.url,
+      title: v.title,
+      subtitles: v.subtitles.map((s) => ({
+        url: s.url,
+        label: s.label,
+        lang: s.lang,
       })),
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    return {
-      url,
-      filename: `roomflix-library-${new Date().toISOString().slice(0, 10)}.json`,
-      revoke: () => URL.revokeObjectURL(url),
-    };
-  };
-
-  const exportDownload = () => {
-    const { url, filename, revoke } = buildExportBlobUrl();
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    revoke();
-  };
-
-  const exportOpenInTab = () => {
-    const { url, revoke } = buildExportBlobUrl();
-    window.open(url, "_blank", "noopener");
-    setTimeout(revoke, 60_000);
-  };
+    })),
+  });
+  const exportFilename = () => `roomflix-library-${new Date().toISOString().slice(0, 10)}.json`;
+  const exportCopy = () => copyJsonToClipboard(buildExportPayload());
+  const exportDownload = () => downloadJsonFile(buildExportPayload(), exportFilename());
+  const exportOpenInTab = () => openJsonInNewTab(buildExportPayload());
 
   const [importStatus, setImportStatus] = useState<{ kind: "idle" } | { kind: "running" } | { kind: "done"; result: LibraryImportResult } | { kind: "error"; message: string }>({
     kind: "idle",
@@ -175,9 +158,11 @@ export default function Library() {
         count={videos.length}
         verifying={verifying}
         onReverify={reverify}
+        onExportCopy={exportCopy}
         onExportDownload={exportDownload}
         onExportOpenInTab={exportOpenInTab}
         onImport={handleImport}
+        onClearAll={handleClearAll}
         importStatus={importStatus}
         onDismissImportStatus={() => setImportStatus({ kind: "idle" })}
       />
@@ -217,22 +202,49 @@ function LibraryHeader({
   count,
   verifying,
   onReverify,
+  onExportCopy,
   onExportDownload,
   onExportOpenInTab,
   onImport,
+  onClearAll,
   importStatus,
   onDismissImportStatus,
 }: {
   count: number;
   verifying: boolean;
   onReverify: () => void;
+  onExportCopy: () => Promise<boolean>;
   onExportDownload: () => void;
   onExportOpenInTab: () => void;
   onImport: (input: File | string) => Promise<void>;
+  onClearAll: () => Promise<void>;
   importStatus: ImportStatus;
   onDismissImportStatus: () => void;
 }) {
   const [importOpen, setImportOpen] = useState(false);
+  const [armedClear, setArmedClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  useEffect(() => {
+    if (!armedClear) return;
+    const t = setTimeout(() => setArmedClear(false), 3000);
+    return () => clearTimeout(t);
+  }, [armedClear]);
+
+  const triggerClear = async () => {
+    if (clearing || count === 0) return;
+    if (!armedClear) {
+      setArmedClear(true);
+      return;
+    }
+    setArmedClear(false);
+    setClearing(true);
+    try {
+      await onClearAll();
+    } finally {
+      setClearing(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-4 border-b border-border pb-5">
@@ -253,164 +265,59 @@ function LibraryHeader({
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button asChild variant="ghost" size="sm" aria-label="Open Storage" title="Open Storage">
+            <Link to="/storage">
+              <Database className="h-3.5 w-3.5" />
+              <span className="hidden lg:inline">Storage</span>
+            </Link>
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} disabled={importStatus.kind === "running"} aria-label="Import library" title="Import library">
             <Upload className="h-3.5 w-3.5" />
             <span className="hidden lg:inline">Import</span>
           </Button>
-          <ExportMenu disabled={count === 0} onDownload={onExportDownload} onOpenInTab={onExportOpenInTab} />
+          <ExportMenu
+            disabled={count === 0}
+            title={count === 0 ? "Nothing to export" : "Export library"}
+            onCopy={onExportCopy}
+            onDownload={onExportDownload}
+            onOpenInTab={onExportOpenInTab}
+          />
           <Button variant="outline" size="sm" onClick={onReverify} disabled={verifying} aria-label="Re-verify library">
             <RefreshCw className={cn("h-3.5 w-3.5", verifying && "animate-spin")} />
             <span className="hidden lg:inline">{verifying ? "Verifying…" : "Verify"}</span>
+          </Button>
+          <Button
+            variant={armedClear ? "destructive" : "ghost"}
+            size="sm"
+            onClick={triggerClear}
+            disabled={count === 0 || clearing}
+            aria-label={armedClear ? "Click again to clear library" : "Clear library"}
+            title={count === 0 ? "Library is empty" : armedClear ? "Click again to confirm" : "Delete all entries"}
+            className={cn(armedClear && "animate-pulse-soft")}
+          >
+            {clearing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Trash2 className={cn("h-3.5 w-3.5", !armedClear && "text-accent/80")} />
+            )}
+            <span className="hidden lg:inline">{clearing ? "Clearing…" : armedClear ? "Click again" : "Clear all"}</span>
           </Button>
         </div>
       </header>
 
       {importStatus.kind !== "idle" && <ImportStatusBanner status={importStatus} onDismiss={onDismissImportStatus} />}
 
-      <ImportDialog
+      <ConfigFileDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
+        title="Import library"
+        placeholder='{"version":1,"videos":[…]}'
         onSubmit={async (input) => {
           setImportOpen(false);
           await onImport(input);
         }}
       />
     </div>
-  );
-}
-
-function ExportMenu({ disabled, onDownload, onOpenInTab }: { disabled: boolean; onDownload: () => void; onOpenInTab: () => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("mousedown", onClick);
-    window.addEventListener("keydown", onEsc);
-    return () => {
-      window.removeEventListener("mousedown", onClick);
-      window.removeEventListener("keydown", onEsc);
-    };
-  }, [open]);
-
-  const choose = (fn: () => void) => {
-    fn();
-    setOpen(false);
-  };
-
-  return (
-    <div ref={ref} className="relative">
-      <Button variant="outline" size="sm" onClick={() => setOpen((o) => !o)} disabled={disabled} aria-label="Export library" title={disabled ? "Nothing to export" : "Export library"}>
-        <Download className="h-3.5 w-3.5" />
-        <span className="hidden lg:inline">Export</span>
-        <ChevronDown className="h-3 w-3 opacity-60" />
-      </Button>
-      {open && (
-        <div className="absolute right-0 top-full z-30 mt-2 min-w-[12rem] border border-white/10 bg-[#16181f]/95 p-1 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)] backdrop-blur-xl">
-          <button type="button" onClick={() => choose(onDownload)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition hover:bg-white/[0.04]">
-            <Download className="h-3.5 w-3.5 text-muted-foreground" />
-            Download file
-          </button>
-          <button type="button" onClick={() => choose(onOpenInTab)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition hover:bg-white/[0.04]">
-            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
-            Open in new tab
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ImportDialog({ open, onClose, onSubmit }: { open: boolean; onClose: () => void; onSubmit: (input: File | string) => Promise<void> }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (open) {
-      setFile(null);
-      setText("");
-      setBusy(false);
-    }
-  }, [open]);
-
-  const canSubmit = !busy && (file !== null || text.trim().length > 0);
-
-  const submit = async () => {
-    if (!canSubmit) return;
-    setBusy(true);
-    try {
-      await onSubmit(file ?? text);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Modal open={open} onClose={onClose} title="Import library">
-      <div className="space-y-5">
-        <section>
-          <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Upload a file</label>
-          <div className="mt-2 flex items-center gap-2">
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".json,application/json"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0] ?? null;
-                e.target.value = "";
-                setFile(f);
-              }}
-            />
-            <Button variant="outline" onClick={() => fileRef.current?.click()} className="h-10">
-              <Upload className="h-3.5 w-3.5" />
-              {file ? "Change file" : "Choose JSON file"}
-            </Button>
-            {file && (
-              <span className="truncate font-mono text-xs text-muted-foreground" title={file.name}>
-                {file.name}
-              </span>
-            )}
-          </div>
-        </section>
-
-        <div className="relative py-1 text-center text-[10px] uppercase tracking-[0.18em] text-text-dim">
-          <span className="bg-bg-elevated px-3">or paste JSON</span>
-          <div className="absolute inset-x-0 top-1/2 -z-10 h-px bg-border" />
-        </div>
-
-        <section>
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder='{"version":1,"videos":[…]}'
-            spellCheck={false}
-            rows={8}
-            className="w-full border border-border bg-input/60 p-3 font-mono text-xs text-foreground placeholder:text-text-dim focus-visible:border-accent/60 focus-visible:bg-input focus-visible:outline-none"
-          />
-          <p className="mt-1 text-[11px] text-muted-foreground">Paste the contents of a previous export. File takes priority if both are filled.</p>
-        </section>
-
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose} disabled={busy} className="h-10">
-            Cancel
-          </Button>
-          <Button variant="accent" onClick={submit} disabled={!canSubmit} className="h-10">
-            {busy ? "Importing…" : "Import"}
-          </Button>
-        </div>
-      </div>
-    </Modal>
   );
 }
 
@@ -531,7 +438,7 @@ function AddVideoForm({ onAdd }: { onAdd: (input: { url: string; title?: string 
           disabled={probing}
         />
         <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title (optional)" className="sm:w-56" disabled={probing} />
-        <Button type="submit" variant="accent" disabled={!url.trim() || probing}>
+        <Button type="submit" variant="accent" disabled={!url.trim() || probing} className="h-11">
           {probing ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -582,17 +489,6 @@ function ProbeReview({ probe, onConfirm, onCancel }: { probe: ProbeResult; onCon
       </div>
     </div>
   );
-}
-
-function formatBytes(bytes: number): string {
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let v = bytes;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${v < 10 && i > 0 ? v.toFixed(2) : v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
 function VideoRow({
@@ -668,199 +564,6 @@ function VideoRow({
 
       <EditVideoDialog video={video} health={health} open={editOpen} onClose={() => setEditOpen(false)} onUpdate={onUpdate} />
     </li>
-  );
-}
-
-function SubtitlesPanel({
-  video,
-  health,
-  onUpdate,
-}: {
-  video: Video;
-  health: VideoHealth | undefined;
-  onUpdate: (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => Promise<void>;
-}) {
-  const [url, setUrl] = useState("");
-  const [label, setLabel] = useState("");
-  const [lang, setLang] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  const addSubtitle = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = url.trim();
-    if (!trimmed) return;
-    setBusy(true);
-    setError("");
-    try {
-      const next: Subtitle[] = [...video.subtitles, { id: "", url: trimmed, label: label.trim(), lang: lang.trim() }];
-      await onUpdate(video.id, { subtitles: next });
-      setUrl("");
-      setLabel("");
-      setLang("");
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const remove = async (id: string) => {
-    setError("");
-    try {
-      await onUpdate(video.id, { subtitles: video.subtitles.filter((s) => s.id !== id) });
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  };
-
-  return (
-    <div className="mt-2 space-y-2 border border-border bg-white/[0.02] p-3">
-      {video.subtitles.length > 0 && (
-        <ul className="flex flex-col gap-1.5">
-          {video.subtitles.map((s) => (
-            <li key={s.id} className="flex items-center gap-2 border border-border bg-bg-elevated/50 px-2.5 py-1.5">
-              <HealthDot status={health?.subtitles?.[s.id]} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-xs font-medium text-foreground/90">{s.label || s.url}</span>
-                  {s.lang && <span className="border border-cyan/30 bg-cyan/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-cyan">{s.lang}</span>}
-                </div>
-                <p className="truncate font-mono text-[10px] text-text-dim">{s.url}</p>
-              </div>
-              <CopyIconButton text={s.url} label="subtitle URL" />
-              <button
-                type="button"
-                onClick={() => remove(s.id)}
-                aria-label={`Remove ${s.label || s.url}`}
-                className="shrink-0 p-1 text-muted-foreground transition hover:bg-white/[0.05] hover:text-accent"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <form onSubmit={addSubtitle} className="flex flex-col gap-2 sm:flex-row">
-        <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Subtitle URL (.vtt or .srt)" className="h-10 sm:flex-1" autoCapitalize="off" autoCorrect="off" spellCheck={false} />
-        <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label (e.g. English)" className="h-10 sm:w-40" />
-        <Input value={lang} onChange={(e) => setLang(e.target.value)} placeholder="Lang (e.g. en)" className="h-10 sm:w-28" autoCapitalize="off" />
-        <Button type="submit" variant="outline" disabled={!url.trim() || busy} className="h-10 shrink-0">
-          <Plus className="h-4 w-4" />
-          Add
-        </Button>
-      </form>
-
-      {error && <p className="text-xs text-accent">{error}</p>}
-    </div>
-  );
-}
-
-// Centralized edit surface for a library entry. Hosts both title editing
-// and subtitle management.
-function EditVideoDialog({
-  video,
-  health,
-  open,
-  onClose,
-  onUpdate,
-}: {
-  video: Video;
-  health: VideoHealth | undefined;
-  open: boolean;
-  onClose: () => void;
-  onUpdate: (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => Promise<void>;
-}) {
-  const [draftTitle, setDraftTitle] = useState(video.title);
-  const [savingTitle, setSavingTitle] = useState(false);
-  const [titleErr, setTitleErr] = useState("");
-
-  useEffect(() => {
-    setDraftTitle(video.title);
-    setTitleErr("");
-  }, [video.id, video.title, open]);
-
-  const dirty = draftTitle.trim() !== video.title && draftTitle.trim() !== "";
-
-  const saveTitle = async () => {
-    if (savingTitle || !dirty) return;
-    setSavingTitle(true);
-    setTitleErr("");
-    try {
-      await onUpdate(video.id, { title: draftTitle.trim() });
-    } catch (err) {
-      setTitleErr((err as Error).message);
-    } finally {
-      setSavingTitle(false);
-    }
-  };
-
-  return (
-    <Modal open={open} onClose={onClose} title="Edit video">
-      <div className="space-y-6">
-        <section>
-          <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Title</label>
-          <div className="mt-2 flex gap-2">
-            <Input
-              value={draftTitle}
-              onChange={(e) => setDraftTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void saveTitle();
-              }}
-              disabled={savingTitle}
-              autoFocus
-              className="h-10"
-            />
-            <Button variant={dirty ? "accent" : "outline"} onClick={saveTitle} disabled={!dirty || savingTitle} className="h-10 shrink-0">
-              {savingTitle ? "Saving…" : "Save"}
-            </Button>
-          </div>
-          {titleErr && <p className="mt-1 text-xs text-accent">{titleErr}</p>}
-        </section>
-
-        <section>
-          <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">URL</label>
-          <div className="mt-2 flex items-center gap-2">
-            <p className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">{video.url}</p>
-            <CopyIconButton text={video.url} label="video URL" />
-          </div>
-        </section>
-
-        <section>
-          <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Subtitles</label>
-          <div className="mt-2">
-            <SubtitlesPanel video={video} health={health} onUpdate={onUpdate} />
-          </div>
-        </section>
-      </div>
-    </Modal>
-  );
-}
-
-// Small clipboard-copy button. Used inside the Edit Video modal for video
-// and subtitle URLs — handy for grabbing a URL when debugging or sharing.
-function CopyIconButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* clipboard blocked — user can still select the text manually */
-    }
-  };
-  return (
-    <button
-      type="button"
-      onClick={copy}
-      title={copied ? "Copied" : `Copy ${label}`}
-      aria-label={copied ? "Copied" : `Copy ${label}`}
-      className="shrink-0 p-1.5 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground"
-    >
-      {copied ? <Check className="h-3.5 w-3.5 text-live" /> : <Copy className="h-3.5 w-3.5" />}
-    </button>
   );
 }
 

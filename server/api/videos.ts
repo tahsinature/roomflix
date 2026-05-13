@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import type { Subtitle } from "@/protocol.ts";
 import type { Storage } from "@/storage/index.ts";
 import { invalidateHealthCache } from "@/api/health.ts";
+import { normalizeUrl } from "@/probe.ts";
 
 // REST routes for video library entries.
 //   GET    /api/videos              list all
@@ -17,8 +18,11 @@ export function buildVideosRouter(storage: Storage) {
 
   app.post("/", async (c) => {
     const body = (await c.req.json().catch(() => null)) as { url?: unknown; title?: unknown; subtitles?: unknown } | null;
-    const inputUrl = typeof body?.url === "string" ? body.url.trim() : "";
-    if (!inputUrl) return c.json({ error: "url is required" }, 400);
+    const rawUrl = typeof body?.url === "string" ? body.url.trim() : "";
+    if (!rawUrl) return c.json({ error: "url is required" }, 400);
+    // Auto-prepend https:// for bare URLs so a missing protocol can't break
+    // every downstream check (probe, health, playback).
+    const inputUrl = normalizeUrl(rawUrl);
 
     const existing = await storage.videos.findByUrl(inputUrl);
     if (existing) return c.json(existing);
@@ -38,10 +42,11 @@ export function buildVideosRouter(storage: Storage) {
   });
 
   app.patch("/:id", async (c) => {
-    const body = (await c.req.json().catch(() => null)) as { title?: unknown; subtitles?: unknown } | null;
+    const body = (await c.req.json().catch(() => null)) as { url?: unknown; title?: unknown; subtitles?: unknown } | null;
     if (!body) return c.json({ error: "invalid body" }, 400);
 
-    const patch: { title?: string; subtitles?: Subtitle[] } = {};
+    const patch: { url?: string; title?: string; subtitles?: Subtitle[] } = {};
+    if (typeof body.url === "string" && body.url.trim()) patch.url = normalizeUrl(body.url);
     if (typeof body.title === "string") patch.title = body.title;
     const subs = parseSubtitles(body.subtitles);
     if (subs !== undefined) patch.subtitles = subs;
@@ -64,7 +69,8 @@ export function buildVideosRouter(storage: Storage) {
 
 // Coerces unknown input to a Subtitle[] when given an array; returns
 // undefined otherwise so callers can distinguish "don't touch" from
-// "explicitly empty".
+// "explicitly empty". Subtitle URLs go through the same normalizer as
+// video URLs so a missing scheme can't break the subtitle proxy.
 function parseSubtitles(raw: unknown): Subtitle[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const out: Subtitle[] = [];
@@ -74,7 +80,7 @@ function parseSubtitles(raw: unknown): Subtitle[] | undefined {
     if (typeof r.url !== "string" || !r.url.trim()) continue;
     out.push({
       id: typeof r.id === "string" ? r.id : "",
-      url: r.url,
+      url: normalizeUrl(r.url),
       label: typeof r.label === "string" ? r.label : "",
       lang: typeof r.lang === "string" ? r.lang : "",
     });
