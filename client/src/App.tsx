@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import Home from "@/pages/Home";
 import Room from "@/pages/Room";
 import Library from "@/pages/Library";
@@ -28,6 +29,14 @@ export default function App() {
   );
 }
 
+// Suspense fallback while a lazy route's JS chunk downloads. Centered so it
+// doesn't read as broken UI in the top-left, and visually consistent with
+// the other "loading" frames across the app.
 function RouteFallback() {
-  return <div className="px-6 py-10 text-xs text-muted-foreground">Loading…</div>;
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center">
+      <Loader2 className="h-7 w-7 animate-spin text-accent/90" />
+      <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Loading…</span>
+    </main>
+  );
 }
