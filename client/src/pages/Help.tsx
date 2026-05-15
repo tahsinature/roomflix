@@ -1,24 +1,16 @@
 import { Link } from "react-router-dom";
-import { AlertTriangle, ArrowLeft, CheckCircle2, HelpCircle, Server, Video, XCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertTriangle, CheckCircle2, HelpCircle, Server, Video, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function Help() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-7 px-4 py-6 sm:px-6 sm:py-10">
-      <header className="flex items-center gap-3 border-b border-border pb-5">
-        <Button asChild variant="ghost" size="icon">
-          <Link to="/" aria-label="Back to home">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div className="flex flex-col leading-tight">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Help</span>
-          <h1 className="flex items-center gap-2 text-base font-semibold tracking-tight text-foreground">
-            <HelpCircle className="h-4 w-4 text-accent" />
-            Hosting your video
-          </h1>
-        </div>
+    <main className="mx-auto flex max-w-3xl flex-col gap-7 px-4 py-6 sm:px-6 sm:py-8">
+      <header className="flex flex-col leading-tight border-b border-border pb-5">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Help</span>
+        <h1 className="flex items-center gap-2 text-base font-semibold tracking-tight text-foreground">
+          <HelpCircle className="h-4 w-4 text-accent" />
+          Hosting your video
+        </h1>
       </header>
 
       <Section label="What you need">

@@ -1,15 +1,14 @@
-import { InMemoryVideoRepo } from "@/storage/memory.ts";
+import { createMongoStorage } from "@/storage/mongo.ts";
 import type { Storage } from "@/storage/types.ts";
 
 let cached: Storage | null = null;
 
-// Sole entry point for storage. When a DB is wired in, this is the only
-// place that needs to change — branch on env (e.g. DATABASE_URL) and
-// return the DB-backed impls instead.
-export function createStorage(): Storage {
+// Sole entry point for storage. Connects to Mongo on first call and caches
+// the result so all routers share one connection pool.
+export async function createStorage(mongoUrl: string): Promise<Storage> {
   if (cached) return cached;
-  cached = { videos: new InMemoryVideoRepo() };
+  cached = await createMongoStorage(mongoUrl);
   return cached;
 }
 
-export type { Storage, VideoRepo } from "@/storage/types.ts";
+export type { Storage, VideoRepo, UserRepo, SessionRepo, StoredUser, Session } from "@/storage/types.ts";

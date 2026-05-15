@@ -4,39 +4,92 @@ import type { ServerWebSocket } from "bun";
 import { Hono } from "hono";
 
 import { type ClientMessage, type ServerMessage } from "@/protocol.ts";
-import { getOrCreateRoom, removeSocket, type WsData } from "@/rooms.ts";
+import {
+  broadcastPresence,
+  broadcastState,
+  broadcastViewers,
+  getOrCreateSession,
+  getSession,
+  removeSocket,
+  viewersOf,
+  type Session,
+  type WsData,
+} from "@/sessions.ts";
 import { createStorage } from "@/storage/index.ts";
 import { buildVideosRouter } from "@/api/videos.ts";
-import { buildRoomsRouter } from "@/api/rooms.ts";
 import { buildHealthRouter } from "@/api/health.ts";
 import { buildProbeRouter } from "@/api/probe.ts";
-import { buildLibraryImportRouter } from "@/api/library_import.ts";
 import { buildSubtitleProxyRouter } from "@/api/subtitle_proxy.ts";
+import { buildAuthRouter } from "@/api/auth.ts";
+import { buildStorageConfigRouter } from "@/api/storage_config.ts";
+import { buildPlaylistsRouter } from "@/api/playlists.ts";
+import { buildInvitesRouter, buildSessionSpaceRouter, buildSpacesRouter } from "@/api/spaces.ts";
+import { buildSessionMembersRouter, buildSessionStateRouter } from "@/api/session_state.ts";
+import { buildPairingRouter } from "@/api/pairing.ts";
+import { getCurrentPrincipalFromRequest } from "@/auth.ts";
+import { assertEncryptionKey } from "@/crypto.ts";
+import { ensureHomeSpace } from "@/spaces.ts";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const IS_PROD = process.env.NODE_ENV === "production";
+const MONGO_URL = process.env.MONGO_URL;
 
 const CLIENT_DIST = join(import.meta.dir, "..", "client", "dist");
 const HAS_CLIENT_BUILD = existsSync(CLIENT_DIST);
 
-const storage = createStorage();
+if (!MONGO_URL) {
+  console.error("[roomflix] MONGO_URL is required — point it at a MongoDB instance (Atlas, local, etc.)");
+  process.exit(1);
+}
 
-// HTTP routes via Hono. The WebSocket /ws path is handled separately in
-// Bun.serve below — Hono doesn't own WS upgrades for our pattern (we need
-// per-room socket bookkeeping that lives outside any framework).
+try {
+  assertEncryptionKey();
+} catch (err) {
+  console.error(`[roomflix] ${(err as Error).message}`);
+  process.exit(1);
+}
+
+const storage = await createStorage(MONGO_URL);
+
+// Phase-4 boot migration: every existing user gets a Home space and any
+// pre-spaces data (videos, playlists, imports, storage config) reparents
+// onto that space. Idempotent — users who already have a membership are
+// skipped.
+async function runSpaceMigration(): Promise<void> {
+  const users = await storage.users.listAll();
+  let migrated = 0;
+  for (const user of users) {
+    const existing = await storage.memberships.listForUser(user.id);
+    if (existing.length > 0) continue;
+    const home = await ensureHomeSpace(storage, user);
+    await storage.videos.reparent(user.id, home.id);
+    await storage.playlists.reparent(user.id, home.id);
+    await storage.storageConfigs.reparentFromUser(user.id, home.id);
+    migrated++;
+  }
+  if (migrated > 0) console.log(`[roomflix] reparented ${migrated} legacy user(s) into Home spaces`);
+}
+await runSpaceMigration();
+
 const app = new Hono();
 
 app.get("/healthz", (c) => c.text("ok"));
 
+app.route("/api/auth", buildAuthRouter(storage));
+app.route("/api/spaces", buildSpacesRouter(storage));
+app.route("/api/invites", buildInvitesRouter(storage));
+app.route("/api/pairing", buildPairingRouter(storage));
+app.route("/api/session/space", buildSessionSpaceRouter(storage));
+app.route("/api/session/state", buildSessionStateRouter(storage));
+app.route("/api/session/members", buildSessionMembersRouter(storage));
 app.route("/api/videos", buildVideosRouter(storage));
-app.route("/api/rooms", buildRoomsRouter(storage));
 app.route("/api/library/health", buildHealthRouter(storage));
-app.route("/api/library/probe", buildProbeRouter());
-app.route("/api/library/import", buildLibraryImportRouter(storage));
-app.route("/api/library/subtitle", buildSubtitleProxyRouter());
+app.route("/api/library/probe", buildProbeRouter(storage));
+app.route("/api/library/subtitle", buildSubtitleProxyRouter(storage));
+app.route("/api/storage/config", buildStorageConfigRouter(storage));
+app.route("/api/playlists", buildPlaylistsRouter(storage));
 
-// SPA fallback: in prod, serve the Vite build for any unmatched path. In
-// dev the Vite server handles the UI and proxies /ws + /api here.
+// SPA fallback.
 app.all("*", async (c) => {
   if (!HAS_CLIENT_BUILD) {
     return c.text("roomflix server running. Start the Vite dev server for the UI.");
@@ -44,77 +97,267 @@ app.all("*", async (c) => {
   const path = c.req.path === "/" ? "/index.html" : c.req.path;
   const file = Bun.file(join(CLIENT_DIST, path));
   if (await file.exists()) return new Response(file);
-  // Unknown route → return index.html so React Router can resolve it.
   return new Response(Bun.file(join(CLIENT_DIST, "index.html")));
 });
 
-function broadcastState(roomId: string) {
-  const room = getOrCreateRoom(roomId);
-  const message: ServerMessage = { type: "state", state: room.state, viewers: room.sockets.size, serverTime: Date.now() };
-  const payload = JSON.stringify(message);
-  for (const ws of room.sockets) ws.send(payload);
+async function applyVideoToSession(session: Session, videoId: string, opts: { autoplay: boolean }): Promise<void> {
+  const video = await storage.videos.get(session.spaceId, videoId);
+  if (!video) {
+    session.state.videoUrl = null;
+    session.state.videoTitle = null;
+    session.state.subtitles = [];
+    session.state.playing = false;
+    session.state.currentTime = 0;
+    return;
+  }
+  session.state.videoUrl = video.url;
+  session.state.videoTitle = video.title;
+  session.state.subtitles = video.subtitles;
+  session.state.currentTime = 0;
+  session.state.playing = opts.autoplay;
 }
 
-function broadcastViewers(roomId: string) {
-  const room = getOrCreateRoom(roomId);
-  const payload = JSON.stringify({ type: "viewers", viewers: room.sockets.size } satisfies ServerMessage);
-  for (const ws of room.sockets) ws.send(payload);
+// Walk a playlist in `direction` (+1 forward, -1 backward) starting from
+// `fromIndex`, skipping ids whose library entry has been deleted. Loop
+// wraps once at the end; without loop, we clamp.
+async function findPlayableIndex(
+  videoIds: string[],
+  fromIndex: number,
+  direction: 1 | -1,
+  spaceId: string,
+  loop: boolean,
+): Promise<{ index: number; videoId: string } | null> {
+  if (videoIds.length === 0) return null;
+  let i = fromIndex;
+  for (let step = 0; step < videoIds.length; step++) {
+    i += direction;
+    if (i < 0 || i >= videoIds.length) {
+      if (!loop) return null;
+      i = (i + videoIds.length) % videoIds.length;
+    }
+    const id = videoIds[i]!;
+    const video = await storage.videos.get(spaceId, id);
+    if (video) return { index: i, videoId: id };
+  }
+  return null;
+}
+
+async function findFirstPlayable(videoIds: string[], spaceId: string): Promise<{ index: number; videoId: string } | null> {
+  for (let i = 0; i < videoIds.length; i++) {
+    const id = videoIds[i]!;
+    const video = await storage.videos.get(spaceId, id);
+    if (video) return { index: i, videoId: id };
+  }
+  return null;
 }
 
 async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientMessage) {
-  const room = getOrCreateRoom(ws.data.roomId);
+  const session = getSession(ws.data.spaceId);
+  if (!session) return;
   const now = Date.now();
+
+  // setStatus is presence-only, never touches playback state — handled
+  // before the switch so we can short-circuit the trailing broadcastState
+  // (which would otherwise stamp updatedAt for a non-playback event).
+  if (message.type === "setStatus") {
+    const next = message.status === "watching" ? "watching" : "online";
+    const prev = ws.data.status;
+    if (next === prev) return;
+    ws.data.status = next;
+    // Leaving /watch clears the per-tab volume — they're no longer
+    // running a player. Saves stale "muted" badges from showing for
+    // users who muted, switched pages, and stayed offline.
+    if (next === "online") {
+      ws.data.volume = undefined;
+      ws.data.volumeUpdatedAt = undefined;
+    }
+    broadcastPresence(ws.data.spaceId);
+    // Viewers set changes whenever a socket crosses the watching line.
+    broadcastViewers(ws.data.spaceId);
+    return;
+  }
+
+  // Volume updates are presence-only too. Cheap to no-op when nothing
+  // actually changed — saves redundant broadcasts during slider drags
+  // that happen to repeat the same value (debounce isn't perfect).
+  if (message.type === "setVolume") {
+    const level = Math.max(0, Math.min(1, Number(message.level) || 0));
+    const muted = !!message.muted;
+    const prev = ws.data.volume;
+    if (prev && prev.level === level && prev.muted === muted) return;
+    ws.data.volume = { level, muted };
+    ws.data.volumeUpdatedAt = now;
+    broadcastPresence(ws.data.spaceId);
+    return;
+  }
 
   switch (message.type) {
     case "hello":
-      // Client already sent hello on connect; no-op, state was pushed on open.
       return;
     case "play":
-      room.state.playing = true;
-      room.state.currentTime = message.currentTime;
+      session.state.playing = true;
+      session.state.currentTime = message.currentTime;
       break;
     case "pause":
-      room.state.playing = false;
-      room.state.currentTime = message.currentTime;
+      session.state.playing = false;
+      session.state.currentTime = message.currentTime;
       break;
     case "seek":
-      room.state.currentTime = message.currentTime;
+      session.state.currentTime = message.currentTime;
       break;
     case "setUrl":
-      room.state.videoUrl = message.videoUrl;
-      room.state.currentTime = 0;
-      room.state.playing = false;
-      // Auto-save (idempotent on URL) and snapshot the library entry's
-      // title + subtitles into room state. Errors here shouldn't block playback.
+      session.state.videoUrl = message.videoUrl;
+      session.state.currentTime = 0;
+      session.state.playing = false;
+      session.state.playlistId = null;
+      session.state.playlistIndex = 0;
+      // Auto-save into the space library (idempotent on url) so everyone
+      // in the space sees the title + subtitles, not just the setter.
       try {
-        const entry = await storage.videos.create({ url: message.videoUrl });
-        room.state.videoTitle = entry.title;
-        room.state.subtitles = entry.subtitles;
+        const entry = await storage.videos.create({ spaceId: session.spaceId, addedBy: ws.data.userId, url: message.videoUrl });
+        session.state.videoTitle = entry.title;
+        session.state.subtitles = entry.subtitles;
       } catch (err) {
         console.error("[roomflix] library lookup failed", err);
-        room.state.videoTitle = null;
-        room.state.subtitles = [];
+        session.state.videoTitle = null;
+        session.state.subtitles = [];
       }
+      break;
+    case "loadPlaylist": {
+      const playlist = await storage.playlists.get(session.spaceId, message.playlistId);
+      if (!playlist) return;
+      session.state.playlistId = playlist.id;
+      session.state.playlistIndex = 0;
+      const first = playlist.videoIds.length > 0 ? await findFirstPlayable(playlist.videoIds, session.spaceId) : null;
+      if (first) {
+        session.state.playlistIndex = first.index;
+        await applyVideoToSession(session, first.videoId, { autoplay: true });
+      } else {
+        session.state.videoUrl = null;
+        session.state.videoTitle = null;
+        session.state.subtitles = [];
+        session.state.playing = false;
+        session.state.currentTime = 0;
+      }
+      break;
+    }
+    case "playlistNext":
+    case "playlistPrev": {
+      if (!session.state.playlistId) return;
+      const playlist = await storage.playlists.getById(session.state.playlistId);
+      if (!playlist || playlist.spaceId !== session.spaceId) return;
+      const direction = message.type === "playlistNext" ? 1 : -1;
+      const target = await findPlayableIndex(playlist.videoIds, session.state.playlistIndex, direction, session.spaceId, session.state.playlistLoop);
+      if (!target) {
+        session.state.playing = false;
+        break;
+      }
+      session.state.playlistIndex = target.index;
+      await applyVideoToSession(session, target.videoId, { autoplay: true });
+      break;
+    }
+    case "playlistJumpTo": {
+      if (!session.state.playlistId) return;
+      const playlist = await storage.playlists.getById(session.state.playlistId);
+      if (!playlist || playlist.spaceId !== session.spaceId) return;
+      const idx = Math.floor(message.index);
+      if (idx < 0 || idx >= playlist.videoIds.length) return;
+      const id = playlist.videoIds[idx]!;
+      const video = await storage.videos.get(session.spaceId, id);
+      if (!video) return;
+      session.state.playlistIndex = idx;
+      await applyVideoToSession(session, id, { autoplay: true });
+      break;
+    }
+    case "videoEnded": {
+      if (message.endedUrl !== session.state.videoUrl) return;
+      if (!session.state.playlistId) {
+        session.state.playing = false;
+        break;
+      }
+      const playlist = await storage.playlists.getById(session.state.playlistId);
+      if (!playlist || playlist.spaceId !== session.spaceId) {
+        session.state.playing = false;
+        break;
+      }
+      const target = await findPlayableIndex(playlist.videoIds, session.state.playlistIndex, 1, session.spaceId, session.state.playlistLoop);
+      if (!target) {
+        session.state.playing = false;
+        break;
+      }
+      session.state.playlistIndex = target.index;
+      await applyVideoToSession(session, target.videoId, { autoplay: true });
+      break;
+    }
+    case "setPlaylistLoop":
+      session.state.playlistLoop = !!message.loop;
       break;
   }
 
-  room.state.updatedAt = now;
-  room.state.updatedBy = ws.data.clientId;
-  broadcastState(ws.data.roomId);
+  session.state.updatedAt = now;
+  session.state.updatedBy = ws.data.clientId;
+  broadcastState(ws.data.spaceId);
 }
 
 const server = Bun.serve<WsData>({
   port: PORT,
-  fetch(req, srv) {
+  async fetch(req, srv) {
     const url = new URL(req.url);
 
-    // WebSocket upgrade: /ws?room=<id>&client=<id>. Handled before Hono
-    // because srv.upgrade() needs the raw Bun server reference.
+    // WebSocket upgrade: /ws?client=<id>. The space comes from the
+    // session's currentSpaceId — works for both user sessions and guest
+    // sessions. Everyone in the same space joins the same playback session.
     if (url.pathname === "/ws") {
-      const roomId = url.searchParams.get("room");
       const clientId = url.searchParams.get("client");
-      if (!roomId || !clientId) return new Response("missing room or client", { status: 400 });
-      const ok = srv.upgrade(req, { data: { roomId, clientId } });
+      if (!clientId) return new Response("missing client id", { status: 400 });
+
+      const principal = await getCurrentPrincipalFromRequest(req, storage);
+      if (!principal) {
+        console.warn("[roomflix] ws upgrade rejected: no principal (missing/expired/unknown cookie)");
+        return new Response("unauthorized", { status: 401 });
+      }
+
+      const spaceId = principal.session.currentSpaceId;
+      if (!spaceId) {
+        console.warn(`[roomflix] ws upgrade rejected: no active space (principal=${principal.kind})`);
+        return new Response("no active space", { status: 409 });
+      }
+
+      if (principal.kind === "user") {
+        const member = await storage.memberships.get(spaceId, principal.user.id);
+        if (!member) {
+          console.warn(`[roomflix] ws upgrade rejected: user ${principal.user.id} not a member of ${spaceId}`);
+          return new Response("not a member of this space", { status: 403 });
+        }
+      }
+      // Guests are admitted as long as the session's currentSpaceId is
+      // set (it's stamped at redeem time and can't be changed by them).
+
+      // userId for WsData is either the real user id or the guest's
+      // session token — both stable per-principal IDs for attribution.
+      const userId = principal.kind === "user" ? principal.user.id : principal.session.token;
+
+      // Identity for the viewers list. For users, prefer displayName but
+      // fall back to "@username" so the chip is never blank. For guests,
+      // use guestDisplayName (set at pairing/redeem time); also has a
+      // defensive fallback in case it's somehow empty.
+      const identityKind: "user" | "guest" = principal.kind === "user" ? "user" : "guest";
+      const identityId = principal.kind === "user" ? principal.user.id : principal.session.token;
+      const displayName =
+        principal.kind === "user"
+          ? principal.user.displayName?.trim() || `@${principal.user.username}`
+          : principal.session.guestDisplayName?.trim() || "Guest";
+
+      // Initial presence status. Pre-presence-aware clients (legacy
+      // /watch hook) don't send the query param — they default to
+      // "watching" so existing behavior is preserved. The new global
+      // socket on dashboard/library will pass ?status=online.
+      const rawStatus = url.searchParams.get("status");
+      const status: "online" | "watching" = rawStatus === "online" ? "online" : "watching";
+
+      const ok = srv.upgrade(req, {
+        data: { spaceId, clientId, userId, identityId, identityKind, displayName, status },
+      });
       return ok ? undefined : new Response("upgrade failed", { status: 500 });
     }
 
@@ -122,11 +365,18 @@ const server = Bun.serve<WsData>({
   },
   websocket: {
     open(ws) {
-      const room = getOrCreateRoom(ws.data.roomId);
-      room.sockets.add(ws);
-      const snapshot: ServerMessage = { type: "state", state: room.state, viewers: room.sockets.size, serverTime: Date.now() };
+      const session = getOrCreateSession(ws.data.spaceId);
+      session.sockets.add(ws);
+      console.log(`[roomflix] ws open: space=${ws.data.spaceId} userId=${ws.data.userId} status=${ws.data.status} sockets=${session.sockets.size}`);
+      const snapshot: ServerMessage = { type: "state", state: session.state, viewers: viewersOf(session), serverTime: Date.now() };
       ws.send(JSON.stringify(snapshot));
-      broadcastViewers(ws.data.roomId);
+      // Seed the just-opened socket with the current presence list,
+      // then fan out the change to everyone else (handled by the global
+      // broadcast — it sends to the new socket too, which is fine).
+      broadcastPresence(ws.data.spaceId);
+      // Only re-broadcast viewer count if this socket joined as a
+      // watcher — pure observers don't affect the watcher set.
+      if (ws.data.status === "watching") broadcastViewers(ws.data.spaceId);
     },
     async message(ws, raw) {
       if (typeof raw !== "string") return;
@@ -138,10 +388,17 @@ const server = Bun.serve<WsData>({
       }
       await handleClientMessage(ws, parsed);
     },
-    close(ws) {
-      const room = getOrCreateRoom(ws.data.roomId);
-      removeSocket(room, ws);
-      broadcastViewers(ws.data.roomId);
+    close(ws, code, reason) {
+      const session = getSession(ws.data.spaceId);
+      console.log(`[roomflix] ws close: space=${ws.data.spaceId} userId=${ws.data.userId} code=${code} reason=${reason || "<none>"} remaining=${(session?.sockets.size ?? 1) - 1}`);
+      if (!session) return;
+      removeSocket(session, ws);
+      // Presence always changes on disconnect; viewers only if the
+      // departing socket was watching. We broadcast both unconditionally
+      // since the cost is negligible and it keeps the dropdown's "N
+      // watching · M online" counts in sync without branching.
+      broadcastPresence(ws.data.spaceId);
+      broadcastViewers(ws.data.spaceId);
     },
   },
 });

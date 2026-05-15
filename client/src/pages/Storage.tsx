@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import type { S3Client } from "@aws-sdk/client-s3";
-import { AlertTriangle, ArrowLeft, Database, Library as LibraryIcon, Loader2, LogOut, X } from "lucide-react";
+import { AlertTriangle, Database, Loader2, LogOut, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ExportMenu } from "@/components/ExportMenu";
 import { ConnectForm } from "@/components/storage/ConnectForm";
@@ -25,7 +24,7 @@ import {
   uploadFile,
 } from "@/lib/buckets/client";
 import { configFilename, toConfigFile } from "@/lib/buckets/config_file";
-import { clearConnection, loadConnection, saveConnection } from "@/lib/buckets/session";
+import { clearConnection, loadConnection, reconcileConnection, saveConnection } from "@/lib/buckets/session";
 import type { BrowseResult, Connection, FileEntry, Usage } from "@/lib/buckets/types";
 import { api } from "@/lib/api";
 import { copyJsonToClipboard, downloadJsonFile, openJsonInNewTab } from "@/lib/jsonExport";
@@ -36,11 +35,12 @@ type ConnectError = { kind: "auth" | "cors" | "other"; message: string };
 export default function Storage() {
   const [connection, setConnection] = useState<Connection | null>(null);
   const [busy, setBusy] = useState(false);
-  // True while we restore a saved connection on initial mount, so the page
-  // shows a loader instead of flashing the form before the restore resolves.
-  // Initialized synchronously from localStorage so the very first paint is
-  // already in the right state.
-  const [restoring, setRestoring] = useState(() => loadConnection() !== null);
+  // True while we resolve the storage connection. Always starts true so we
+  // don't flash the "Connect" form for guests (whose localStorage is empty
+  // on first paint — the config has to come from the server's space record).
+  // The mount effect sets it false once we've either restored, fetched, or
+  // confirmed there's nothing to restore.
+  const [restoring, setRestoring] = useState(true);
   const [connectError, setConnectError] = useState<ConnectError | null>(null);
 
   const clientRef = useRef<S3Client | null>(null);
@@ -160,12 +160,27 @@ export default function Storage() {
   }, [uploadQueue, connection]);
 
   useEffect(() => {
-    const saved = loadConnection();
-    if (!saved) {
-      setRestoring(false);
-      return;
-    }
-    void attemptConnect(saved, { fromRestore: true }).finally(() => setRestoring(false));
+    let cancelled = false;
+    (async () => {
+      // Prefer the localStorage cache for instant restore. Falls through
+      // to a server-side fetch when empty — that's the path guests take
+      // (their first visit has nothing cached), and also any device where
+      // the user/guest logged in fresh.
+      let saved = loadConnection();
+      if (!saved) {
+        saved = await reconcileConnection();
+        if (cancelled) return;
+      }
+      if (!saved) {
+        setRestoring(false);
+        return;
+      }
+      await attemptConnect(saved, { fromRestore: true });
+      if (!cancelled) setRestoring(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -485,7 +500,7 @@ export default function Storage() {
   const matchEnabled = useMemo(() => Boolean(connection?.publicBaseUrl), [connection?.publicBaseUrl]);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-10">
+    <main className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
       <PageHeader connection={connection} onDisconnect={disconnect} />
 
       {restoring ? (
@@ -567,47 +582,32 @@ function MutationErrorBanner({ message, onDismiss }: { message: string; onDismis
 function PageHeader({ connection, onDisconnect }: { connection: Connection | null; onDisconnect: () => void }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-5">
-      <div className="flex items-center gap-3">
-        <Button asChild variant="ghost" size="icon">
-          <Link to="/" aria-label="Back to home">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div className="flex flex-col leading-tight">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Buckets</span>
-          <h1 className="flex items-center gap-2 text-base font-semibold tracking-tight text-foreground">
-            <Database className="h-4 w-4 text-accent" />
-            Storage
-            {connection && (
-              <span className="font-mono text-[12px] font-normal text-text-dim">
-                · {connection.label || `${connection.provider}/${connection.bucket}`}
-              </span>
-            )}
-          </h1>
+      <div className="flex flex-col leading-tight">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Buckets</span>
+        <h1 className="flex items-center gap-2 text-base font-semibold tracking-tight text-foreground">
+          <Database className="h-4 w-4 text-accent" />
+          Storage
+          {connection && (
+            <span className="font-mono text-[12px] font-normal text-text-dim">
+              · {connection.label || `${connection.provider}/${connection.bucket}`}
+            </span>
+          )}
+        </h1>
+      </div>
+      {connection && (
+        <div className="flex items-center gap-2">
+          <ExportMenu
+            title="Export connection"
+            onCopy={() => copyJsonToClipboard(toConfigFile(connection))}
+            onDownload={() => downloadJsonFile(toConfigFile(connection), configFilename(connection))}
+            onOpenInTab={() => openJsonInNewTab(toConfigFile(connection))}
+          />
+          <Button variant="ghost" size="sm" onClick={onDisconnect}>
+            <LogOut className="h-3.5 w-3.5" />
+            Disconnect
+          </Button>
         </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button asChild variant="ghost" size="sm" aria-label="Open Library" title="Open Library">
-          <Link to="/library">
-            <LibraryIcon className="h-3.5 w-3.5" />
-            <span className="hidden lg:inline">Library</span>
-          </Link>
-        </Button>
-        {connection && (
-          <>
-            <ExportMenu
-              title="Export connection"
-              onCopy={() => copyJsonToClipboard(toConfigFile(connection))}
-              onDownload={() => downloadJsonFile(toConfigFile(connection), configFilename(connection))}
-              onOpenInTab={() => openJsonInNewTab(toConfigFile(connection))}
-            />
-            <Button variant="ghost" size="sm" onClick={onDisconnect}>
-              <LogOut className="h-3.5 w-3.5" />
-              Disconnect
-            </Button>
-          </>
-        )}
-      </div>
+      )}
     </div>
   );
 }

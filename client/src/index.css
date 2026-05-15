@@ -40,6 +40,19 @@
     overflow-x: clip;
   }
 
+  /* Kill the browser's default blue focus outline on mouse interactions —
+     it clashes with the dark + coral palette and shows up on every click.
+     Keyboard focus still gets a visible accent ring via :focus-visible, so
+     accessibility is preserved. Components that need a different focus
+     style (e.g. the Button component) override with their own utilities. */
+  :focus {
+    outline: none;
+  }
+  :focus-visible {
+    outline: 2px solid hsl(var(--accent) / 0.55);
+    outline-offset: 1px;
+  }
+
   /* Fractal noise overlay — sits above everything but pointer-events:none.
      Keeps the dark surfaces from looking flat / cheap. No blend mode (overlay
      desaturates small bright UI like status dots); just a low-opacity SVG. */
@@ -175,6 +188,26 @@
     font-style: italic;
   }
 
+  /* ── "Now playing" equalizer bars ──
+     Three short bars whose heights oscillate at slightly different
+     phases — universal "audio/video is happening now" signal. Used
+     in place of a static play icon when the space's video is actually
+     playing, so viewers can distinguish "playback in progress" from
+     "press to play." */
+  @keyframes eqBar {
+    0%, 100% { transform: scaleY(0.35); }
+    50% { transform: scaleY(1); }
+  }
+  .eq-bar {
+    display: inline-block;
+    background: currentColor;
+    transform-origin: bottom;
+    animation: eqBar 0.9s ease-in-out infinite;
+    will-change: transform;
+  }
+  .eq-bar:nth-child(2) { animation-delay: 0.15s; animation-duration: 1.05s; }
+  .eq-bar:nth-child(3) { animation-delay: 0.3s; animation-duration: 0.75s; }
+
   @media (prefers-reduced-motion: reduce) {
     .fade-up,
     .fade-up-d1,
@@ -183,6 +216,7 @@
     .fade-up-d4 {
       animation: none;
     }
+    .eq-bar { animation: none; transform: scaleY(0.7); }
   }
 }
 

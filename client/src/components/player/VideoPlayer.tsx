@@ -24,8 +24,14 @@ type Props = {
   onPlay: (currentTime: number) => void;
   onPause: (currentTime: number) => void;
   onSeek: (currentTime: number) => void;
+  // Called when the video element fires `ended`. The Room dispatches a
+  // videoEnded message which the server uses for playlist auto-advance.
+  onEnded?: (endedUrl: string) => void;
   // Called when the user submits a URL from the empty-player form.
   onLoadUrl: (url: string) => void;
+  // Fired on every local volume / mute change. The hook debounces
+  // before sending over WS; this prop is the raw event surface.
+  onVolumeChange?: (level: number, muted: boolean) => void;
   // True when the room is initializing with a URL passed via ?video= but the
   // synced state hasn't caught up yet. Avoids flashing the URL-input form
   // when we already know what's about to load.
@@ -48,7 +54,7 @@ const STATIC_FRAME_CLASS =
 
 type PlaybackErrorKind = "network" | "format" | "stalled";
 
-export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentTime, updatedAt, serverTime, onPlay, onPause, onSeek, onLoadUrl, loadingIncoming = false }: Props) {
+export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentTime, updatedAt, serverTime, onPlay, onPause, onSeek, onEnded, onLoadUrl, onVolumeChange, loadingIncoming = false }: Props) {
   const playerRef = useRef<MediaPlayerInstance>(null);
   // While Date.now() < this timestamp, ignore feedback events from the
   // player — we're applying remote state and don't want it to echo back.
@@ -273,10 +279,14 @@ export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentT
       onPlay={handlePlay}
       onPause={handlePause}
       onSeeked={handleSeeked}
+      onEnd={() => onEnded?.(videoUrl)}
       onLoadedMetadata={handleLoadedMetadata}
       onPlayFail={() => setAutoplayBlocked(true)}
       onAutoPlayFail={() => setAutoplayBlocked(true)}
       onError={() => setPlaybackError("network")}
+      // Local volume + mute changes — every drag of the slider triggers
+      // this; the parent debounces before sending over WS.
+      onVolumeChange={(e) => onVolumeChange?.(e.detail.volume, e.detail.muted)}
       className={PLAYER_FRAME_CLASS}
     >
       <MediaProvider>
@@ -503,7 +513,7 @@ function EmptyPlayerState({ onLoadUrl }: { onLoadUrl: (url: string) => void }) {
         }}
       />
       <div className="relative flex flex-col items-center gap-2">
-        <span className="section-label">Empty room</span>
+        <span className="section-label">Nothing playing</span>
         <div className="font-mono text-base font-semibold text-foreground/90 sm:text-lg">No video loaded</div>
         <div className="text-xs text-muted-foreground sm:text-sm">Paste a public video URL to get started.</div>
       </div>
