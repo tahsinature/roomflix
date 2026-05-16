@@ -14,6 +14,12 @@ type Props = {
   onPlay: (currentTime: number) => void;
   onPause: (currentTime: number) => void;
   onSeek: (currentTime: number) => void;
+  // Called when the track reaches the end. The Room dispatches a
+  // videoEnded message which the server uses for playlist auto-advance.
+  onEnded?: (endedUrl: string) => void;
+  // Fired on every local volume / mute change. The hook debounces
+  // before sending over WS; this prop is the raw event surface.
+  onVolumeChange?: (level: number, muted: boolean) => void;
 };
 
 const DRIFT_TOLERANCE_S = 0.6;
@@ -22,7 +28,7 @@ const DRIFT_TOLERANCE_S = 0.6;
 // visual — clicking anywhere on it seeks. Sync (play / pause / seek) goes
 // through the same room-state protocol as VideoPlayer; we just route the
 // effects through the WaveSurfer API instead of an <video> element.
-export function AudioPlayer({ url, title, playing, currentTime, updatedAt, serverTime, onPlay, onPause, onSeek }: Props) {
+export function AudioPlayer({ url, title, playing, currentTime, updatedAt, serverTime, onPlay, onPause, onSeek, onEnded }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
 
@@ -117,6 +123,12 @@ export function AudioPlayer({ url, title, playing, currentTime, updatedAt, serve
     const onErrorLocal = (e: Error) => {
       setError(e?.message || "Couldn't load this audio.");
     };
+    // WaveSurfer's "finish" event = playback reached the end. Forward to
+    // the Room so the server can decide whether to auto-advance.
+    const onFinishLocal = () => {
+      if (isApplying()) return;
+      onEnded?.(url);
+    };
 
     ws.on("ready", onReady);
     ws.on("play", onPlayLocal);
@@ -124,6 +136,7 @@ export function AudioPlayer({ url, title, playing, currentTime, updatedAt, serve
     ws.on("seeking", onSeekLocal);
     ws.on("timeupdate", onTimeUpdate);
     ws.on("error", onErrorLocal);
+    ws.on("finish", onFinishLocal);
 
     return () => {
       ws.unAll();

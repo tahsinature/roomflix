@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertTriangle,
-  ArrowLeft,
-  Database,
   HelpCircle,
   Library as LibraryIcon,
   Loader2,
@@ -11,40 +9,44 @@ import {
   Plus,
   RefreshCw,
   Trash2,
-  Upload,
   XCircle,
 } from "lucide-react";
-import type { LibraryExportV1, LibraryHealth, LibraryImportResult, ProbeResult, RoomListItem, Subtitle, Video, VideoHealth } from "@shared/protocol";
-import { api } from "@/lib/api";
+import type { LibraryHealth, Playlist, ProbeResult, Subtitle, Video, VideoHealth } from "@shared/protocol";
+import { PlaylistsSection } from "@/components/PlaylistsSection";
+import { useAuth } from "@/auth/AuthContext";
+import { api, ApiError } from "@/lib/api";
+import { useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { HealthDot } from "@/components/HealthDot";
-import { ConfigFileDialog } from "@/components/ConfigFileDialog";
 import { EditVideoDialog } from "@/components/EditVideoDialog";
-import { ExportMenu } from "@/components/ExportMenu";
 import { PlayButton } from "@/components/PlayButton";
 import { SubtitleBadge } from "@/components/SubtitleBadge";
-import { copyJsonToClipboard, downloadJsonFile, openJsonInNewTab } from "@/lib/jsonExport";
 import { cn, formatBytes, urlFilename } from "@/lib/utils";
 
 export default function Library() {
+  const toast = useToast();
   const [videos, setVideos] = useState<Video[]>([]);
-  const [rooms, setRooms] = useState<RoomListItem[]>([]);
   const [health, setHealth] = useState<LibraryHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState("");
 
-  // Initial load: fetch list + rooms (for join detection) + auto-fire
-  // health check (no refresh — uses cache).
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+
+  // Initial load: fetch list + playlists, then auto-fire the health check
+  // (no refresh — uses cache).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [list, rs] = await Promise.all([api.listVideos(), api.listRooms().catch(() => [])]);
+        const [list, pls] = await Promise.all([
+          api.listVideos(),
+          api.listPlaylists().catch(() => [] as Playlist[]),
+        ]);
         if (cancelled) return;
         setVideos(list);
-        setRooms(rs);
+        setPlaylists(pls);
         setLoading(false);
         setVerifying(true);
         const h = await api.libraryHealth();
@@ -87,84 +89,73 @@ export default function Library() {
   };
 
   const handleUpdate = async (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => {
-    const updated = await api.updateVideo(id, patch);
-    setVideos((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
-    void reverify();
+    try {
+      const updated = await api.updateVideo(id, patch);
+      setVideos((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
+      void reverify();
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : 0;
+      toast.error(
+        status === 403
+          ? "You don't have permission to edit this video."
+          : `Couldn't update video. ${(e as Error).message}`,
+      );
+    }
   };
 
   const handleRemove = async (id: string) => {
-    await api.deleteVideo(id);
-    setVideos((prev) => prev.filter((v) => v.id !== id));
+    const video = videos.find((v) => v.id === id);
+    try {
+      await api.deleteVideo(id);
+      setVideos((prev) => prev.filter((v) => v.id !== id));
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : 0;
+      const label = video?.title || video?.url || "video";
+      toast.error(
+        status === 403
+          ? "You don't have permission to delete videos."
+          : `Couldn't delete "${label}". ${(e as Error).message}`,
+      );
+    }
   };
 
   const handleClearAll = async () => {
     // Fan out deletes in parallel — no bulk-delete API, but for typical
-    // library sizes (tens of entries) this is fine. Individual failures
-    // are swallowed so one bad row doesn't strand the rest.
+    // library sizes (tens of entries) this is fine. Track per-item
+    // results so we can surface a meaningful aggregate toast and only
+    // remove successfully-deleted rows from local state.
     const targets = videos;
-    await Promise.all(targets.map((v) => api.deleteVideo(v.id).catch(() => undefined)));
-    setVideos([]);
+    const results = await Promise.all(
+      targets.map(async (v) => {
+        try {
+          await api.deleteVideo(v.id);
+          return { id: v.id, ok: true as const };
+        } catch (e) {
+          return { id: v.id, ok: false as const, err: e };
+        }
+      }),
+    );
+    const failed = results.filter((r) => !r.ok);
+    const succeededIds = new Set(results.filter((r) => r.ok).map((r) => r.id));
+    setVideos((prev) => prev.filter((v) => !succeededIds.has(v.id)));
     setError("");
-  };
-
-  const buildExportPayload = (): LibraryExportV1 => ({
-    version: 1,
-    exportedAt: Date.now(),
-    videos: videos.map((v) => ({
-      url: v.url,
-      title: v.title,
-      subtitles: v.subtitles.map((s) => ({
-        url: s.url,
-        label: s.label,
-        lang: s.lang,
-      })),
-    })),
-  });
-  const exportFilename = () => `roomflix-library-${new Date().toISOString().slice(0, 10)}.json`;
-  const exportCopy = () => copyJsonToClipboard(buildExportPayload());
-  const exportDownload = () => downloadJsonFile(buildExportPayload(), exportFilename());
-  const exportOpenInTab = () => openJsonInNewTab(buildExportPayload());
-
-  const [importStatus, setImportStatus] = useState<{ kind: "idle" } | { kind: "running" } | { kind: "done"; result: LibraryImportResult } | { kind: "error"; message: string }>({
-    kind: "idle",
-  });
-
-  const handleImport = async (input: File | string) => {
-    setImportStatus({ kind: "running" });
-    try {
-      const text = typeof input === "string" ? input : await input.text();
-      if (!text.trim()) throw new Error("Nothing to import.");
-      const parsed = JSON.parse(text) as Partial<LibraryExportV1>;
-      if (!parsed || !Array.isArray(parsed.videos)) {
-        throw new Error("Doesn't look like a Roomflix library export — expected a JSON object with a `videos` array.");
-      }
-      const result = await api.importLibrary({
-        version: 1,
-        exportedAt: parsed.exportedAt ?? Date.now(),
-        videos: parsed.videos,
-      });
-      const list = await api.listVideos();
-      setVideos(list);
-      setImportStatus({ kind: "done", result });
-      void reverify();
-    } catch (err) {
-      setImportStatus({ kind: "error", message: (err as Error).message });
+    if (failed.length > 0) {
+      const firstStatus = failed[0]?.err instanceof ApiError ? failed[0].err.status : 0;
+      toast.error(
+        failed.length === targets.length && firstStatus === 403
+          ? "You don't have permission to delete videos."
+          : `Couldn't delete ${failed.length} of ${targets.length} videos.`,
+      );
     }
   };
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-7 px-4 py-6 sm:px-6 sm:py-10">
+    <main className="mx-auto flex max-w-4xl flex-col gap-7 px-4 py-6 sm:px-6 sm:py-8">
       <LibraryHeader
         count={videos.length}
         verifying={verifying}
         onReverify={reverify}
-        onExportCopy={exportCopy}
-        onExportDownload={exportDownload}
-        onExportOpenInTab={exportOpenInTab}
-        onImport={handleImport}
         onClearAll={handleClearAll}
-        importStatus={importStatus}
-        onDismissImportStatus={() => setImportStatus({ kind: "idle" })}
       />
 
       <section className="border border-border bg-bg-elevated/40 p-6">
@@ -172,6 +163,10 @@ export default function Library() {
       </section>
 
       {error && <div className="border border-accent/30 bg-accent/10 p-3 text-sm text-accent">{error}</div>}
+
+      {!loading && (
+        <PlaylistsSection playlists={playlists} library={videos} onChange={setPlaylists} />
+      )}
 
       {loading ? (
         <div className="text-sm text-muted-foreground">Loading library…</div>
@@ -187,7 +182,20 @@ export default function Library() {
           </header>
           <ul className="border-y border-border">
             {videos.map((v) => (
-              <VideoRow key={v.id} video={v} health={health?.videos[v.id]} rooms={rooms} onUpdate={handleUpdate} onRemove={handleRemove} />
+              <VideoRow
+                key={v.id}
+                video={v}
+                health={health?.videos[v.id]}
+                playlists={playlists}
+                onUpdate={handleUpdate}
+                onRemove={handleRemove}
+                onAddToPlaylist={async (playlistId) => {
+                  const p = playlists.find((x) => x.id === playlistId);
+                  if (!p || p.videoIds.includes(v.id)) return;
+                  const updated = await api.updatePlaylist(p.id, { videoIds: [...p.videoIds, v.id] });
+                  setPlaylists((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+                }}
+              />
             ))}
           </ul>
         </section>
@@ -196,32 +204,18 @@ export default function Library() {
   );
 }
 
-type ImportStatus = { kind: "idle" } | { kind: "running" } | { kind: "done"; result: LibraryImportResult } | { kind: "error"; message: string };
-
 function LibraryHeader({
   count,
   verifying,
   onReverify,
-  onExportCopy,
-  onExportDownload,
-  onExportOpenInTab,
-  onImport,
   onClearAll,
-  importStatus,
-  onDismissImportStatus,
 }: {
   count: number;
   verifying: boolean;
   onReverify: () => void;
-  onExportCopy: () => Promise<boolean>;
-  onExportDownload: () => void;
-  onExportOpenInTab: () => void;
-  onImport: (input: File | string) => Promise<void>;
   onClearAll: () => Promise<void>;
-  importStatus: ImportStatus;
-  onDismissImportStatus: () => void;
 }) {
-  const [importOpen, setImportOpen] = useState(false);
+  const { currentSpace } = useAuth();
   const [armedClear, setArmedClear] = useState(false);
   const [clearing, setClearing] = useState(false);
 
@@ -249,39 +243,17 @@ function LibraryHeader({
   return (
     <div className="flex flex-col gap-4 border-b border-border pb-5">
       <header className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" size="icon">
-            <Link to="/" aria-label="Back to home">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div className="flex flex-col leading-tight">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Saved</span>
-            <h1 className="flex items-center gap-2 text-base font-semibold tracking-tight text-foreground">
-              <LibraryIcon className="h-4 w-4 text-accent" />
-              Library
-              <span className="font-mono text-[12px] font-normal text-text-dim">· {count}</span>
-            </h1>
-          </div>
+        <div className="flex flex-col leading-tight">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            {currentSpace?.name ?? "Saved"}
+          </span>
+          <h1 className="flex items-center gap-2 text-base font-semibold tracking-tight text-foreground">
+            <LibraryIcon className="h-4 w-4 text-accent" />
+            Library
+            <span className="font-mono text-[12px] font-normal text-text-dim">· {count}</span>
+          </h1>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button asChild variant="ghost" size="sm" aria-label="Open Storage" title="Open Storage">
-            <Link to="/storage">
-              <Database className="h-3.5 w-3.5" />
-              <span className="hidden lg:inline">Storage</span>
-            </Link>
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} disabled={importStatus.kind === "running"} aria-label="Import library" title="Import library">
-            <Upload className="h-3.5 w-3.5" />
-            <span className="hidden lg:inline">Import</span>
-          </Button>
-          <ExportMenu
-            disabled={count === 0}
-            title={count === 0 ? "Nothing to export" : "Export library"}
-            onCopy={onExportCopy}
-            onDownload={onExportDownload}
-            onOpenInTab={onExportOpenInTab}
-          />
           <Button variant="outline" size="sm" onClick={onReverify} disabled={verifying} aria-label="Re-verify library">
             <RefreshCw className={cn("h-3.5 w-3.5", verifying && "animate-spin")} />
             <span className="hidden lg:inline">{verifying ? "Verifying…" : "Verify"}</span>
@@ -304,69 +276,6 @@ function LibraryHeader({
           </Button>
         </div>
       </header>
-
-      {importStatus.kind !== "idle" && <ImportStatusBanner status={importStatus} onDismiss={onDismissImportStatus} />}
-
-      <ConfigFileDialog
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        title="Import library"
-        placeholder='{"version":1,"videos":[…]}'
-        onSubmit={async (input) => {
-          setImportOpen(false);
-          await onImport(input);
-        }}
-      />
-    </div>
-  );
-}
-
-function ImportStatusBanner({ status, onDismiss }: { status: Exclude<ImportStatus, { kind: "idle" }>; onDismiss: () => void }) {
-  if (status.kind === "running") {
-    return (
-      <div className="flex items-center gap-2 border border-border bg-white/[0.03] p-3 text-xs text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        Importing library…
-      </div>
-    );
-  }
-  if (status.kind === "error") {
-    return (
-      <div className="flex items-start justify-between gap-2 border border-accent/30 bg-accent/10 p-3 text-xs text-accent">
-        <div>
-          <div className="font-medium">Import failed</div>
-          <div className="text-foreground/70">{status.message}</div>
-        </div>
-        <button type="button" onClick={onDismiss} className="text-accent/70 hover:text-accent" aria-label="Dismiss">
-          ✕
-        </button>
-      </div>
-    );
-  }
-  const { imported, updated, skipped, errors } = status.result;
-  const parts = [`Added ${imported}`, `Updated ${updated}`, `Unchanged ${skipped}`];
-  if (errors.length > 0) {
-    parts.push(`${errors.length} error${errors.length === 1 ? "" : "s"}`);
-  }
-  return (
-    <div className="flex items-start justify-between gap-2 border border-live/30 bg-live/10 p-3 text-xs text-live">
-      <div>
-        <div className="font-medium">Import complete</div>
-        <div className="text-foreground/80">{parts.join(" · ")}</div>
-        {errors.length > 0 && (
-          <ul className="mt-1 list-disc pl-4 text-amber-200/80">
-            {errors.slice(0, 3).map((e, i) => (
-              <li key={i} className="truncate">
-                {e.url || "(no url)"}: {e.reason}
-              </li>
-            ))}
-            {errors.length > 3 && <li className="text-foreground/60">…and {errors.length - 3} more</li>}
-          </ul>
-        )}
-      </div>
-      <button type="button" onClick={onDismiss} className="text-live/70 hover:text-live" aria-label="Dismiss">
-        ✕
-      </button>
     </div>
   );
 }
@@ -494,18 +403,21 @@ function ProbeReview({ probe, onConfirm, onCancel }: { probe: ProbeResult; onCon
 function VideoRow({
   video,
   health,
-  rooms,
+  playlists,
   onUpdate,
   onRemove,
+  onAddToPlaylist,
 }: {
   video: Video;
   health: VideoHealth | undefined;
-  rooms: RoomListItem[];
+  playlists: Playlist[];
   onUpdate: (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
+  onAddToPlaylist: (playlistId: string) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   // Two-step delete: first click arms (button turns coral), second click
   // commits. Auto-disarms after 3s of no follow-up.
   const [armedDelete, setArmedDelete] = useState(false);
@@ -544,7 +456,57 @@ function VideoRow({
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <PlayButton video={video} rooms={rooms} health={health} />
+          <PlayButton video={video} health={health} />
+          {playlists.length > 0 && (
+            <div className="relative">
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setMenuOpen((v) => !v)}
+                onBlur={() => {
+                  // Close on blur but with a small delay so a click inside the
+                  // menu still registers before the popover unmounts.
+                  setTimeout(() => setMenuOpen(false), 150);
+                }}
+                aria-label="Add to playlist"
+                title="Add to playlist"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+              {menuOpen && (
+                <div className="absolute right-0 top-9 z-30 min-w-[12rem] border border-border bg-bg-elevated/95 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl">
+                  <div className="border-b border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-text-dim">
+                    Add to…
+                  </div>
+                  <ul className="max-h-60 overflow-y-auto">
+                    {playlists.map((p) => {
+                      const already = p.videoIds.includes(video.id);
+                      return (
+                        <li key={p.id}>
+                          <button
+                            type="button"
+                            disabled={already}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={async () => {
+                              setMenuOpen(false);
+                              await onAddToPlaylist(p.id);
+                            }}
+                            className={cn(
+                              "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition",
+                              already ? "text-text-dim" : "text-foreground hover:bg-white/[0.04]",
+                            )}
+                          >
+                            <span className="truncate">{p.title}</span>
+                            {already && <span className="font-mono text-[10px] text-text-dim">✓</span>}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
           <Button size="icon" variant="ghost" onClick={() => setEditOpen(true)} aria-label="Edit video" title="Edit video">
             <Pencil className="h-4 w-4" />
           </Button>

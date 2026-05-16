@@ -2,14 +2,17 @@ import { Hono } from "hono";
 
 import type { ProbeResult } from "@/protocol.ts";
 import { fetchProbe, urlLooksLikeMedia } from "@/probe.ts";
+import { requireSpaceMember } from "@/auth.ts";
+import type { Storage } from "@/storage/index.ts";
 
 // POST /api/library/probe  { url } → ProbeResult
 //
 // Single-shot URL probe used by the library Add form to gate creation
-// behind a reachability + content-type check. The caller can override on
-// "uncertain" verdicts (e.g. CDNs that don't return content-types).
-export function buildProbeRouter() {
+// behind a reachability + content-type check. Space-gated so the endpoint
+// can't be used as an open proxy.
+export function buildProbeRouter(storage: Storage) {
   const app = new Hono();
+  app.use("*", requireSpaceMember(storage));
 
   app.post("/", async (c) => {
     const body = (await c.req.json().catch(() => null)) as { url?: unknown } | null;
@@ -49,7 +52,5 @@ function classify(url: string, probe: Awaited<ReturnType<typeof fetchProbe>>): P
     return { verdict: "gone", message: `Server returned HTTP ${probe.status}` };
   }
 
-  // network-error covers DNS, timeout, TLS, connection refused, etc.
-  // Surface the underlying reason so the user can debug CDN / DNS issues.
   return { verdict: "gone", message: probe.reason || "Network error" };
 }

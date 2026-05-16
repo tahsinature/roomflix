@@ -1,47 +1,50 @@
-// Persistence for the active storage connection. localStorage so the
-// connection survives across tabs + browser restarts — "connect once, use
-// everywhere". Anything stored here must be treated as sensitive: the
-// secret access key sits on disk in cleartext in the browser profile, so
-// shared machines should hit Disconnect when done.
+// In-memory cache of fetched secrets, keyed by connection id. Cleared
+// on logout (callers can also call `clearAllSecrets` for force-reset).
+//
+// The old single-connection localStorage cache is gone — the new model
+// has many connections per user, and persistent secrets in localStorage
+// are exactly the threat we built the ECDH endpoint to mitigate. Always
+// fetch from the server when needed; secrets live only in JS memory.
 import type { Connection } from "@/lib/buckets/types";
+import type { StorageConnection } from "@shared/protocol";
+import { fetchSecret } from "@/lib/secureFetch";
 
-const KEY = "roomflix.bucket.connection.v1";
-// One previous version used sessionStorage. Clear it on read so a stale
-// per-tab entry doesn't shadow the (now persistent) localStorage one.
-const LEGACY_SESSION_KEY = KEY;
+const secretCache = new Map<string, string>();
 
-export function loadConnection(): Connection | null {
-  try {
-    sessionStorage.removeItem(LEGACY_SESSION_KEY);
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Connection;
-    return isValidConnection(parsed) ? parsed : null;
-  } catch {
-    return null;
+// Returns a Connection (full record incl. secret) for the given
+// connection summary, fetching the secret via ECDH if it's not already
+// cached. The cache lasts for the lifetime of the JS context.
+export async function loadFullConnection(summary: StorageConnection): Promise<Connection> {
+  let secret = secretCache.get(summary.id);
+  if (!secret) {
+    secret = await fetchSecret(`/api/storage/secret/${encodeURIComponent(summary.id)}`);
+    secretCache.set(summary.id, secret);
   }
+  return summaryToConnection(summary, secret);
 }
 
-export function saveConnection(conn: Connection): void {
-  localStorage.setItem(KEY, JSON.stringify(conn));
+// Invalidate the cached secret for one connection. Call after PATCH
+// updates that rotate the key — the cached entry would otherwise serve
+// a stale cred until the page reloads.
+export function invalidateSecret(connectionId: string): void {
+  secretCache.delete(connectionId);
 }
 
-export function clearConnection(): void {
-  localStorage.removeItem(KEY);
-  // Belt-and-suspenders — also clear sessionStorage in case anything in the
-  // wild still has the old per-tab entry.
-  sessionStorage.removeItem(LEGACY_SESSION_KEY);
+// Clear every cached secret. Used on logout so a subsequent login as a
+// different user can't see the previous user's cached creds.
+export function clearAllSecrets(): void {
+  secretCache.clear();
 }
 
-function isValidConnection(c: unknown): c is Connection {
-  if (!c || typeof c !== "object") return false;
-  const r = c as Record<string, unknown>;
-  return (
-    r.provider === "r2" &&
-    typeof r.accountId === "string" &&
-    typeof r.accessKeyId === "string" &&
-    typeof r.secretAccessKey === "string" &&
-    typeof r.bucket === "string" &&
-    typeof r.maxBytes === "number"
-  );
+function summaryToConnection(s: StorageConnection, secret: string): Connection {
+  return {
+    provider: s.provider,
+    accountId: s.accountId,
+    accessKeyId: s.accessKeyId,
+    secretAccessKey: secret,
+    bucket: s.bucket,
+    publicBaseUrl: s.publicBaseUrl,
+    maxBytes: s.maxBytes,
+    label: s.label,
+  };
 }

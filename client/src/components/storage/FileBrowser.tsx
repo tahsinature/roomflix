@@ -223,7 +223,11 @@ export function FileBrowser({
         <div className="px-4 py-10 text-center text-xs text-text-dim">This folder is empty.</div>
       ) : (
         <>
-          {(flatItems.length > 1 || selection.size > 0) && (
+          {/* Show whenever the folder has at least one item, even just a
+              single row — keeps the layout stable and the "Select all"
+              affordance consistent (avoids the flick where clicking a
+              checkbox suddenly inserts the bar above the row). */}
+          {flatItems.length > 0 && (
             <SelectionBar
               count={selection.size}
               allSelected={allSelected}

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, EyeOff, Lock, Upload } from "lucide-react";
+import { Eye, EyeOff, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ConfigFileDialog } from "@/components/ConfigFileDialog";
@@ -32,14 +32,23 @@ export function ConnectForm({
   initial,
   busy,
   error,
+  submitLabel = "Connect",
+  busyLabel = "Connecting…",
   onConnect,
   onImportError,
+  onCancel,
 }: {
   initial?: Connection;
   busy: boolean;
   error: string;
+  submitLabel?: string;
+  busyLabel?: string;
   onConnect: (conn: Connection) => void;
   onImportError: (message: string) => void;
+  // Optional secondary action — rendered as a "Cancel" link next to
+  // the submit button when supplied. Lets a host modal close the form
+  // without a separate footer.
+  onCancel?: () => void;
 }) {
   const [fields, setFields] = useState<DraftFields>(() => toDraft(initial) ?? EMPTY);
   const [showSecret, setShowSecret] = useState(false);
@@ -65,30 +74,24 @@ export function ConnectForm({
   };
 
   return (
-    <form onSubmit={submit} className="space-y-5 border border-border bg-bg-elevated/40 p-6">
-      <header className="flex items-center justify-between gap-3">
-        <div className="flex flex-col leading-tight">
-          <span className="section-label muted">Storage provider</span>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            Credentials stay in your browser — never sent to the Roomflix server. Remembered on this device until you disconnect.
-          </p>
-        </div>
+    <form onSubmit={submit} className="space-y-5">
+      {/* Import-from-JSON shortcut. Host page picks the provider, so we
+          don't reiterate that here — keep the form focused on fields. */}
+      <div className="flex items-center justify-end">
         <Button type="button" variant="outline" size="sm" onClick={() => setImportOpen(true)}>
           <Upload className="h-3.5 w-3.5" />
-          Import config…
+          Import from JSON
         </Button>
-      </header>
+      </div>
 
       <ConfigFileDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
         title="Import storage config"
-        description="Paste a previously-exported connection JSON, or pick the file. The credentials populate the form below — review them, then click Connect."
+        description="Paste a previously-exported connection JSON, or pick the file. The credentials populate the form below — review them, then save."
         placeholder='{"kind":"roomflix-storage-connection","version":1,…}'
         onSubmit={handleImport}
       />
-
-      <ProviderPicker />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Account ID" hint="From R2 dashboard → Overview">
@@ -135,13 +138,14 @@ export function ConnectForm({
 
       {error && <p className="text-xs text-accent">{error}</p>}
 
-      <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
-        <p className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <Lock className="h-3 w-3" />
-          Remembered on this device. Disconnect to clear.
-        </p>
+      <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
+        {onCancel && (
+          <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
+            Cancel
+          </Button>
+        )}
         <Button type="submit" variant="accent" disabled={busy}>
-          {busy ? "Connecting…" : "Connect"}
+          {busy ? busyLabel : submitLabel}
         </Button>
       </div>
     </form>
@@ -155,20 +159,6 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
       <div className="mt-1.5">{children}</div>
       {hint && <span className="mt-1 block text-[11px] text-text-dim">{hint}</span>}
     </label>
-  );
-}
-
-// Single-option picker today — gives the UI an obvious place to add B2, S3,
-// Wasabi later without re-laying out the form.
-function ProviderPicker() {
-  return (
-    <div className="flex flex-wrap items-center gap-2 border border-border bg-black/20 p-3">
-      <button type="button" className="flex items-center gap-2 border border-accent/50 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent">
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent" />
-        Cloudflare R2
-      </button>
-      <span className="text-[11px] text-text-dim">More providers coming — same flow, different endpoint.</span>
-    </div>
   );
 }
 

@@ -13,6 +13,8 @@
     "@types/bun": "^1.1.14"
   },
   "dependencies": {
-    "hono": "^4.12.18"
+    "hono": "^4.12.18",
+    "mongodb": "^6.9.0",
+    "mongoose": "^9.6.2"
   }
 }
