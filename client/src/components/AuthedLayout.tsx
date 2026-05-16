@@ -32,7 +32,11 @@ export function AuthedLayout() {
           — the nav reads as the solid top boundary. Body's `overflow:
           hidden` (set in index.css base styles) prevents the
           double-scrollbar artifact. */}
-      <div className="h-screen overflow-y-auto pt-[60px] sm:pt-[68px]">
+      {/* `dvh` matches the actual visible viewport on mobile browsers
+          (Chrome's URL bar collapses dynamically). Using `vh`/`screen`
+          here was causing a phantom ~60px scroll-by-nav-height on
+          Android Chrome. */}
+      <div className="h-[100dvh] overflow-y-auto pt-[60px] sm:pt-[68px]">
         <Outlet />
       </div>
     </>

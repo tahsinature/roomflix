@@ -53,6 +53,9 @@ export function ConnectForm({
   const [fields, setFields] = useState<DraftFields>(() => toDraft(initial) ?? EMPTY);
   const [showSecret, setShowSecret] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  // Edit mode = there was an existing connection to seed from. Used
+  // to drive secret-field placeholder text and other edit-only hints.
+  const isEdit = initial !== undefined;
 
   const set = <K extends keyof DraftFields>(k: K, v: string) => setFields((f) => ({ ...f, [k]: v }));
 
@@ -113,16 +116,28 @@ export function ConnectForm({
               autoCorrect="off"
               spellCheck={false}
               autoComplete="off"
-              className="pr-10"
+              // In edit mode the saved secret never round-trips to the
+              // client — the field starts empty by design. Spell it
+              // out so users don't think their secret got lost.
+              placeholder={isEdit ? "(saved — leave blank to keep, or type to rotate)" : undefined}
+              className={fields.secretAccessKey ? "pr-10" : undefined}
             />
-            <button
-              type="button"
-              onClick={() => setShowSecret((v) => !v)}
-              aria-label={showSecret ? "Hide secret" : "Show secret"}
-              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground transition hover:text-foreground"
-            >
-              {showSecret ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-            </button>
+            {/* No toggle when there's no value to mask/reveal — without
+                this, the eye is a misleading no-op in the saved-empty
+                state on the edit modal. */}
+            {fields.secretAccessKey && (
+              <button
+                type="button"
+                onClick={() => setShowSecret((v) => !v)}
+                aria-label={showSecret ? "Hide secret" : "Show secret"}
+                // z-10 lifts the toggle above the native input —
+                // without it, the input's own padding-area catches the
+                // click and the toggle never fires.
+                className="absolute inset-y-0 right-0 z-10 flex w-10 items-center justify-center text-muted-foreground transition hover:text-foreground"
+              >
+                {showSecret ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
+            )}
           </div>
         </Field>
         <Field label="Max bucket size (GB)" hint="Refuses uploads that would exceed this cap">

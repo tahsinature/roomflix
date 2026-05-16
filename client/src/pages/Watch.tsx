@@ -84,7 +84,11 @@ export default function Watch() {
   const incomingPending = (searchParams.has("video") || searchParams.has("playlist")) && state.videoUrl === null;
 
   return (
-    <main className="mx-auto flex max-w-6xl flex-col px-4 py-6 sm:px-6 sm:py-8">
+    // min-h-full fills the AuthedLayout's scroll container so the
+    // flex-1 player wrapper below has room to vertically center the
+    // video. Without it the page sized to content and `justify-center`
+    // had no slack to work with.
+    <main className="mx-auto flex min-h-full max-w-6xl flex-col px-4 py-6 sm:px-6 sm:py-8">
       <WatchContextStrip spaceName={currentSpace?.name ?? "—"} connected={connected} onChangeUrl={actions.setUrl} />
 
       <div className="flex flex-1 flex-col justify-center gap-4 py-6">

@@ -33,7 +33,10 @@
 
   body {
     font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, "Menlo", monospace;
+    /* `dvh` excludes mobile-browser chrome (e.g. Chrome's collapsing
+       URL bar). The `vh` fallback covers browsers without dvh support. */
     min-height: 100vh;
+    min-height: 100dvh;
     background: hsl(var(--bg));
     color: hsl(var(--foreground));
     -webkit-font-smoothing: antialiased;
