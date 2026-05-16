@@ -1,10 +1,14 @@
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, type Location } from "react-router-dom";
 import { AuthForm } from "@/auth/AuthForm";
 import { useAuth } from "@/auth/AuthContext";
 
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Set by callers that need a post-auth round-trip (e.g. /join's
+  // universal picker, when the recipient picks "Create an account").
+  const from = (location.state as { from?: Location } | null)?.from;
 
   return (
     <AuthForm
@@ -15,7 +19,7 @@ export default function Register() {
       switchLink={{ prompt: "Already have one?", cta: "Sign in", to: "/login" }}
       onSubmit={async (input) => {
         await register(input);
-        navigate("/", { replace: true });
+        navigate(from?.pathname ?? "/", { replace: true });
       }}
     />
   );

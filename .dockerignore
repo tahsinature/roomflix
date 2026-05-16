@@ -19,9 +19,11 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Local env
-.env
-.env.*
+# Local env — match at any depth (server/.env, client/.env, etc.) so
+# dev secrets never bake into the prod image. The prod container
+# pulls fresh .env from Doppler at startup via scripts/run-prod.sh.
+**/.env
+**/.env.*
 
 # Repo / agent metadata — not needed in the image
 README.md

@@ -9,6 +9,7 @@ import Help from "@/pages/Help";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import Join from "@/pages/Join";
+import JoinWaiting from "@/pages/JoinWaiting";
 import Settings from "@/pages/Settings";
 import SettingsProfile from "@/pages/SettingsProfile";
 import SettingsSpace from "@/pages/SettingsSpace";
@@ -39,7 +40,9 @@ export default function App() {
           </RedirectIfAuthenticated>
         }
       />
-      {/* Guest join. Public — anyone can paste a code without an account. */}
+      {/* /join — code-entry pad. Wrapped by RedirectIfAuthenticated so
+          a signed-in user lands on something useful instead of seeing
+          the join page. */}
       <Route
         path="/join"
         element={
@@ -48,14 +51,16 @@ export default function App() {
           </RedirectIfAuthenticated>
         }
       />
-      <Route
-        path="/join/:code"
-        element={
-          <RedirectIfAuthenticated>
-            <Join />
-          </RedirectIfAuthenticated>
-        }
-      />
+      {/* /join/:code — the deep-link path. NOT wrapped: signed-in users
+          must reach the Join component so its auto-redeem effect can
+          finish joining the linked space (e.g. after a sign-in
+          round-trip from the universal picker). */}
+      <Route path="/join/:code" element={<Join />} />
+      {/* Waiting room for joinPolicy=approval flows. Not wrapped in
+          RedirectIfAuthenticated — guests are anonymous until the host
+          approves; users who came through sign-in are about to be
+          granted membership and need to see the status. */}
+      <Route path="/join/waiting/:id" element={<JoinWaiting />} />
       {/* /welcome is the marketing landing for logged-out visitors;
           it has its own SiteNav and lives outside the authed shell. */}
       <Route path="/welcome" element={<Welcome />} />

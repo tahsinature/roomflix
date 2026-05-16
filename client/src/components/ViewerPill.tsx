@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Circle, ChevronDown, Crown, KeyRound, Pause, Play, User, Users } from "lucide-react";
+import { Circle, ChevronDown, Crown, Pause, Play, User, Users } from "lucide-react";
 import type { Participant, PresenceStatus } from "@shared/protocol";
-import { AdmitGuestDialog } from "@/components/AdmitGuestDialog";
 import { MemberDetailModal, type MemberDetailKey } from "@/components/MemberDetailModal";
-import { useAuth } from "@/auth/AuthContext";
 import { useSessionPresence } from "@/auth/SessionPresence";
 import { cn, urlFilename } from "@/lib/utils";
 
@@ -32,10 +30,8 @@ export function ViewerPill({
   align?: "left" | "right";
 }) {
   const [open, setOpen] = useState(false);
-  const [admitOpen, setAdmitOpen] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState<MemberDetailKey | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const { isGuest } = useAuth();
   const { state, participants, members } = useSessionPresence();
 
   // Close on a real click outside (mousedown on document, target not
@@ -212,28 +208,8 @@ export function ViewerPill({
               />
             ))}
           </ul>
-          {!isGuest && (
-            // Quick admit affordance — opens the pairing-code dialog
-            // without making the user navigate to /. Hidden for guests
-            // (they can't admit other guests). The new guest joins via
-            // their polling tab and shows up here automatically via
-            // the next presence broadcast.
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                setOpen(false);
-                setAdmitOpen(true);
-              }}
-              className="flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-sm text-muted-foreground transition hover:bg-white/[0.04] hover:text-foreground"
-            >
-              <KeyRound className="h-3.5 w-3.5 text-accent" />
-              Admit a guest
-            </button>
-          )}
         </div>
       )}
-      <AdmitGuestDialog open={admitOpen} onClose={() => setAdmitOpen(false)} />
       <MemberDetailModal detail={selectedDetail} onClose={() => setSelectedDetail(null)} />
     </div>
   );

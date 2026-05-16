@@ -1,22 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Check, ChevronDown, LogOut, SlidersHorizontal, Users2 } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { ChevronDown, LogOut, SlidersHorizontal, Users2 } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 import { cn } from "@/lib/utils";
 
-// Unified identity menu in the top nav. Combines:
-//   - Profile (edit display name)
-//   - Space switching + manage spaces (members only)
+// Identity menu in the top nav. Now strictly identity-shaped:
+//   - Identity card (name + role)
+//   - Settings (members only)
 //   - Sign out / leave session
-// One trigger, one dropdown — replaces the prior trio of SpaceSwitcher
-// button + identity button + logout icon. Guests get a simplified
-// version: identity row + leave session only (they can't manage spaces
-// or edit a persistent profile).
+//
+// Space switching used to live here too; it moved to SpaceChip (next
+// to the brand) so there's one canonical place to read or change the
+// current space. Guests get a static "you're in <space>" line.
 export function AccountMenu({ className }: { className?: string }) {
-  const { user, guest, isGuest, identityLabel, currentSpace, spaces, switchSpace, logout } = useAuth();
+  const { user, guest, isGuest, identityLabel, currentSpace, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
   const location = useLocation();
 
   // Active when the user is on a route this menu "owns" — i.e. one of
@@ -50,19 +49,6 @@ export function AccountMenu({ className }: { className?: string }) {
   const displayName = user?.displayName?.trim();
   const username = user?.username;
   const triggerLabel = displayName || (username ? `@${username}` : identityLabel || "Account");
-
-  const handleSwitch = async (id: string) => {
-    if (id === currentSpace?.id) {
-      setOpen(false);
-      return;
-    }
-    setOpen(false);
-    await switchSpace(id);
-    // Re-mount the current route so its data refetches under the new
-    // space's storage. navigate(0) replays the entry without a hard
-    // reload — same trick SpaceSwitcher used.
-    navigate(0);
-  };
 
   return (
     <div ref={rootRef} className={cn("relative inline-flex", className)}>
@@ -105,48 +91,6 @@ export function AccountMenu({ className }: { className?: string }) {
               <SlidersHorizontal className="h-3.5 w-3.5 text-text-dim" />
               Settings
             </Link>
-          )}
-
-          {!isGuest && (
-            <>
-              <div className="mt-1 border-t border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-text-dim">
-                Spaces
-              </div>
-              <ul className="max-h-60 overflow-y-auto">
-                {spaces.map((s) => {
-                  const active = s.id === currentSpace?.id;
-                  return (
-                    <li key={s.id}>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => void handleSwitch(s.id)}
-                        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition hover:bg-white/[0.04]"
-                      >
-                        <span className={cn("min-w-0 flex-1 truncate", active ? "text-foreground" : "text-muted-foreground")}>{s.name}</span>
-                        {s.role === "owner" && <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-dim">owner</span>}
-                        {active && <Check className="h-3.5 w-3.5 text-accent" />}
-                      </button>
-                    </li>
-                  );
-                })}
-                {spaces.length === 0 && (
-                  // Onboarding path: zero spaces. Sends them to the
-                  // hub where create/redeem live, since the menu no
-                  // longer hosts those CTAs directly.
-                  <li>
-                    <Link
-                      to="/settings/space"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => setOpen(false)}
-                      className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground transition hover:bg-white/[0.04] hover:text-foreground"
-                    >
-                      You're not in any space yet — set one up.
-                    </Link>
-                  </li>
-                )}
-              </ul>
-            </>
           )}
 
           {isGuest && currentSpace && (

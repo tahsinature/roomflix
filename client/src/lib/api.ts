@@ -2,12 +2,13 @@ import type {
   AuthUser,
   GuestIdentity,
   InviteCode,
-  InviteKind,
+  JoinRequest,
   LibraryHealth,
   Playlist,
   PlaylistDetail,
   ProbeResult,
   Space,
+  SpaceJoinPolicy,
   SessionStateSnapshot,
   SpaceMember,
   SpaceRole,
@@ -18,6 +19,19 @@ import type {
   Subtitle,
   Video,
 } from "@shared/protocol";
+
+// Result of POST /api/invites/redeem. When the target space's
+// joinPolicy is "approval", the redeem creates a pending JoinRequest
+// instead of joining immediately — the caller (the /join page) routes
+// to the waiting room.
+export type RedeemInviteResult =
+  | { pending: true; requestId: string; spaceName: string }
+  | { space: Space; alreadyMember: boolean; pending?: undefined };
+
+// Same shape, guest path.
+export type RedeemInviteGuestResult =
+  | { pending: true; requestId: string; spaceName: string }
+  | { space: Space; displayName: string; pending?: undefined };
 
 // Thrown by `request` when the server responds 401. The auth provider
 // listens for these and clears the cached user — also useful at call sites
@@ -204,6 +218,11 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ name }),
     }),
+  setSpaceJoinPolicy: (id: string, joinPolicy: SpaceJoinPolicy) =>
+    request<Space>(`/api/spaces/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ joinPolicy }),
+    }),
   deleteSpace: (id: string) => request<void>(`/api/spaces/${encodeURIComponent(id)}`, { method: "DELETE" }),
   leaveSpace: (id: string) =>
     request<void>(`/api/spaces/${encodeURIComponent(id)}/leave`, { method: "POST" }),
@@ -211,7 +230,7 @@ export const api = {
     request<void>(`/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(userId)}`, { method: "DELETE" }),
   createInvite: (
     spaceId: string,
-    opts: { kind?: InviteKind; usesRemaining?: number | null; expiresInHours?: number | null } = {},
+    opts: { usesRemaining?: number | null; expiresInHours?: number | null } = {},
   ) =>
     request<InviteCode>(`/api/spaces/${encodeURIComponent(spaceId)}/invites`, {
       method: "POST",
@@ -220,17 +239,36 @@ export const api = {
   revokeInvite: (spaceId: string, code: string) =>
     request<void>(`/api/spaces/${encodeURIComponent(spaceId)}/invites/${encodeURIComponent(code)}`, { method: "DELETE" }),
   redeemInvite: (code: string) =>
-    request<{ space: Space; alreadyMember: boolean }>("/api/invites/redeem", {
+    request<RedeemInviteResult>("/api/invites/redeem", {
       method: "POST",
       body: JSON.stringify({ code }),
     }),
   redeemInviteAsGuest: (input: { code: string; displayName: string }) =>
-    request<{ space: Space; displayName: string }>("/api/invites/redeem-guest", {
+    request<RedeemInviteGuestResult>("/api/invites/redeem-guest", {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  // Admin-side queue management (joinPolicy: approval). The owner is
+  // the only principal allowed to call these per server-side checks.
+  listJoinRequests: (spaceId: string) =>
+    request<JoinRequest[]>(`/api/spaces/${encodeURIComponent(spaceId)}/join-requests`),
+  approveJoinRequest: (spaceId: string, requestId: string) =>
+    request<JoinRequest>(
+      `/api/spaces/${encodeURIComponent(spaceId)}/join-requests/${encodeURIComponent(requestId)}/approve`,
+      { method: "POST" },
+    ),
+  denyJoinRequest: (spaceId: string, requestId: string) =>
+    request<JoinRequest>(
+      `/api/spaces/${encodeURIComponent(spaceId)}/join-requests/${encodeURIComponent(requestId)}/deny`,
+      { method: "POST" },
+    ),
+  // Joiner-side. The request id is itself the bearer credential — if
+  // you have it, you're the one who submitted it.
+  getJoinRequest: (id: string) => request<JoinRequest>(`/api/join-requests/${encodeURIComponent(id)}`),
+  cancelJoinRequest: (id: string) =>
+    request<JoinRequest>(`/api/join-requests/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
   lookupInvite: (code: string) =>
-    request<{ kind: InviteKind; spaceName: string }>("/api/invites/lookup", {
+    request<{ spaceName: string }>("/api/invites/lookup", {
       method: "POST",
       body: JSON.stringify({ code }),
     }),
@@ -241,22 +279,4 @@ export const api = {
     }),
   sessionState: () => request<SessionStateSnapshot | null>("/api/session/state"),
   sessionMembers: () => request<SpaceMember[]>("/api/session/members"),
-
-  // TV-pairing for ad-hoc guest joins.
-  pairingStart: (displayName: string) =>
-    request<{ code: string; expiresAt: number }>("/api/pairing/start", {
-      method: "POST",
-      body: JSON.stringify({ displayName }),
-    }),
-  pairingStatus: (code: string) =>
-    request<
-      | { status: "pending"; expiresAt: number }
-      | { status: "approved"; displayName: string; spaceName: string }
-      | { status: "expired" }
-    >(`/api/pairing/status/${encodeURIComponent(code)}`),
-  pairingApprove: (code: string) =>
-    request<{ displayName: string; spaceName: string }>("/api/pairing/approve", {
-      method: "POST",
-      body: JSON.stringify({ code }),
-    }),
 };

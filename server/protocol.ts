@@ -37,12 +37,46 @@ export type AuthUser = {
 // storage backend. Every user has at least one — the auto-created "Home"
 // space. Membership is tracked separately so a user can be in many spaces
 // and roles are easy to evolve.
+// Per-space gate for invite redemption.
+//   "open"     — anyone with a valid invite link joins instantly.
+//   "approval" — invite redemption creates a JoinRequest; the space
+//                owner must approve before the joiner is admitted.
+// Defaults to "open" for new spaces (and is the implicit value for
+// any pre-existing rows that don't carry the field).
+export type SpaceJoinPolicy = "open" | "approval";
+
 export type Space = {
   id: string;
   name: string;
   ownerId: string;
+  joinPolicy: SpaceJoinPolicy;
   createdAt: number;
   updatedAt: number;
+};
+
+// Pending request to join a space when joinPolicy = "approval". The
+// requester might be a real user (account-backed) or a would-be guest
+// (display name only). Approval converts the request into the
+// corresponding membership or guest session; denial just drops it.
+export type JoinRequestStatus = "pending" | "approved" | "denied" | "expired" | "cancelled";
+
+export type JoinRequester =
+  | { kind: "user"; userId: string; username: string; displayName: string | null }
+  | { kind: "guest"; displayName: string };
+
+export type JoinRequest = {
+  id: string;
+  spaceId: string;
+  code: string;
+  requester: JoinRequester;
+  status: JoinRequestStatus;
+  requestedAt: number;
+  // Absolute epoch ms; the queue auto-expires entries that sit too
+  // long so they don't pile up.
+  expiresAt: number;
+  // Set when the admin acts on the request (approve/deny). Read by
+  // the waiting room poll to know what to do next.
+  approvedSessionToken?: string | null;
 };
 
 export type SpaceRole = "owner" | "member";
@@ -57,21 +91,15 @@ export type SpaceMember = {
 };
 
 // Invite codes are short, human-shareable, and bound to one space.
-//   kind: "member" — recipient must register / sign in and joins as a
-//                    persistent space member.
-//   kind: "guest"  — recipient picks a display name on the fly and joins
-//                    as a guest session. No account. Full member powers
-//                    inside the space; cannot manage spaces.
+// Recipients pick how to join (guest vs sign in vs create account) at
+// the /join page; the code itself is type-agnostic.
 //   usesRemaining: caps redemption count (null = unlimited)
 //   expiresAt: absolute epoch ms past which redemption is rejected (null
 //              = never expires)
-export type InviteKind = "member" | "guest";
-
 export type InviteCode = {
   code: string;
   spaceId: string;
   createdBy: string;
-  kind: InviteKind;
   usesRemaining: number | null;
   expiresAt: number | null;
   createdAt: number;
@@ -84,26 +112,6 @@ export type GuestIdentity = {
   id: string;
   displayName: string;
   spaceId: string;
-};
-
-// TV-pairing flow. Guest starts a pairing, gets an 8-digit code, reads it
-// to an admin who's already in a space. Admin types the code to admit the
-// guest. The pending record carries the chosen display name so it's set
-// the moment the session activates.
-export type PairingStatus = "pending" | "approved";
-
-export type PairingCode = {
-  code: string;
-  displayName: string;
-  status: PairingStatus;
-  // Filled in once an admin approves.
-  spaceId: string | null;
-  spaceName: string | null;
-  // Session token minted at approval time. The guest's status poll picks
-  // it up via Set-Cookie — the token never leaves the server in JSON.
-  sessionToken: string | null;
-  createdAt: number;
-  expiresAt: number;
 };
 
 // Connected viewer identity, surfaced in WS broadcasts and the /state
@@ -412,7 +420,12 @@ export type ServerMessage =
   // fields change (e.g. they edited their display name). Clients patch
   // their REST-cached members list by userId — the row's other fields
   // remain valid since it's the same membership record.
-  | { type: "memberUpdated"; member: SpaceMember };
+  | { type: "memberUpdated"; member: SpaceMember }
+  // Soft notification to admins watching a space whose joinPolicy is
+  // "approval": a new request just landed in the queue. Clients refetch
+  // the pending list on receipt — body is just a nudge, not the full
+  // row, so we don't have to worry about ACL.
+  | { type: "joinRequestPending"; spaceId: string };
 
 export function emptySessionState(): SessionState {
   return {

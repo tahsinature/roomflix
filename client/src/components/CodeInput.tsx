@@ -1,10 +1,9 @@
 import { useEffect, useRef, type ClipboardEvent, type KeyboardEvent, type ChangeEvent } from "react";
 import { cn } from "@/lib/utils";
 
-// Segmented code entry. 8 boxes in two groups of 4 with a dash divider —
-// matches the TV-pairing pattern most people have seen (Netflix on a
-// console, Spotify on a smart speaker). Auto-advance on input, backspace
-// jumps back, paste fills all visible slots from the paste buffer.
+// Segmented code entry. 8 boxes in two groups of 4 with a dash divider.
+// Auto-advance on input, backspace jumps back, paste fills all visible
+// slots from the paste buffer.
 //
 // Codes use our friendly alphabet (lowercase a–z minus i/l/o, plus 2-9)
 // so saying them aloud over a phone call doesn't get garbled.
@@ -12,8 +11,9 @@ import { cn } from "@/lib/utils";
 const LENGTH = 8;
 const DASH_AFTER = 4;
 
-// Char class accepted per slot. Pairing flow uses digits only (easier to
-// say aloud); invite redeem accepts our friendly alphanumeric alphabet.
+// Char class accepted per slot. `digits` mode is preserved for any
+// future numeric-only code surface; today only the alphanumeric form
+// is in use (invite redemption).
 const ALPHANUMERIC = /^[a-z0-9]$/;
 const DIGITS = /^[0-9]$/;
 

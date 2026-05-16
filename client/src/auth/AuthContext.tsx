@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AuthUser, GuestIdentity, SpaceSummary } from "@shared/protocol";
-import { api, UnauthorizedError } from "@/lib/api";
+import { api, UnauthorizedError, type RedeemInviteGuestResult } from "@/lib/api";
 
 // Tri-state because the initial /session probe runs async and we don't
 // want to flash the welcome screen for a known-authed user on reload.
@@ -27,7 +27,9 @@ type AuthContextValue = {
   identityLabel: string;
   login: (input: { username: string; password: string }) => Promise<void>;
   register: (input: { username: string; password: string }) => Promise<void>;
-  redeemGuest: (input: { code: string; displayName: string }) => Promise<void>;
+  // Returns the API result so the caller can branch on the pending
+  // case (joinPolicy = "approval" → joiner is queued, no session yet).
+  redeemGuest: (input: { code: string; displayName: string }) => Promise<RedeemInviteGuestResult>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   // Switch active space (users only; guests can't switch).
@@ -103,10 +105,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const redeemGuest: AuthContextValue["redeemGuest"] = useCallback(
     async (input) => {
-      await api.redeemInviteAsGuest(input);
-      // Server set the cookie — refresh pulls down the resulting guest
-      // identity and the single-space listing.
-      await refresh();
+      const result = await api.redeemInviteAsGuest(input);
+      // Only refresh if the server actually started a session. For
+      // approval-gated spaces the response is { pending, requestId }
+      // and there's no cookie to pull down yet — the caller routes to
+      // the waiting room, which polls and grabs the cookie on approve.
+      if (!result.pending) await refresh();
+      return result;
     },
     [refresh],
   );

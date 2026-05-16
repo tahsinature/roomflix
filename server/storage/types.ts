@@ -5,10 +5,11 @@
 import type {
   AuthUser,
   InviteCode,
-  InviteKind,
-  PairingCode,
+  JoinRequest,
+  JoinRequester,
   Playlist,
   Space,
+  SpaceJoinPolicy,
   SpaceMember,
   SpaceRole,
   StorageActivation,
@@ -171,11 +172,12 @@ export interface PlaylistRepo {
   reparent(oldOwnerId: string, spaceId: string): Promise<number>;
 }
 
-// Spaces themselves: name + owner. Membership lives in MembershipRepo.
+// Spaces themselves: name + owner + joinPolicy. Membership lives in
+// MembershipRepo.
 export interface SpaceRepo {
   get(id: string): Promise<Space | null>;
   create(input: { name: string; ownerId: string }): Promise<Space>;
-  update(id: string, patch: { name?: string }): Promise<Space | null>;
+  update(id: string, patch: { name?: string; joinPolicy?: SpaceJoinPolicy }): Promise<Space | null>;
   remove(id: string): Promise<boolean>;
 }
 
@@ -197,7 +199,7 @@ export interface MembershipRepo {
 
 // Short, human-shareable codes that grant access when redeemed.
 export interface InviteRepo {
-  create(input: { spaceId: string; createdBy: string; kind: InviteKind; usesRemaining: number | null; expiresAt: number | null }): Promise<InviteCode>;
+  create(input: { spaceId: string; createdBy: string; usesRemaining: number | null; expiresAt: number | null }): Promise<InviteCode>;
   get(code: string): Promise<InviteCode | null>;
   listForSpace(spaceId: string): Promise<InviteCode[]>;
   remove(code: string): Promise<boolean>;
@@ -208,18 +210,29 @@ export interface InviteRepo {
   removeAllForSpace(spaceId: string): Promise<number>;
 }
 
-// Short-lived "I want to join" tickets for the TV-pairing guest flow.
-// The collection has a TTL index on expiresAt so abandoned codes get
-// reaped automatically.
-export interface PairingRepo {
-  create(input: { displayName: string; ttlMs: number }): Promise<PairingCode>;
-  get(code: string): Promise<PairingCode | null>;
-  // Mark a pending pairing approved. Returns the freshly-updated row, or
-  // null if the code is unknown, already approved, or expired.
-  approve(code: string, input: { spaceId: string; spaceName: string; sessionToken: string }): Promise<PairingCode | null>;
-  // Used after the guest's status poll picked up the approved code — we
-  // delete the record so the same code can't be replayed.
-  consume(code: string): Promise<boolean>;
+// Pending invite redemption when a space's joinPolicy = "approval".
+// Created at request time; the admin approves/denies from the space
+// settings UI; the joiner waits on a poll for status to flip.
+export interface JoinRequestRepo {
+  create(input: {
+    spaceId: string;
+    code: string;
+    requester: JoinRequester;
+    ttlMs: number;
+  }): Promise<JoinRequest>;
+  get(id: string): Promise<JoinRequest | null>;
+  listPendingForSpace(spaceId: string): Promise<JoinRequest[]>;
+  // Mark a request approved + stash the session token (when guest) so
+  // the waiting-room poll on the joiner's side picks up the new
+  // cookie/identity on its next tick.
+  approve(id: string, approvedSessionToken: string | null): Promise<JoinRequest | null>;
+  // Terminal status update. `denied` for admin reject; `cancelled` for
+  // the joiner backing out of the waiting room.
+  setTerminalStatus(
+    id: string,
+    status: "denied" | "cancelled",
+  ): Promise<JoinRequest | null>;
+  removeAllForSpace(spaceId: string): Promise<number>;
 }
 
 export type Storage = {
@@ -235,7 +248,7 @@ export type Storage = {
   spaces: SpaceRepo;
   memberships: MembershipRepo;
   invites: InviteRepo;
-  pairings: PairingRepo;
+  joinRequests: JoinRequestRepo;
   // Lifecycle hook so the server can disconnect cleanly on shutdown.
   close(): Promise<void>;
 };

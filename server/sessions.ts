@@ -213,6 +213,18 @@ export function broadcastPresence(spaceId: string): void {
   for (const ws of session.sockets) ws.send(payload);
 }
 
+// Nudge any sockets currently connected to a space that a new join
+// request is waiting on the admin queue. The payload is intentionally
+// minimal — clients refetch the pending list on receipt. Non-owners
+// in the channel get the message too; their UI just ignores it (the
+// pending-list endpoint is owner-gated).
+export function broadcastJoinRequestPending(spaceId: string): void {
+  const session = getSession(spaceId);
+  if (!session) return;
+  const payload = JSON.stringify({ type: "joinRequestPending", spaceId } satisfies ServerMessage);
+  for (const ws of session.sockets) ws.send(payload);
+}
+
 function broadcastMemberUpdated(spaceId: string, member: SpaceMember): void {
   const session = getSession(spaceId);
   if (!session) return;

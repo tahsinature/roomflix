@@ -2,12 +2,15 @@ import { Schema, model } from "mongoose";
 
 // Short, human-shareable codes that grant access when redeemed.
 // _id IS the code (8 chars, unambiguous alphabet — see generator).
+// Codes are type-agnostic: the recipient picks guest vs member at the
+// /join page (see /api/invites/redeem and /redeem-guest). Older docs
+// may carry a `kind` field on disk — `strict: true` here silently
+// ignores it on reads, no migration needed.
 const inviteSchema = new Schema(
   {
     _id: { type: String, required: true },
     spaceId: { type: String, required: true, index: true },
     createdBy: { type: String, required: true },
-    kind: { type: String, required: true, enum: ["member", "guest"] },
     // null = unlimited uses. Decremented atomically by repo.consume.
     usesRemaining: { type: Number, default: null },
     // null = never expires.

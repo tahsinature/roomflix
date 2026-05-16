@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { Database, HelpCircle, Library as LibraryIcon, LogOut, Menu, SlidersHorizontal, Users2, X } from "lucide-react";
 import { AccountMenu } from "@/components/AccountMenu";
+import { SpaceChip } from "@/components/SpaceChip";
 import { ViewerPill } from "@/components/ViewerPill";
 import { useAuth } from "@/auth/AuthContext";
 import { cn } from "@/lib/utils";
@@ -37,19 +38,25 @@ export function AppNav() {
     <>
       <nav className="fixed inset-x-0 top-0 z-40 border-b border-border bg-background/70 backdrop-blur-xl backdrop-saturate-150">
         <div className="flex items-center justify-between px-5 py-3.5 sm:px-8">
-          <Link
-            to="/"
-            className={cn(
-              "flex items-center gap-2.5 transition hover:opacity-80",
-              onHome ? "text-accent" : "text-foreground",
-            )}
-            aria-current={onHome ? "page" : undefined}
-          >
-            <BrandMark />
-            <span className="text-[15px] font-bold tracking-tight">
-              Roomflix<span className="text-accent">.</span>
-            </span>
-          </Link>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Link
+              to="/"
+              className={cn(
+                "flex items-center gap-2.5 transition hover:opacity-80",
+                onHome ? "text-accent" : "text-foreground",
+              )}
+              aria-current={onHome ? "page" : undefined}
+            >
+              <BrandMark />
+              <span className="text-[15px] font-bold tracking-tight">
+                Roomflix<span className="text-accent">.</span>
+              </span>
+            </Link>
+            {/* Current-space chip — single source of truth for "which
+                space am I in" + a switcher popover. Hidden on mobile
+                widths to keep the brand row breathable. */}
+            <SpaceChip />
+          </div>
 
           <div className="flex items-center gap-2 sm:gap-5">
             <ViewerPill meId={meId} align="right" />

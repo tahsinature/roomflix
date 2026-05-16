@@ -310,7 +310,13 @@ export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentT
 
       <Captions className="pointer-events-none absolute inset-x-0 bottom-16 z-20 mx-auto max-w-[90%] text-center text-base font-medium text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)] sm:bottom-20 sm:text-lg" />
 
+      {/* Single tap anywhere → play/pause. Double tap on the left or
+          right half → 10s seek back / forward (YouTube/Netflix style).
+          Vidstack treats `dblpointerup` as a higher-priority gesture so
+          the underlying single-tap toggle is suppressed on double-tap. */}
       <Gesture className="absolute inset-0 z-10 block h-full w-full" event="pointerup" action="toggle:paused" />
+      <Gesture className="absolute inset-y-0 left-0 z-10 block h-full w-1/2" event="dblpointerup" action="seek:-10" />
+      <Gesture className="absolute inset-y-0 right-0 z-10 block h-full w-1/2" event="dblpointerup" action="seek:10" />
 
       <TitleBar title={videoTitle || urlFilename(videoUrl)} />
       <Controls subtitles={subtitles} activeSubtitleId={activeSubtitleId} onSelectSubtitle={setActiveSubtitleId} />

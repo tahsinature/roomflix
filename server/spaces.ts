@@ -67,6 +67,7 @@ export async function deleteSpaceCascade(storage: Storage, spaceId: string): Pro
   await Promise.all(playlists.map((p) => storage.playlists.remove(spaceId, p.id)));
   await storage.storageConfigs.remove(spaceId).catch(() => undefined);
   await storage.invites.removeAllForSpace(spaceId);
+  await storage.joinRequests.removeAllForSpace(spaceId);
   await storage.memberships.removeAllForSpace(spaceId);
   await storage.spaces.remove(spaceId);
   // Kick anyone currently connected to the in-memory session so they

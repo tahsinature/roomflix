@@ -32,6 +32,10 @@ type SessionPresenceValue = {
   stateLoaded: boolean;
   members: SpaceMember[];
   clientId: string;
+  // Bumps every time the server pushes a "joinRequestPending" frame
+  // for this space. Components on settings/space subscribe via
+  // useEffect to refetch their pending-requests list.
+  joinRequestSignal: number;
   // Imperative API for /watch and future event surfaces.
   send: (msg: ClientMessage) => void;
   setStatus: (status: PresenceStatus) => void;
@@ -46,6 +50,7 @@ const DEFAULT: SessionPresenceValue = {
   stateLoaded: false,
   members: [],
   clientId: "",
+  joinRequestSignal: 0,
   send: () => {},
   setStatus: () => {},
 };
@@ -61,6 +66,7 @@ export function SessionPresenceProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected] = useState(false);
   const [stateLoaded, setStateLoaded] = useState(false);
   const [members, setMembers] = useState<SpaceMember[]>([]);
+  const [joinRequestSignal, setJoinRequestSignal] = useState(0);
 
   // Stable across the provider's lifetime — server uses it for the
   // "updatedBy" attribution and we use it as the WS query param.
@@ -168,6 +174,11 @@ export function SessionPresenceProvider({ children }: { children: ReactNode }) {
           // is otherwise unchanged — same role, joinedAt, etc. — so a
           // full row replace is the simplest correct thing.
           setMembers((prev) => prev.map((m) => (m.userId === msg.member.userId ? msg.member : m)));
+        } else if (msg.type === "joinRequestPending") {
+          // Bumping the signal triggers settings/space's pending-list
+          // re-fetch via useEffect. Non-owners receive the frame too
+          // (it's just a nudge); their API call returns 403 quietly.
+          setJoinRequestSignal((n) => n + 1);
         }
       };
     };
@@ -199,6 +210,7 @@ export function SessionPresenceProvider({ children }: { children: ReactNode }) {
     stateLoaded,
     members,
     clientId: clientIdRef.current,
+    joinRequestSignal,
     send,
     setStatus,
   };

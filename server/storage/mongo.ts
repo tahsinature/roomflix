@@ -2,10 +2,12 @@ import mongoose from "mongoose";
 
 import type {
   InviteCode,
-  InviteKind,
-  PairingCode,
+  JoinRequest,
+  JoinRequester,
+  JoinRequestStatus,
   Playlist,
   Space,
+  SpaceJoinPolicy,
   SpaceMember,
   SpaceRole,
   StorageActivation,
@@ -17,8 +19,8 @@ import type {
 } from "@/protocol.ts";
 import type {
   InviteRepo,
+  JoinRequestRepo,
   MembershipRepo,
-  PairingRepo,
   PlaylistRepo,
   Session,
   SessionRepo,
@@ -33,7 +35,7 @@ import type {
 } from "@/storage/types.ts";
 import {
   InviteModel,
-  PairingModel,
+  JoinRequestModel,
   PlaylistModel,
   SessionModel,
   SpaceMemberModel,
@@ -84,7 +86,7 @@ export async function createMongoStorage(mongoUrl: string): Promise<Storage> {
     spaces: new MongoSpaceRepo(),
     memberships: new MongoMembershipRepo(),
     invites: new MongoInviteRepo(),
-    pairings: new MongoPairingRepo(),
+    joinRequests: new MongoJoinRequestRepo(),
     async close() {
       await mongoose.disconnect();
     },
@@ -523,6 +525,7 @@ class MongoSpaceRepo implements SpaceRepo {
       _id: randomId(),
       name: input.name.trim() || "Untitled space",
       ownerId: input.ownerId,
+      joinPolicy: "open" as const,
       createdAt: now,
       updatedAt: now,
     };
@@ -530,9 +533,10 @@ class MongoSpaceRepo implements SpaceRepo {
     return toSpace(doc);
   }
 
-  async update(id: string, patch: { name?: string }): Promise<Space | null> {
+  async update(id: string, patch: { name?: string; joinPolicy?: SpaceJoinPolicy }): Promise<Space | null> {
     const set: Record<string, unknown> = { updatedAt: Date.now() };
     if (patch.name !== undefined) set.name = patch.name.trim() || "Untitled space";
+    if (patch.joinPolicy !== undefined) set.joinPolicy = patch.joinPolicy;
     const updated = await SpaceModel.findOneAndUpdate({ _id: id }, { $set: set }, { returnDocument: "after" }).lean();
     return updated ? toSpace(updated) : null;
   }
@@ -540,6 +544,83 @@ class MongoSpaceRepo implements SpaceRepo {
   async remove(id: string): Promise<boolean> {
     const result = await SpaceModel.deleteOne({ _id: id });
     return result.deletedCount === 1;
+  }
+}
+
+class MongoJoinRequestRepo implements JoinRequestRepo {
+  async create(input: {
+    spaceId: string;
+    code: string;
+    requester: JoinRequester;
+    ttlMs: number;
+  }): Promise<JoinRequest> {
+    const now = Date.now();
+    const doc = {
+      _id: randomId(),
+      spaceId: input.spaceId,
+      code: input.code,
+      requester:
+        input.requester.kind === "user"
+          ? {
+              kind: "user" as const,
+              userId: input.requester.userId,
+              username: input.requester.username,
+              displayName: input.requester.displayName,
+            }
+          : { kind: "guest" as const, displayName: input.requester.displayName },
+      status: "pending" as const,
+      requestedAt: now,
+      expiresAt: new Date(now + input.ttlMs),
+      approvedSessionToken: null,
+    };
+    await JoinRequestModel.create(doc);
+    return toJoinRequest(doc);
+  }
+
+  async get(id: string): Promise<JoinRequest | null> {
+    const doc = await JoinRequestModel.findOne({ _id: id }).lean();
+    if (!doc) return null;
+    // TTL index sweeps eventually; be defensive here too.
+    if (doc.expiresAt.getTime() < Date.now() && doc.status === "pending") {
+      await JoinRequestModel.updateOne({ _id: id }, { $set: { status: "expired" } });
+      return toJoinRequest({ ...doc, status: "expired" });
+    }
+    return toJoinRequest(doc);
+  }
+
+  async listPendingForSpace(spaceId: string): Promise<JoinRequest[]> {
+    const docs = await JoinRequestModel.find({
+      spaceId,
+      status: "pending",
+      expiresAt: { $gt: new Date() },
+    })
+      .sort({ requestedAt: 1 })
+      .lean();
+    return docs.map(toJoinRequest);
+  }
+
+  async approve(id: string, approvedSessionToken: string | null): Promise<JoinRequest | null> {
+    // Atomic guard so a double-click only commits once.
+    const updated = await JoinRequestModel.findOneAndUpdate(
+      { _id: id, status: "pending", expiresAt: { $gt: new Date() } },
+      { $set: { status: "approved", approvedSessionToken } },
+      { returnDocument: "after" },
+    ).lean();
+    return updated ? toJoinRequest(updated) : null;
+  }
+
+  async setTerminalStatus(id: string, status: "denied" | "cancelled"): Promise<JoinRequest | null> {
+    const updated = await JoinRequestModel.findOneAndUpdate(
+      { _id: id, status: "pending" },
+      { $set: { status } },
+      { returnDocument: "after" },
+    ).lean();
+    return updated ? toJoinRequest(updated) : null;
+  }
+
+  async removeAllForSpace(spaceId: string): Promise<number> {
+    const result = await JoinRequestModel.deleteMany({ spaceId });
+    return result.deletedCount ?? 0;
   }
 }
 
@@ -601,7 +682,6 @@ class MongoInviteRepo implements InviteRepo {
   async create(input: {
     spaceId: string;
     createdBy: string;
-    kind: InviteKind;
     usesRemaining: number | null;
     expiresAt: number | null;
   }): Promise<InviteCode> {
@@ -609,7 +689,6 @@ class MongoInviteRepo implements InviteRepo {
       _id: generateInviteCode(),
       spaceId: input.spaceId,
       createdBy: input.createdBy,
-      kind: input.kind,
       usesRemaining: input.usesRemaining,
       expiresAt: input.expiresAt,
       createdAt: Date.now(),
@@ -663,81 +742,6 @@ function generateInviteCode(): string {
   let out = "";
   for (let i = 0; i < 8; i++) {
     out += alphabet[Math.floor(Math.random() * alphabet.length)];
-  }
-  return out;
-}
-
-class MongoPairingRepo implements PairingRepo {
-  async create(input: { displayName: string; ttlMs: number }): Promise<PairingCode> {
-    // Retry on collision — 10^8 is plenty of space at the scale we
-    // target, but the loop is cheap insurance against the rare clash.
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const code = generatePairingCode();
-      const now = Date.now();
-      const doc = {
-        _id: code,
-        displayName: input.displayName,
-        status: "pending" as const,
-        spaceId: null,
-        spaceName: null,
-        sessionToken: null,
-        createdAt: now,
-        expiresAt: new Date(now + input.ttlMs),
-      };
-      try {
-        await PairingModel.create(doc);
-        return toPairing(doc);
-      } catch (err) {
-        if (!isDuplicateKey(err)) throw err;
-        // collision — pick a new code and try again
-      }
-    }
-    throw new Error("could not allocate a pairing code; please retry");
-  }
-
-  async get(code: string): Promise<PairingCode | null> {
-    const doc = await PairingModel.findOne({ _id: code }).lean();
-    if (!doc) return null;
-    if (doc.expiresAt.getTime() < Date.now()) {
-      // TTL index hasn't reaped it yet — treat as gone.
-      await PairingModel.deleteOne({ _id: code }).catch(() => undefined);
-      return null;
-    }
-    return toPairing(doc);
-  }
-
-  async approve(
-    code: string,
-    input: { spaceId: string; spaceName: string; sessionToken: string },
-  ): Promise<PairingCode | null> {
-    // Atomic: only flip if still pending and not yet expired.
-    const updated = await PairingModel.findOneAndUpdate(
-      { _id: code, status: "pending", expiresAt: { $gt: new Date() } },
-      {
-        $set: {
-          status: "approved",
-          spaceId: input.spaceId,
-          spaceName: input.spaceName,
-          sessionToken: input.sessionToken,
-        },
-      },
-      { returnDocument: "after" },
-    ).lean();
-    return updated ? toPairing(updated) : null;
-  }
-
-  async consume(code: string): Promise<boolean> {
-    const result = await PairingModel.deleteOne({ _id: code });
-    return result.deletedCount === 1;
-  }
-}
-
-// Pure-numeric 8-digit pairing code. Displayed to the guest as
-// XXXX XXXX — easy to read aloud, easy to type back on the admin side.
-function generatePairingCode(): string {
-  let out = "";
-  for (let i = 0; i < 8; i++) {
-    out += Math.floor(Math.random() * 10).toString();
   }
   return out;
 }
@@ -905,6 +909,9 @@ type SpaceLean = {
   _id: string;
   name: string;
   ownerId: string;
+  // Pre-existing rows didn't carry this — coerce to the default at
+  // the wire boundary so callers always see a concrete policy.
+  joinPolicy?: SpaceJoinPolicy | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -913,8 +920,46 @@ function toSpace(doc: SpaceLean): Space {
     id: doc._id,
     name: doc.name,
     ownerId: doc.ownerId,
+    joinPolicy: doc.joinPolicy ?? "open",
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
+  };
+}
+
+type JoinRequestLean = {
+  _id: string;
+  spaceId: string;
+  code: string;
+  requester: {
+    kind: "user" | "guest";
+    userId?: string | null;
+    username?: string | null;
+    displayName?: string | null;
+  };
+  status: JoinRequestStatus;
+  requestedAt: number;
+  expiresAt: Date;
+  approvedSessionToken?: string | null;
+};
+function toJoinRequest(doc: JoinRequestLean): JoinRequest {
+  const requester: JoinRequester =
+    doc.requester.kind === "user"
+      ? {
+          kind: "user",
+          userId: doc.requester.userId ?? "",
+          username: doc.requester.username ?? "",
+          displayName: doc.requester.displayName ?? null,
+        }
+      : { kind: "guest", displayName: doc.requester.displayName ?? "" };
+  return {
+    id: doc._id,
+    spaceId: doc.spaceId,
+    code: doc.code,
+    requester,
+    status: doc.status,
+    requestedAt: doc.requestedAt,
+    expiresAt: doc.expiresAt.getTime(),
+    approvedSessionToken: doc.approvedSessionToken ?? null,
   };
 }
 
@@ -943,7 +988,6 @@ type InviteLean = {
   _id: string;
   spaceId: string;
   createdBy: string;
-  kind: InviteKind;
   // Default-null fields are inferred as nullable-or-missing.
   usesRemaining?: number | null;
   expiresAt?: number | null;
@@ -954,36 +998,9 @@ function toInvite(doc: InviteLean): InviteCode {
     code: doc._id,
     spaceId: doc.spaceId,
     createdBy: doc.createdBy,
-    // Legacy codes pre-date the kind/expiresAt fields. Default kind to
-    // "member" so existing rows keep their old semantics; null expiry
-    // means they never expire.
-    kind: doc.kind ?? "member",
     usesRemaining: doc.usesRemaining ?? null,
     expiresAt: doc.expiresAt ?? null,
     createdAt: doc.createdAt,
-  };
-}
-
-type PairingLean = {
-  _id: string;
-  displayName: string;
-  status: "pending" | "approved";
-  spaceId?: string | null;
-  spaceName?: string | null;
-  sessionToken?: string | null;
-  createdAt: number;
-  expiresAt: Date;
-};
-function toPairing(doc: PairingLean): PairingCode {
-  return {
-    code: doc._id,
-    displayName: doc.displayName,
-    status: doc.status,
-    spaceId: doc.spaceId ?? null,
-    spaceName: doc.spaceName ?? null,
-    sessionToken: doc.sessionToken ?? null,
-    createdAt: doc.createdAt,
-    expiresAt: doc.expiresAt.getTime(),
   };
 }
 

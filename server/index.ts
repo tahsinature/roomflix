@@ -5,6 +5,7 @@ import { Hono } from "hono";
 
 import { type ClientMessage, type ServerMessage } from "@/protocol.ts";
 import {
+  broadcastJoinRequestPending,
   broadcastPresence,
   broadcastState,
   broadcastViewers,
@@ -25,9 +26,13 @@ import { buildAccountStorageRouter } from "@/api/account_storage.ts";
 import { buildSpaceStorageRouter } from "@/api/space_storage.ts";
 import { buildStorageSecretRouter } from "@/api/storage_secret.ts";
 import { buildPlaylistsRouter } from "@/api/playlists.ts";
-import { buildInvitesRouter, buildSessionSpaceRouter, buildSpacesRouter } from "@/api/spaces.ts";
+import {
+  buildInvitesRouter,
+  buildJoinRequestsRouter,
+  buildSessionSpaceRouter,
+  buildSpacesRouter,
+} from "@/api/spaces.ts";
 import { buildSessionMembersRouter, buildSessionStateRouter } from "@/api/session_state.ts";
-import { buildPairingRouter } from "@/api/pairing.ts";
 import { getCurrentPrincipalFromRequest } from "@/auth.ts";
 import { assertEncryptionKey } from "@/crypto.ts";
 import { ensureHomeSpace } from "@/spaces.ts";
@@ -122,8 +127,16 @@ app.route("/api/auth", buildAuthRouter(storage));
 // can fall through to space_storage.
 app.route("/api/spaces/:id/storage", buildSpaceStorageRouter(storage));
 app.route("/api/spaces", buildSpacesRouter(storage));
-app.route("/api/invites", buildInvitesRouter(storage));
-app.route("/api/pairing", buildPairingRouter(storage));
+app.route(
+  "/api/invites",
+  buildInvitesRouter(storage, {
+    // Fan a soft WS nudge to any sockets already in the space so an
+    // online admin's pending-requests list refreshes without waiting
+    // for a poll.
+    onJoinRequestCreated: (req) => broadcastJoinRequestPending(req.spaceId),
+  }),
+);
+app.route("/api/join-requests", buildJoinRequestsRouter(storage));
 app.route("/api/session/space", buildSessionSpaceRouter(storage));
 app.route("/api/session/state", buildSessionStateRouter(storage));
 app.route("/api/session/members", buildSessionMembersRouter(storage));
@@ -388,7 +401,7 @@ const server = Bun.serve<WsData>({
 
       // Identity for the viewers list. For users, prefer displayName but
       // fall back to "@username" so the chip is never blank. For guests,
-      // use guestDisplayName (set at pairing/redeem time); also has a
+      // use guestDisplayName (set at redeem time); also has a
       // defensive fallback in case it's somehow empty.
       const identityKind: "user" | "guest" = principal.kind === "user" ? "user" : "guest";
       const identityId = principal.kind === "user" ? principal.user.id : principal.session.token;

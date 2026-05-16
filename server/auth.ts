@@ -48,13 +48,20 @@ export async function startGuestSession(c: Context, storage: Storage, spaceId: s
 }
 
 function writeSessionCookie(c: Context, token: string, expiresAt: number) {
-  setCookie(c, SESSION_COOKIE, token, {
+  setCookie(c, SESSION_COOKIE, token, sessionCookieOptions(expiresAt));
+}
+
+// Exposed so other modules (e.g. the join-request approve flow) can
+// set the session cookie without duplicating the option matrix. Pass
+// the absolute expiry epoch ms; defaults to a fresh TTL window.
+export function sessionCookieOptions(expiresAt: number = Date.now() + SESSION_TTL_MS) {
+  return {
     httpOnly: true,
-    sameSite: "Lax",
+    sameSite: "Lax" as const,
     secure: cookieSecure(),
     path: "/",
     expires: new Date(expiresAt),
-  });
+  };
 }
 
 // Reverse of startSession — drop the cookie and the DB row.

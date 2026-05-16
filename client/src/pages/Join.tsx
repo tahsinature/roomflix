@@ -1,29 +1,61 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowRight, Loader2, Users2 } from "lucide-react";
+import { ArrowRight, Loader2, LogIn, Users2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CodeInput } from "@/components/CodeInput";
 import { useAuth } from "@/auth/AuthContext";
 import { api } from "@/lib/api";
 
-// Two ways to join:
-//   • have a code → existing invite-redeem flow (CodeInput in alphanumeric mode)
-//   • need a code → pairing flow: pick a name, get a numeric code, read
-//                   it to the admin, page polls for approval, cookie
-//                   lands automatically.
+// /join is the entry point for joining a space via an invite link or
+// typed code. /join/<code> deep-links straight into the picker; bare
+// /join opens the code-entry pad first.
 //
-// /join/<code> deep-links straight into the invite path with the code
-// pre-filled.
-type Mode = "chooser" | "invite-code" | "invite-name" | "pairing-name" | "pairing-wait";
+// Three commitment levels are surfaced at the picker step:
+//   - Watch as a guest  (no account)
+//   - Sign in           (existing account → joins as member)
+//   - Create an account (new account → joins as member)
+//
+// For approval-mode spaces the redemption returns { pending, requestId }
+// and the page routes to /join/waiting/:id where status is polled.
+type Mode = "invite-code" | "invite-picker" | "invite-guest-name";
 
 export default function Join() {
   const { code: codeFromUrl } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { redeemGuest, refresh } = useAuth();
+  const { user, guest, redeemGuest, refresh } = useAuth();
 
-  // Start on the chooser unless a code was deep-linked into the URL.
-  const [mode, setMode] = useState<Mode>(codeFromUrl ? "invite-code" : "chooser");
+  const initialCode = (codeFromUrl ?? "").toLowerCase().replace(/-/g, "");
+  const [mode, setMode] = useState<Mode>("invite-code");
+  const [code, setCode] = useState(initialCode);
+  const [spaceName, setSpaceName] = useState<string | null>(null);
+
+  // Auto-redeem path: a signed-in user landed here with a code (e.g.
+  // they came back from /login after the universal picker bounced them
+  // there). Skip the picker — they've already chosen "member".
+  useEffect(() => {
+    if (!user || !code) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await api.redeemInvite(code);
+        if (cancelled) return;
+        if (result.pending) {
+          navigate(`/join/waiting/${result.requestId}`, { replace: true });
+          return;
+        }
+        await refresh();
+        navigate("/library", { replace: true });
+      } catch {
+        // fall through: stay on the page, picker can offer guest path
+        // (server told us the code is bad / expired). The picker's own
+        // lookup will surface the same error if it persists.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, code, navigate, refresh]);
 
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center px-6 py-12">
@@ -36,29 +68,45 @@ export default function Join() {
       </Link>
 
       <div className="w-full max-w-md">
-        {mode === "chooser" && <Chooser onPick={setMode} />}
-        {(mode === "invite-code" || mode === "invite-name") && (
-          <InviteFlow
-            initialCode={codeFromUrl ?? null}
-            mode={mode}
-            onBack={() => setMode("chooser")}
-            onSwitchToName={() => setMode("invite-name")}
-            onSubmitted={(code, displayName) =>
-              redeemGuest({ code, displayName }).then(() => navigate("/library", { replace: true }))
-            }
+        {mode === "invite-code" && (
+          <InviteCodeEntry
+            initialCode={initialCode}
+            onValidated={(c, name) => {
+              setCode(c);
+              setSpaceName(name);
+              setMode("invite-picker");
+            }}
           />
         )}
-        {(mode === "pairing-name" || mode === "pairing-wait") && (
-          <PairingFlow
-            mode={mode}
-            onBack={() => setMode("chooser")}
-            onStarted={() => setMode("pairing-wait")}
-            onApproved={async () => {
-              // Server set our session cookie on the status response — pull
-              // fresh identity into AuthContext, then route to the library.
-              await refresh();
-              navigate("/library", { replace: true });
+
+        {mode === "invite-picker" && (
+          <InvitePicker
+            spaceName={spaceName}
+            code={code}
+            isAuthed={!!user || !!guest}
+            onPickGuest={() => setMode("invite-guest-name")}
+            onPickSignIn={() => {
+              navigate("/login", { state: { from: { pathname: `/join/${code}` } } });
             }}
+            onPickRegister={() => {
+              navigate("/register", { state: { from: { pathname: `/join/${code}` } } });
+            }}
+            onBack={() => setMode("invite-code")}
+          />
+        )}
+
+        {mode === "invite-guest-name" && (
+          <GuestNameForm
+            spaceName={spaceName}
+            onSubmit={async (displayName) => {
+              const result = await redeemGuest({ code, displayName });
+              if (result.pending) {
+                navigate(`/join/waiting/${result.requestId}`, { replace: true });
+              } else {
+                navigate("/library", { replace: true });
+              }
+            }}
+            onBack={() => setMode("invite-picker")}
           />
         )}
       </div>
@@ -66,34 +114,61 @@ export default function Join() {
   );
 }
 
-function Chooser({ onPick }: { onPick: (mode: Mode) => void }) {
+// Code-entry pad. Validates with /api/invites/lookup before handing
+// the (code, spaceName) off to the parent — that way the next screen
+// can show "Joining <space>" without an extra round-trip.
+function InviteCodeEntry({
+  initialCode,
+  onValidated,
+}: {
+  initialCode: string;
+  onValidated: (code: string, spaceName: string) => void;
+}) {
+  const [code, setCode] = useState(initialCode);
+  const [error, setError] = useState("");
+  const ranInitial = useRef(false);
+
+  const runLookup = async (next: string) => {
+    setError("");
+    try {
+      const result = await api.lookupInvite(next);
+      onValidated(next, result.spaceName);
+    } catch (err) {
+      setError((err as Error).message || "Couldn't find that code");
+    }
+  };
+
+  // Auto-lookup when a code was deep-linked into the URL. Guard with
+  // a ref so React StrictMode's double-mount doesn't fire it twice.
+  useEffect(() => {
+    if (ranInitial.current || !initialCode) return;
+    ranInitial.current = true;
+    void runLookup(initialCode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCode]);
+
   return (
     <>
       <h1 className="text-balance text-center text-[28px] font-bold leading-[1.1] tracking-tightest sm:text-[32px]">
-        Join a space.
+        Enter your invite code.
       </h1>
       <p className="mt-3 text-center text-[14px] leading-[1.6] text-muted-foreground">
-        No account needed — just pick how you're joining.
+        The 8-character code your host shared (hyphen is optional).
       </p>
 
-      <div className="mt-8 grid gap-3">
-        <button
-          type="button"
-          onClick={() => onPick("invite-code")}
-          className="flex flex-col items-start gap-1 border border-border bg-bg-elevated/40 px-4 py-3 text-left transition hover:border-border-hover hover:bg-bg-elevated/70"
-        >
-          <span className="text-[15px] font-medium text-foreground">I have a code</span>
-          <span className="font-mono text-[11px] text-text-dim">8-character invite the host sent you</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => onPick("pairing-name")}
-          className="flex flex-col items-start gap-1 border border-accent/40 bg-accent/10 px-4 py-3 text-left transition hover:border-accent/60 hover:bg-accent/15"
-        >
-          <span className="text-[15px] font-medium text-foreground">Get a pairing code</span>
-          <span className="font-mono text-[11px] text-text-dim">Read 8 digits to the host on a call — they'll admit you</span>
-        </button>
+      <div className="mt-8">
+        <CodeInput
+          value={code}
+          onChange={(v) => {
+            setCode(v);
+            setError("");
+          }}
+          onComplete={(v) => void runLookup(v)}
+          autoFocus
+        />
       </div>
+
+      {error && <div className="mt-4 border border-accent/40 bg-accent/10 px-3 py-2 text-center font-mono text-[12px] text-foreground">{error}</div>}
 
       <p className="mt-6 text-center text-[12px] text-text-dim">
         Have an account?{" "}
@@ -105,48 +180,113 @@ function Chooser({ onPick }: { onPick: (mode: Mode) => void }) {
   );
 }
 
-function InviteFlow({
-  initialCode,
-  mode,
+// Universal picker — code is valid; the recipient now chooses how to
+// enter. Guest is the no-account path; sign in / create account both
+// land them back here (via state.from) and the auto-redeem effect on
+// the parent finishes the join as a member.
+function InvitePicker({
+  spaceName,
+  code,
+  isAuthed,
+  onPickGuest,
+  onPickSignIn,
+  onPickRegister,
   onBack,
-  onSwitchToName,
-  onSubmitted,
 }: {
-  initialCode: string | null;
-  mode: "invite-code" | "invite-name";
+  spaceName: string | null;
+  code: string;
+  isAuthed: boolean;
+  onPickGuest: () => void;
+  onPickSignIn: () => void;
+  onPickRegister: () => void;
   onBack: () => void;
-  onSwitchToName: () => void;
-  onSubmitted: (code: string, displayName: string) => Promise<void>;
 }) {
-  const [code, setCode] = useState((initialCode ?? "").toLowerCase());
-  const [spaceName, setSpaceName] = useState<string | null>(null);
+  // If we're already authed, the parent effect is racing to redeem —
+  // show a holding state so the user doesn't see the picker briefly
+  // before being redirected.
+  if (isAuthed) {
+    return (
+      <div className="text-center">
+        <Loader2 className="mx-auto h-7 w-7 animate-spin text-accent/90" />
+        <p className="mt-4 font-mono text-[12px] uppercase tracking-[0.22em] text-muted-foreground">Joining…</p>
+      </div>
+    );
+  }
+
+  const display = code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code;
+
+  return (
+    <>
+      <div className="text-center">
+        <div className="inline-flex items-center gap-2 border border-border bg-bg-elevated/40 px-3 py-1.5 font-mono text-[11px] text-muted-foreground">
+          <Users2 className="h-3 w-3" />
+          Joining <span className="text-foreground">{spaceName ?? "this space"}</span>
+        </div>
+        <h1 className="mt-5 text-balance text-[28px] font-bold leading-[1.1] tracking-tightest sm:text-[32px]">
+          How do you want to join?
+        </h1>
+        <p className="mt-3 font-mono text-[11px] text-text-dim">code · {display}</p>
+      </div>
+
+      <div className="mt-8 grid gap-3">
+        <PickerOption
+          icon={<Users2 className="h-4 w-4 text-accent" />}
+          title="Watch as a guest"
+          desc="No account. Pick a display name and you're in."
+          onClick={onPickGuest}
+        />
+        <PickerOption
+          icon={<LogIn className="h-4 w-4 text-accent" />}
+          title="Sign in"
+          desc="Use an existing Roomflix account."
+          onClick={onPickSignIn}
+        />
+        <PickerOption
+          icon={<UserPlus className="h-4 w-4 text-accent" />}
+          title="Create an account"
+          desc="Save a library, rejoin later from anywhere."
+          onClick={onPickRegister}
+        />
+      </div>
+
+      <button type="button" onClick={onBack} className="mt-6 block w-full text-center text-[12px] text-text-dim transition hover:text-foreground">
+        ← Back
+      </button>
+    </>
+  );
+}
+
+function PickerOption({ icon, title, desc, onClick }: { icon: React.ReactNode; title: string; desc: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-start gap-3 border border-border bg-bg-elevated/40 px-4 py-3 text-left transition hover:border-border-hover hover:bg-bg-elevated/70"
+    >
+      <span className="mt-0.5">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[15px] font-medium text-foreground">{title}</span>
+        <span className="block font-mono text-[11px] text-text-dim">{desc}</span>
+      </span>
+      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-text-dim" />
+    </button>
+  );
+}
+
+function GuestNameForm({
+  spaceName,
+  onSubmit,
+  onBack,
+}: {
+  spaceName: string | null;
+  onSubmit: (displayName: string) => Promise<void>;
+  onBack: () => void;
+}) {
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
-  // Pre-fetch when the URL deep-linked a code.
-  useEffect(() => {
-    if (!initialCode) return;
-    void runLookup(initialCode.toLowerCase());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialCode]);
-
-  const runLookup = async (next: string) => {
-    setError("");
-    try {
-      const result = await api.lookupInvite(next);
-      if (result.kind !== "guest") {
-        setError("This code is for full members — register or sign in to use it.");
-        return;
-      }
-      setSpaceName(result.spaceName);
-      onSwitchToName();
-    } catch (err) {
-      setError((err as Error).message || "Couldn't find that code");
-    }
-  };
-
-  const handleSubmit = async (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (pending) return;
     const name = displayName.trim();
@@ -157,52 +297,24 @@ function InviteFlow({
     setError("");
     setPending(true);
     try {
-      await onSubmitted(code, name);
+      await onSubmit(name);
     } catch (err) {
       setError((err as Error).message || "Couldn't join");
       setPending(false);
     }
   };
 
-  if (mode === "invite-code") {
-    return (
-      <>
-        <h1 className="text-balance text-center text-[28px] font-bold leading-[1.1] tracking-tightest sm:text-[32px]">
-          Enter your code.
-        </h1>
-        <p className="mt-3 text-center text-[14px] leading-[1.6] text-muted-foreground">
-          The 8-character code your host shared.
-        </p>
-
-        <div className="mt-8">
-          <CodeInput
-            value={code}
-            onChange={(v) => {
-              setCode(v);
-              setError("");
-            }}
-            onComplete={(v) => void runLookup(v)}
-            autoFocus
-          />
-        </div>
-
-        {error && <div className="mt-4 border border-accent/40 bg-accent/10 px-3 py-2 text-center font-mono text-[12px] text-foreground">{error}</div>}
-
-        <button type="button" onClick={onBack} className="mt-6 block w-full text-center text-[12px] text-text-dim transition hover:text-foreground">
-          ← Back
-        </button>
-      </>
-    );
-  }
-
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={submit}>
       <div className="text-center">
         <div className="inline-flex items-center gap-2 border border-border bg-bg-elevated/40 px-3 py-1.5 font-mono text-[11px] text-muted-foreground">
           <Users2 className="h-3 w-3" />
           Joining <span className="text-foreground">{spaceName ?? "this space"}</span>
         </div>
         <h1 className="mt-5 text-balance text-[28px] font-bold leading-[1.1] tracking-tightest sm:text-[32px]">Pick a name.</h1>
+        <p className="mt-3 text-[14px] leading-[1.6] text-muted-foreground">
+          Other people in the space will see this when you're online.
+        </p>
       </div>
 
       <label className="mt-8 block">
@@ -214,195 +326,13 @@ function InviteFlow({
 
       <Button type="submit" variant="accent" size="lg" className="mt-6 w-full text-base" disabled={pending || !displayName.trim()}>
         {pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-        Join space
+        Join as guest
       </Button>
 
       <button type="button" onClick={onBack} className="mt-4 block w-full text-center text-[12px] text-text-dim transition hover:text-foreground">
         ← Back
       </button>
     </form>
-  );
-}
-
-function PairingFlow({
-  mode,
-  onBack,
-  onStarted,
-  onApproved,
-}: {
-  mode: "pairing-name" | "pairing-wait";
-  onBack: () => void;
-  onStarted: () => void;
-  onApproved: () => Promise<void>;
-}) {
-  const [displayName, setDisplayName] = useState("");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
-  const [code, setCode] = useState<string | null>(null);
-  const [expiresAt, setExpiresAt] = useState<number | null>(null);
-
-  const start = async (e: FormEvent) => {
-    e.preventDefault();
-    const name = displayName.trim();
-    if (!name) {
-      setError("Pick a display name");
-      return;
-    }
-    setError("");
-    setPending(true);
-    try {
-      const result = await api.pairingStart(name);
-      setCode(result.code);
-      setExpiresAt(result.expiresAt);
-      onStarted();
-    } catch (err) {
-      setError((err as Error).message || "Couldn't start pairing");
-      setPending(false);
-    }
-  };
-
-  if (mode === "pairing-name") {
-    return (
-      <form onSubmit={start}>
-        <h1 className="text-balance text-center text-[28px] font-bold leading-[1.1] tracking-tightest sm:text-[32px]">Pick a name.</h1>
-        <p className="mt-3 text-center text-[14px] leading-[1.6] text-muted-foreground">
-          Other people in the space will see this when you're online.
-        </p>
-
-        <label className="mt-8 block">
-          <span className="section-label muted mb-1.5 block">Display name</span>
-          <Input autoFocus value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="e.g. Sam" maxLength={50} required />
-        </label>
-
-        {error && <div className="mt-4 border border-accent/40 bg-accent/10 px-3 py-2 font-mono text-[12px] text-foreground">{error}</div>}
-
-        <Button type="submit" variant="accent" size="lg" className="mt-6 w-full text-base" disabled={pending || !displayName.trim()}>
-          {pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-          Get a code
-        </Button>
-
-        <button type="button" onClick={onBack} className="mt-4 block w-full text-center text-[12px] text-text-dim transition hover:text-foreground">
-          ← Back
-        </button>
-      </form>
-    );
-  }
-
-  // pairing-wait
-  return (
-    <PairingWait
-      code={code ?? ""}
-      expiresAt={expiresAt}
-      onApproved={onApproved}
-      onCancel={onBack}
-    />
-  );
-}
-
-function PairingWait({
-  code,
-  expiresAt,
-  onApproved,
-  onCancel,
-}: {
-  code: string;
-  expiresAt: number | null;
-  onApproved: () => Promise<void>;
-  onCancel: () => void;
-}) {
-  const [status, setStatus] = useState<"pending" | "approved" | "expired">("pending");
-  const [remaining, setRemaining] = useState<number | null>(null);
-  const settledRef = useRef(false);
-
-  // Poll every 1.5s. Stop on terminal status, on unmount, or when the
-  // server tells us the code is gone.
-  useEffect(() => {
-    if (!code) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const tick = async () => {
-      try {
-        const result = await api.pairingStatus(code);
-        if (cancelled) return;
-        if (result.status === "approved") {
-          settledRef.current = true;
-          setStatus("approved");
-          await onApproved();
-          return;
-        }
-        if (result.status === "expired") {
-          settledRef.current = true;
-          setStatus("expired");
-          return;
-        }
-      } catch {
-        // Transient — try again next tick.
-      }
-      if (cancelled) return;
-      timer = setTimeout(tick, 1500);
-    };
-    timer = setTimeout(tick, 1000);
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [code, onApproved]);
-
-  // Live countdown so the guest knows how long they have to share the code.
-  useEffect(() => {
-    if (!expiresAt) return;
-    const update = () => setRemaining(Math.max(0, expiresAt - Date.now()));
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, [expiresAt]);
-
-  const formatted = code ? `${code.slice(0, 4)} ${code.slice(4)}` : "····  ····";
-
-  if (status === "approved") {
-    return (
-      <div className="text-center">
-        <Loader2 className="mx-auto h-7 w-7 animate-spin text-accent/90" />
-        <p className="mt-4 font-mono text-[12px] uppercase tracking-[0.22em] text-muted-foreground">Signing you in…</p>
-      </div>
-    );
-  }
-
-  if (status === "expired") {
-    return (
-      <div className="text-center">
-        <h1 className="text-balance text-[24px] font-bold leading-[1.1] tracking-tightest text-foreground">Code expired.</h1>
-        <p className="mt-3 text-[14px] text-muted-foreground">Codes are good for 10 minutes. Generate a new one to try again.</p>
-        <Button type="button" variant="accent" size="lg" onClick={onCancel} className="mt-6 w-full text-base">
-          Try again
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <h1 className="text-balance text-center text-[28px] font-bold leading-[1.1] tracking-tightest sm:text-[32px]">Read this to your host.</h1>
-      <p className="mt-3 text-center text-[14px] leading-[1.6] text-muted-foreground">
-        They'll type it on their end. You'll be signed in automatically.
-      </p>
-
-      <div className="mt-8 border border-accent/40 bg-accent/10 px-6 py-8 text-center">
-        <code className="block font-mono text-[44px] font-bold tracking-[0.16em] text-foreground tabular-nums sm:text-[56px]">
-          {formatted}
-        </code>
-      </div>
-
-      <div className="mt-4 flex items-center justify-center gap-2 font-mono text-[11px] text-text-dim">
-        <Loader2 className="h-3 w-3 animate-spin" />
-        Waiting for your host to admit you…
-        {remaining !== null && remaining > 0 && <span className="text-text-dim">· expires in {Math.ceil(remaining / 1000)}s</span>}
-      </div>
-
-      <button type="button" onClick={onCancel} className="mt-6 block w-full text-center text-[12px] text-text-dim transition hover:text-foreground">
-        ← Cancel
-      </button>
-    </>
   );
 }
 
