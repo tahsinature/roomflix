@@ -39,6 +39,11 @@ export type WsData = {
   // When the volume was last set. Used to break ties when one identity
   // has multiple watching tabs — most recent intent wins.
   volumeUpdatedAt?: number;
+  // For guests only: when their session was created. Surfaced as
+  // Participant.guestJoinedAt so the detail modal can show "paired
+  // 2h ago". Users' join time lives in space_members, fetched
+  // separately by the client.
+  guestJoinedAt?: number;
 };
 
 export type Session = {
@@ -119,12 +124,36 @@ export function participantsOf(session: Session): Participant[] {
       volume = watching[0]?.data.volume;
     }
 
+    // Per-status tab count for the detail modal.
+    let watchingCount = 0;
+    let onlineCount = 0;
+    for (const t of tabs) {
+      if (t.data.status === "watching") watchingCount++;
+      else onlineCount++;
+    }
+
+    // For guests, surface the earliest guestJoinedAt across their
+    // tabs (i.e. when the originating session was created).
+    let guestJoinedAt: number | undefined;
+    if (head.data.identityKind === "guest") {
+      for (const t of tabs) {
+        const v = t.data.guestJoinedAt;
+        if (v && (guestJoinedAt === undefined || v < guestJoinedAt)) guestJoinedAt = v;
+      }
+    }
+
     out.push({
       id,
       kind: head.data.identityKind,
       displayName: head.data.displayName,
       status,
       ...(volume ? { volume } : {}),
+      tabs: {
+        total: tabs.length,
+        watching: watchingCount,
+        online: onlineCount,
+      },
+      ...(guestJoinedAt !== undefined ? { guestJoinedAt } : {}),
     });
   }
   return out;

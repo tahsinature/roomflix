@@ -1,0 +1,119 @@
+# Three modes:
+#
+#   docker compose up                  → DEFAULT: dev (mongo + bun --watch
+#                                        + vite HMR). Source bind-mounted.
+#                                        Visit http://localhost:5173.
+#   docker compose --profile prod up   → prod (mongo + built app image).
+#                                        Visit http://localhost:3000.
+#   docker compose up mongo            → just the DB. Run the app on the host
+#                                        with `bun run dev` if you prefer
+#                                        native file watching.
+#
+# Dev services use bind mounts for source + named volumes for node_modules so
+# the container's install (linux/musl) doesn't get shadowed by the host's.
+services:
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── DEFAULT (DEV) ───────────────────────────────────────────────────────
+  # Bun server in --watch mode. yt-dlp + ffmpeg baked into the dev image so
+  # the imports pipeline works the same as in prod. No `profiles` here —
+  # these start with plain `docker compose up`.
+  server-dev:
+    build:
+      context: .
+      target: dev
+    working_dir: /app
+    # `bun install` runs every up so package.json changes are picked up;
+    # subsequent runs are no-ops since node_modules is volume-persisted.
+    command: sh -c "bun install && bun run dev:server"
+    environment:
+      MONGO_URL: mongodb://mongo:27017/roomflix
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+      COOKIE_SECURE: "false"
+      NODE_ENV: development
+    volumes:
+      - .:/app
+      # Mask host node_modules with named volumes — the container's install
+      # is linux/musl, the host's is likely darwin/arm64.
+      - app-root-node-modules:/app/node_modules
+      - app-client-node-modules:/app/client/node_modules
+      - app-server-node-modules:/app/server/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+  client-dev:
+    build:
+      context: .
+      target: dev
+    working_dir: /app/client
+    # Vite must bind 0.0.0.0 so the published port reaches it. API/WS
+    # targets point at the sibling server-dev container (compose DNS).
+    command: sh -c "cd /app && bun install && cd client && bunx vite --host 0.0.0.0"
+    environment:
+      API_TARGET: http://server-dev:3000
+      WS_TARGET: ws://server-dev:3000
+    volumes:
+      - .:/app
+      - app-root-node-modules:/app/node_modules
+      - app-client-node-modules:/app/client/node_modules
+      - app-server-node-modules:/app/server/node_modules
+    ports:
+      - "5173:5173"
+      # Vite's HMR WebSocket lives on a dedicated port so it doesn't race
+      # with the /ws proxy for upgrade events. Browser connects to
+      # ws://localhost:24678 for HMR; pages still load from :5173.
+      - "24678:24678"
+    depends_on:
+      - server-dev
+    restart: unless-stopped
+
+  # ── PROD PROFILE ─────────────────────────────────────────────────────────
+  # The runtime image's entrypoint (scripts/run-prod.sh) pulls every
+  # secret from Doppler (project=roomflix, config=prd), so the only
+  # thing we have to inject here is the Doppler token.
+  #
+  # Host-env passthrough form (just the names, no values) means a var
+  # only gets set inside the container if it's actually set in your
+  # shell — otherwise it's left unset, so Bun falls back to whatever
+  # Doppler wrote into .env.
+  app:
+    profiles: ["prod"]
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DOPPLER_TOKEN
+      - DOPPLER_TOKEN_MY_PERSONAL
+      # Optional local overrides. Leave unset to use Doppler's values.
+      - MONGO_URL
+      - ENCRYPTION_KEY
+      - ALLOW_REGISTRATION
+      - COOKIE_SECURE
+      - NODE_ENV
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mongo-data:
+  app-root-node-modules:
+  app-client-node-modules:
+  app-server-node-modules:

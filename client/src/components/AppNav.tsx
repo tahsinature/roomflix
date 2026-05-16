@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { Database, HelpCircle, Library as LibraryIcon, LogOut, Menu, Users2, X } from "lucide-react";
+import { Database, HelpCircle, Library as LibraryIcon, LogOut, Menu, SlidersHorizontal, Users2, X } from "lucide-react";
 import { AccountMenu } from "@/components/AccountMenu";
-import { ProfileDialog } from "@/components/ProfileDialog";
 import { ViewerPill } from "@/components/ViewerPill";
 import { useAuth } from "@/auth/AuthContext";
 import { cn } from "@/lib/utils";
@@ -29,7 +28,6 @@ export function AppNav() {
   const location = useLocation();
   const onHome = location.pathname === "/";
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
 
   const username = user?.username ?? null;
   const displayName = user?.displayName ?? null;
@@ -37,7 +35,6 @@ export function AppNav() {
 
   return (
     <>
-      <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
       <nav className="fixed inset-x-0 top-0 z-40 border-b border-border bg-background/70 backdrop-blur-xl backdrop-saturate-150">
         <div className="flex items-center justify-between px-5 py-3.5 sm:px-8">
           <Link
@@ -63,7 +60,7 @@ export function AppNav() {
               <NavLink to="/storage" className={navLinkClass}>
                 Storage
               </NavLink>
-              <AccountMenu onEditProfile={() => setProfileOpen(true)} />
+              <AccountMenu />
             </div>
 
             <button
@@ -91,7 +88,7 @@ export function AppNav() {
               Storage
             </MobileNavLink>
             {!isGuest && (
-              <MobileNavLink to="/spaces" onClick={() => setMobileOpen(false)}>
+              <MobileNavLink to="/settings/space" onClick={() => setMobileOpen(false)}>
                 <Users2 className="h-4 w-4 text-accent" />
                 Spaces
               </MobileNavLink>
@@ -100,19 +97,16 @@ export function AppNav() {
               <HelpCircle className="h-4 w-4 text-accent" />
               Help
             </MobileNavLink>
+            {!isGuest && (
+              <MobileNavLink to="/settings/profile" onClick={() => setMobileOpen(false)}>
+                <SlidersHorizontal className="h-4 w-4 text-accent" />
+                Settings
+              </MobileNavLink>
+            )}
             {label && (
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileOpen(false);
-                  if (!isGuest) setProfileOpen(true);
-                }}
-                disabled={isGuest}
-                className="flex items-center justify-between border-t border-border py-3 text-left text-sm text-foreground"
-              >
+              <div className="flex items-center justify-between border-t border-border py-3 text-left text-sm text-foreground">
                 <span className={cn("truncate font-mono text-[13px] text-text-dim", isGuest && "italic")}>{label}</span>
-                {!isGuest && <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-dim">edit</span>}
-              </button>
+              </div>
             )}
             <button
               type="button"

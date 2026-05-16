@@ -12,7 +12,9 @@ import type {
   SpaceMember,
   SpaceRole,
   SpaceSummary,
-  StorageConfig,
+  StorageActivation,
+  StorageConnection,
+  StorageConnectionDetail,
   Subtitle,
   Video,
 } from "@shared/protocol";
@@ -24,6 +26,18 @@ export class UnauthorizedError extends Error {
   constructor() {
     super("unauthorized");
     this.name = "UnauthorizedError";
+  }
+}
+
+// Thrown for all other non-2xx responses. Carries the HTTP status so
+// callers can branch on 403 / 404 / etc. without string-matching the
+// message. `message` is the server's JSON `error` field when present.
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
   }
 }
 
@@ -56,7 +70,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         // not JSON; keep the raw text
       }
     }
-    throw new Error(message);
+    throw new ApiError(message, res.status);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -110,14 +124,56 @@ export const api = {
       body: JSON.stringify(patch),
     }),
 
-  // Storage backend config (encrypted at rest server-side).
-  getStorageConfig: () => request<StorageConfig | null>("/api/storage/config"),
-  putStorageConfig: (config: Omit<StorageConfig, "updatedAt">) =>
-    request<StorageConfig>("/api/storage/config", {
-      method: "PUT",
-      body: JSON.stringify(config),
+  // Account-level storage connections. The "Settings" UI manages these.
+  // Secrets are NEVER returned by these calls — fetch via fetchSecret.
+  listStorageConnections: () => request<StorageConnectionDetail[]>("/api/account/storage"),
+  createStorageConnection: (input: {
+    label: string;
+    provider: "r2";
+    accountId: string;
+    bucket: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    publicBaseUrl?: string;
+    maxBytes: number;
+  }) =>
+    request<StorageConnectionDetail>("/api/account/storage", {
+      method: "POST",
+      body: JSON.stringify(input),
     }),
-  deleteStorageConfig: () => request<void>("/api/storage/config", { method: "DELETE" }),
+  updateStorageConnection: (
+    id: string,
+    patch: {
+      label?: string;
+      accountId?: string;
+      bucket?: string;
+      accessKeyId?: string;
+      secretAccessKey?: string;
+      publicBaseUrl?: string;
+      maxBytes?: number;
+    },
+  ) =>
+    request<StorageConnectionDetail>(`/api/account/storage/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+  deleteStorageConnection: (id: string) =>
+    request<void>(`/api/account/storage/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  activateStorageConnection: (id: string, spaceId: string, opts: { openToGuests?: boolean } = {}) =>
+    request<StorageActivation>(`/api/account/storage/${encodeURIComponent(id)}/activations`, {
+      method: "POST",
+      body: JSON.stringify({ spaceId, ...opts }),
+    }),
+  deactivateStorageConnection: (id: string, spaceId: string) =>
+    request<void>(`/api/account/storage/${encodeURIComponent(id)}/activations/${encodeURIComponent(spaceId)}`, {
+      method: "DELETE",
+    }),
+
+  // Per-space derived view — list of connections active in this space
+  // that the caller can use. No secrets in the payload.
+  listSpaceStorage: (spaceId: string) =>
+    request<StorageConnection[]>(`/api/spaces/${encodeURIComponent(spaceId)}/storage`),
 
   // Playlists.
   listPlaylists: () => request<Playlist[]>("/api/playlists"),

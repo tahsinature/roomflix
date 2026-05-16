@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Circle, ChevronDown, Crown, Pause, Play, User, Users, Volume2, VolumeX } from "lucide-react";
-import type { PresenceStatus, Volume } from "@shared/protocol";
+import { Circle, ChevronDown, Crown, KeyRound, Pause, Play, User, Users } from "lucide-react";
+import type { Participant, PresenceStatus } from "@shared/protocol";
+import { AdmitGuestDialog } from "@/components/AdmitGuestDialog";
+import { MemberDetailModal, type MemberDetailKey } from "@/components/MemberDetailModal";
+import { useAuth } from "@/auth/AuthContext";
 import { useSessionPresence } from "@/auth/SessionPresence";
 import { cn, urlFilename } from "@/lib/utils";
 
@@ -29,7 +32,10 @@ export function ViewerPill({
   align?: "left" | "right";
 }) {
   const [open, setOpen] = useState(false);
+  const [admitOpen, setAdmitOpen] = useState(false);
+  const [selectedDetail, setSelectedDetail] = useState<MemberDetailKey | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const { isGuest } = useAuth();
   const { state, participants, members } = useSessionPresence();
 
   // Close on a real click outside (mousedown on document, target not
@@ -61,32 +67,37 @@ export function ViewerPill({
   const watchingCount = participants.reduce((n, p) => (p.status === "watching" ? n + 1 : n), 0);
   const onlineCount = participants.length; // total present (watching ∪ online)
 
-  // Per-identity volume — set only when the participant is "watching".
-  const volumeById = new Map<string, Volume>();
-  for (const p of participants) {
-    if (p.volume) volumeById.set(p.id, p.volume);
-  }
+  // Lookup participant by identity id — used to enrich row details
+  // (volume, tab counts, etc.) without re-finding per render.
+  const participantById = new Map<string, Participant>(participants.map((p) => [p.id, p]));
 
   type Row = {
     id: string;
     name: string;
+    username?: string | null;
     sublabel: string;
+    role: "owner" | "member" | "guest";
     isOwner: boolean;
     isMe: boolean;
     status: PresenceStatus | "offline";
     tone: "member" | "guest";
-    volume?: Volume;
+    participant?: Participant;
+    // For real members only — when they joined the space.
+    memberJoinedAt?: number;
   };
   const memberIds = new Set(members.map((m) => m.userId));
   const memberRows: Row[] = members.map((m) => ({
     id: m.userId,
     name: m.displayName?.trim() || `@${m.username}`,
+    username: m.username,
     sublabel: m.role === "owner" ? "owner" : "member",
+    role: m.role === "owner" ? "owner" : "member",
     isOwner: m.role === "owner",
     isMe: m.userId === meId,
     status: statusById.get(m.userId) ?? "offline",
     tone: "member",
-    volume: volumeById.get(m.userId),
+    participant: participantById.get(m.userId),
+    memberJoinedAt: m.joinedAt,
   }));
   // Guests are only ever known to us when connected — they don't have
   // DB rows. So a guest only appears when they're a participant.
@@ -96,11 +107,12 @@ export function ViewerPill({
       id: p.id,
       name: p.displayName,
       sublabel: "guest",
+      role: "guest",
       isOwner: false,
       isMe: p.id === meId,
       status: p.status,
       tone: "guest",
-      volume: p.volume,
+      participant: p,
     }));
 
   const rows: Row[] = [...memberRows, ...guestRows].sort((a, b) => {
@@ -186,12 +198,43 @@ export function ViewerPill({
                 status={r.status}
                 tone={r.tone}
                 playing={playing}
-                volume={r.volume}
+                onClick={() => {
+                  setOpen(false);
+                  setSelectedDetail({
+                    identityId: r.id,
+                    role: r.role,
+                    name: r.name,
+                    username: r.username,
+                    isMe: r.isMe,
+                    memberJoinedAt: r.memberJoinedAt,
+                  });
+                }}
               />
             ))}
           </ul>
+          {!isGuest && (
+            // Quick admit affordance — opens the pairing-code dialog
+            // without making the user navigate to /. Hidden for guests
+            // (they can't admit other guests). The new guest joins via
+            // their polling tab and shows up here automatically via
+            // the next presence broadcast.
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                setOpen(false);
+                setAdmitOpen(true);
+              }}
+              className="flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-sm text-muted-foreground transition hover:bg-white/[0.04] hover:text-foreground"
+            >
+              <KeyRound className="h-3.5 w-3.5 text-accent" />
+              Admit a guest
+            </button>
+          )}
         </div>
       )}
+      <AdmitGuestDialog open={admitOpen} onClose={() => setAdmitOpen(false)} />
+      <MemberDetailModal detail={selectedDetail} onClose={() => setSelectedDetail(null)} />
     </div>
   );
 }
@@ -257,7 +300,7 @@ function MemberRow({
   status,
   tone,
   playing,
-  volume,
+  onClick,
 }: {
   name: string;
   sublabel: string;
@@ -265,33 +308,39 @@ function MemberRow({
   isMe: boolean;
   status: PresenceStatus | "offline";
   tone: "member" | "guest";
-  // Current playback state of the space's session. Used to differentiate
-  // "in the player and actively watching" vs "in the player but paused".
+  // Current playback state of the space's session.
   playing: boolean;
-  // Their reported player volume — only meaningful while watching.
-  volume?: Volume;
+  // Open the detail modal for this identity.
+  onClick: () => void;
 }) {
   return (
-    <li className="flex items-center gap-3 px-3 py-2">
-      <span
-        className={cn(
-          "inline-flex h-7 w-7 shrink-0 items-center justify-center border",
-          tone === "guest"
-            ? "border-amber-300/30 bg-amber-300/10 text-amber-200"
-            : "border-accent/30 bg-accent/10 text-accent",
-        )}
+    <li>
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onClick}
+        className="flex w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-white/[0.04]"
+        title="See details"
       >
-        {isOwner ? <Crown className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className={cn("truncate text-sm text-foreground", tone === "guest" && "italic")}>{name}</span>
-          {isMe && <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-dim">you</span>}
+        <span
+          className={cn(
+            "inline-flex h-7 w-7 shrink-0 items-center justify-center border",
+            tone === "guest"
+              ? "border-amber-300/30 bg-amber-300/10 text-amber-200"
+              : "border-accent/30 bg-accent/10 text-accent",
+          )}
+        >
+          {isOwner ? <Crown className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className={cn("truncate text-sm text-foreground", tone === "guest" && "italic")}>{name}</span>
+            {isMe && <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-dim">you</span>}
+          </div>
+          <div className="font-mono text-[11px] text-text-dim">{sublabel}</div>
         </div>
-        <div className="font-mono text-[11px] text-text-dim">{sublabel}</div>
-      </div>
-      {status === "watching" && volume && <VolumeIndicator volume={volume} />}
-      <StatusBadge status={status} playing={playing} />
+        <StatusBadge status={status} playing={playing} />
+      </button>
     </li>
   );
 }
@@ -310,41 +359,6 @@ function PlayingBars({ className }: { className?: string }) {
       <span className="eq-bar h-full w-[2px]" />
       <span className="eq-bar h-full w-[2px]" />
       <span className="eq-bar h-full w-[2px]" />
-    </span>
-  );
-}
-
-// Compact "what they're hearing" indicator. Speaker icon shows the
-// mute state at a glance; the three-bar visualization shows level.
-// Muted gets a clear off-icon and no bars so it reads instantly.
-function VolumeIndicator({ volume }: { volume: Volume }) {
-  const effectivelyMuted = volume.muted || volume.level === 0;
-  if (effectivelyMuted) {
-    return (
-      <span
-        className="inline-flex shrink-0 items-center text-text-dim/70"
-        title="Muted"
-        aria-label="Muted"
-      >
-        <VolumeX className="h-3.5 w-3.5" />
-      </span>
-    );
-  }
-  // Three-bar visualization. Each bar lights up at 33%/66%/100% of full
-  // — same idea as a wifi signal indicator.
-  const lit = volume.level >= 0.66 ? 3 : volume.level >= 0.33 ? 2 : 1;
-  return (
-    <span
-      className="inline-flex shrink-0 items-end gap-[2px] text-emerald-300"
-      title={`Volume ${Math.round(volume.level * 100)}%`}
-      aria-label={`Volume ${Math.round(volume.level * 100)} percent`}
-    >
-      <Volume2 className="h-3.5 w-3.5" />
-      <span className="flex h-3.5 items-end gap-[2px]">
-        <span className={cn("w-[3px] bg-current transition-opacity", lit >= 1 ? "h-1 opacity-100" : "h-1 opacity-20")} />
-        <span className={cn("w-[3px] bg-current transition-opacity", lit >= 2 ? "h-2 opacity-100" : "h-2 opacity-20")} />
-        <span className={cn("w-[3px] bg-current transition-opacity", lit >= 3 ? "h-3 opacity-100" : "h-3 opacity-20")} />
-      </span>
     </span>
   );
 }

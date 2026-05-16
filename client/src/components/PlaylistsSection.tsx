@@ -4,7 +4,8 @@ import { ListMusic, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import type { Playlist, Video } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
 import { PlaylistEditorDialog } from "@/components/PlaylistEditorDialog";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
+import { useToast } from "@/components/Toast";
 import { cn } from "@/lib/utils";
 
 // Playlists feed for the Library page. Plays a playlist by sending the
@@ -20,6 +21,7 @@ export function PlaylistsSection({
   onChange: (next: Playlist[]) => void;
 }) {
   const navigate = useNavigate();
+  const toast = useToast();
   const [editing, setEditing] = useState<Playlist | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
 
@@ -43,8 +45,17 @@ export function PlaylistsSection({
 
   const handleDelete = async (p: Playlist) => {
     // Caller already two-step-confirmed via the row's armed state.
-    await api.deletePlaylist(p.id);
-    onChange(playlists.filter((x) => x.id !== p.id));
+    try {
+      await api.deletePlaylist(p.id);
+      onChange(playlists.filter((x) => x.id !== p.id));
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : 0;
+      toast.error(
+        status === 403
+          ? "You don't have permission to delete this playlist."
+          : `Couldn't delete "${p.title}". ${(e as Error).message}`,
+      );
+    }
   };
 
   const handlePlay = (p: Playlist) => {

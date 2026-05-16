@@ -146,6 +146,18 @@ export type Participant = {
   // Most-recent-updated tab wins when one identity has multiple watching
   // tabs (matches user intent on the device they last touched).
   volume?: Volume;
+  // Number of live sockets carrying this identity, broken down by
+  // status. Used by the user-detail modal to show "2 tabs (1 watching,
+  // 1 elsewhere)". `total` is `watching + online`.
+  tabs: {
+    total: number;
+    watching: number;
+    online: number;
+  };
+  // For guests: when their session was created (≈ when they paired).
+  // Members' joined-at lives in space_members.joinedAt; the client
+  // already has that via the cached members list.
+  guestJoinedAt?: number;
 };
 
 // Lightweight snapshot of the in-memory playback session for a space.
@@ -167,9 +179,9 @@ export type SpaceSummary = {
   role: SpaceRole;
 };
 
-// Per-user storage config (Cloudflare R2 for now). secretAccessKey is
-// encrypted at rest server-side; the wire shape carries the cleartext
-// because the browser also needs it to do client-side file management.
+// DEPRECATED — kept for the boot migration that reads legacy rows and
+// converts them to the new account-level storage_connections shape.
+// All new code should use StorageConnection.
 export type StorageConfig = {
   provider: "r2";
   accountId: string;
@@ -180,6 +192,96 @@ export type StorageConfig = {
   maxBytes: number;
   label?: string;
   updatedAt: number;
+};
+
+// New storage model. Three orthogonal concepts:
+//
+//   1. StorageConnection — an account-level credential record owned by
+//      one user (the "admin"). Holds the actual R2/S3 creds.
+//   2. StorageActivation — marks a connection as exposed in one of the
+//      owner's spaces. Without an activation the connection exists but
+//      isn't reachable from any space.
+//   3. StorageGrant — marks a user as authorized to use a connection.
+//      Grants are global across all spaces where the connection is
+//      activated — owner trusts the user with the cred, full stop.
+//
+// In a space S, a member sees a connection iff
+//   (S.ownerId === connection.ownerId) ∧ (activation exists for [conn, S])
+//   ∧ (caller === connection.ownerId ∨ grant exists for [conn, caller])
+export type StorageProvider = "r2";
+
+// Wire shape. secretAccessKey is intentionally absent — clients fetch
+// the cleartext separately via the ECDH endpoint when (and only when)
+// they're about to do a management op. Browsing the connection list
+// never reveals secrets.
+export type StorageConnection = {
+  id: string;
+  ownerId: string;
+  label: string;
+  provider: StorageProvider;
+  accountId: string;
+  bucket: string;
+  accessKeyId: string;
+  publicBaseUrl?: string;
+  maxBytes: number;
+  createdAt: number;
+  updatedAt: number;
+  // Denormalized owner identity, populated by per-space listings so
+  // the UI can render "by @alice" without an N+1 user lookup. Absent
+  // on account-level listings where the owner is implicitly the
+  // caller.
+  ownerUsername?: string;
+  ownerDisplayName?: string | null;
+};
+
+// One row per (connection, space). Always implies space.ownerId ===
+// connection.ownerId (enforced at insert time).
+//
+// `openToGuests` lets guest sessions in the space use this connection
+// without needing an explicit per-user grant. Grants don't work for
+// guests anyway (their identity is a transient session token), so this
+// is the canonical way to give guests storage access.
+export type StorageActivation = {
+  connectionId: string;
+  spaceId: string;
+  activatedAt: number;
+  openToGuests: boolean;
+};
+
+// Detail bundle for the account-level storage page. One trip returns
+// every connection with its activations resolved. Access control is
+// role-based via the activation's "+ Guests" flag — no per-user
+// grants. (We tried that once; the matrix complexity outweighed the
+// flexibility for this app's small-group scale.)
+export type StorageConnectionDetail = {
+  connection: StorageConnection;
+  activations: StorageActivation[];
+};
+
+// Minimal JWK shape for ECDH P-256 public keys. The full DOM type is
+// huge and we don't have the DOM lib in the server tsconfig — for our
+// use the kty/crv/x/y quartet is all we need to import the key.
+export type EcdhPublicJwk = {
+  kty: "EC";
+  crv: "P-256";
+  x: string;
+  y: string;
+  ext?: boolean;
+  key_ops?: string[];
+};
+
+// ECDH wire shapes for the secret exchange. Client generates an
+// ephemeral P-256 keypair, sends the public half; server derives the
+// shared AES key, encrypts the secret, returns iv + ciphertext + its
+// own ephemeral public half. Network observers see only opaque blobs.
+export type SecretExchangeRequest = {
+  clientPub: EcdhPublicJwk;
+};
+
+export type SecretExchangeResponse = {
+  iv: string;          // base64
+  ciphertext: string;  // base64
+  serverPub: EcdhPublicJwk;
 };
 
 // "ok"          → URL responded 2xx/3xx within timeout

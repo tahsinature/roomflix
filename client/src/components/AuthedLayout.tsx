@@ -9,7 +9,7 @@ import { AppNav } from "@/components/AppNav";
 //
 // Also owns the auth gate: unauthenticated visitors are bounced to
 // /welcome instead of seeing a half-rendered nav. RequireRealUser
-// (for /spaces) still wraps individually since that's a sub-gate.
+// (for /settings) still wraps individually since that's a sub-gate.
 export function AuthedLayout() {
   const { user, guest, loading } = useAuth();
 
@@ -26,10 +26,13 @@ export function AuthedLayout() {
   return (
     <>
       <AppNav />
-      {/* Top padding clears the fixed nav. Match this when the nav's
-          height changes (currently 60px mobile / 68px desktop). Pages
-          don't need to add their own top spacing. */}
-      <div className="min-h-screen pt-[60px] sm:pt-[68px]">
+      {/* Scrolling lives inside this container rather than on the
+          body so the page scrollbar sits BELOW the fixed nav instead
+          of running the full viewport height past it. Cleaner visual
+          — the nav reads as the solid top boundary. Body's `overflow:
+          hidden` (set in index.css base styles) prevents the
+          double-scrollbar artifact. */}
+      <div className="h-screen overflow-y-auto pt-[60px] sm:pt-[68px]">
         <Outlet />
       </div>
     </>

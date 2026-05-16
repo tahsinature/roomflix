@@ -21,7 +21,9 @@ import { buildHealthRouter } from "@/api/health.ts";
 import { buildProbeRouter } from "@/api/probe.ts";
 import { buildSubtitleProxyRouter } from "@/api/subtitle_proxy.ts";
 import { buildAuthRouter } from "@/api/auth.ts";
-import { buildStorageConfigRouter } from "@/api/storage_config.ts";
+import { buildAccountStorageRouter } from "@/api/account_storage.ts";
+import { buildSpaceStorageRouter } from "@/api/space_storage.ts";
+import { buildStorageSecretRouter } from "@/api/storage_secret.ts";
 import { buildPlaylistsRouter } from "@/api/playlists.ts";
 import { buildInvitesRouter, buildSessionSpaceRouter, buildSpacesRouter } from "@/api/spaces.ts";
 import { buildSessionMembersRouter, buildSessionStateRouter } from "@/api/session_state.ts";
@@ -64,18 +66,61 @@ async function runSpaceMigration(): Promise<void> {
     const home = await ensureHomeSpace(storage, user);
     await storage.videos.reparent(user.id, home.id);
     await storage.playlists.reparent(user.id, home.id);
-    await storage.storageConfigs.reparentFromUser(user.id, home.id);
     migrated++;
   }
   if (migrated > 0) console.log(`[roomflix] reparented ${migrated} legacy user(s) into Home spaces`);
 }
 await runSpaceMigration();
 
+// One-shot migration: every legacy `storage_configs` row (keyed by
+// spaceId from the previous schema) → a new account-level
+// `storage_connections` row owned by the space's owner, auto-activated
+// in that same space. Marks the legacy row as migrated so a re-run is
+// a no-op. The legacy doc itself stays in place for now — easy to
+// inspect if anything goes wrong; can be dropped later.
+async function runStorageMigration(): Promise<void> {
+  const legacy = await storage.storageConfigs.listUnmigrated();
+  if (legacy.length === 0) return;
+  let migrated = 0;
+  let skipped = 0;
+  for (const row of legacy) {
+    const space = await storage.spaces.get(row._legacyKey);
+    if (!space) {
+      skipped++;
+      continue;
+    }
+    const conn = await storage.storageConnections.create({
+      ownerId: space.ownerId,
+      label: row.label?.trim() || `${row.provider}/${row.bucket}`,
+      provider: row.provider,
+      accountId: row.accountId,
+      bucket: row.bucket,
+      accessKeyId: row.accessKeyId,
+      secretAccessKey: row.secretAccessKey,
+      publicBaseUrl: row.publicBaseUrl,
+      maxBytes: row.maxBytes,
+    });
+    await storage.storageActivations.add({ connectionId: conn.id, spaceId: space.id });
+    await storage.storageConfigs.markMigrated(row._legacyKey);
+    migrated++;
+  }
+  console.log(
+    `[roomflix] storage migration: moved ${migrated} legacy config(s) → connections` +
+      (skipped > 0 ? ` (skipped ${skipped} orphan row(s) whose space no longer exists)` : ""),
+  );
+}
+await runStorageMigration();
+
 const app = new Hono();
 
 app.get("/healthz", (c) => c.text("ok"));
 
 app.route("/api/auth", buildAuthRouter(storage));
+// More-specific /api/spaces/:id/storage MUST come before the general
+// /api/spaces mount — otherwise Hono routes through the spaces router
+// first and its `requireUser` middleware 401s the request before it
+// can fall through to space_storage.
+app.route("/api/spaces/:id/storage", buildSpaceStorageRouter(storage));
 app.route("/api/spaces", buildSpacesRouter(storage));
 app.route("/api/invites", buildInvitesRouter(storage));
 app.route("/api/pairing", buildPairingRouter(storage));
@@ -86,7 +131,8 @@ app.route("/api/videos", buildVideosRouter(storage));
 app.route("/api/library/health", buildHealthRouter(storage));
 app.route("/api/library/probe", buildProbeRouter(storage));
 app.route("/api/library/subtitle", buildSubtitleProxyRouter(storage));
-app.route("/api/storage/config", buildStorageConfigRouter(storage));
+app.route("/api/account/storage", buildAccountStorageRouter(storage));
+app.route("/api/storage/secret", buildStorageSecretRouter(storage));
 app.route("/api/playlists", buildPlaylistsRouter(storage));
 
 // SPA fallback.
@@ -208,7 +254,10 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
     case "setUrl":
       session.state.videoUrl = message.videoUrl;
       session.state.currentTime = 0;
-      session.state.playing = false;
+      // Setting a URL is "I want to watch this" — start playing
+      // immediately rather than landing in a paused-with-cover state.
+      // Mirrors loadPlaylist's autoplay:true semantics.
+      session.state.playing = true;
       session.state.playlistId = null;
       session.state.playlistIndex = 0;
       // Auto-save into the space library (idempotent on url) so everyone
@@ -355,8 +404,9 @@ const server = Bun.serve<WsData>({
       const rawStatus = url.searchParams.get("status");
       const status: "online" | "watching" = rawStatus === "online" ? "online" : "watching";
 
+      const guestJoinedAt = principal.kind === "guest" ? principal.session.createdAt : undefined;
       const ok = srv.upgrade(req, {
-        data: { spaceId, clientId, userId, identityId, identityKind, displayName, status },
+        data: { spaceId, clientId, userId, identityId, identityKind, displayName, status, guestJoinedAt },
       });
       return ok ? undefined : new Response("upgrade failed", { status: 500 });
     }

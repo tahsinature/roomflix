@@ -60,6 +60,7 @@ export function AuthForm({
           <label className="block">
             <span className="section-label muted mb-1.5 block">Username</span>
             <Input
+              allowAutofill
               autoFocus
               autoCapitalize="off"
               autoCorrect="off"
@@ -76,6 +77,7 @@ export function AuthForm({
           <label className="block">
             <span className="section-label muted mb-1.5 block">Password</span>
             <Input
+              allowAutofill
               type="password"
               autoComplete={mode === "login" ? "current-password" : "new-password"}
               value={password}

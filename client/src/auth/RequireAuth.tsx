@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { useAuth } from "@/auth/AuthContext";
 
 // Allow either a signed-in real user OR a guest session through. Pages
-// that need an actual account (e.g. /spaces) check `isGuest` themselves.
+// that need an actual account (e.g. /settings) check `isGuest` themselves.
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { user, guest, loading } = useAuth();
   const location = useLocation();

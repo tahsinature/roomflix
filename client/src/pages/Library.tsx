@@ -14,7 +14,8 @@ import {
 import type { LibraryHealth, Playlist, ProbeResult, Subtitle, Video, VideoHealth } from "@shared/protocol";
 import { PlaylistsSection } from "@/components/PlaylistsSection";
 import { useAuth } from "@/auth/AuthContext";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
+import { useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { HealthDot } from "@/components/HealthDot";
@@ -24,6 +25,7 @@ import { SubtitleBadge } from "@/components/SubtitleBadge";
 import { cn, formatBytes, urlFilename } from "@/lib/utils";
 
 export default function Library() {
+  const toast = useToast();
   const [videos, setVideos] = useState<Video[]>([]);
   const [health, setHealth] = useState<LibraryHealth | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,24 +89,64 @@ export default function Library() {
   };
 
   const handleUpdate = async (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => {
-    const updated = await api.updateVideo(id, patch);
-    setVideos((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
-    void reverify();
+    try {
+      const updated = await api.updateVideo(id, patch);
+      setVideos((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
+      void reverify();
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : 0;
+      toast.error(
+        status === 403
+          ? "You don't have permission to edit this video."
+          : `Couldn't update video. ${(e as Error).message}`,
+      );
+    }
   };
 
   const handleRemove = async (id: string) => {
-    await api.deleteVideo(id);
-    setVideos((prev) => prev.filter((v) => v.id !== id));
+    const video = videos.find((v) => v.id === id);
+    try {
+      await api.deleteVideo(id);
+      setVideos((prev) => prev.filter((v) => v.id !== id));
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : 0;
+      const label = video?.title || video?.url || "video";
+      toast.error(
+        status === 403
+          ? "You don't have permission to delete videos."
+          : `Couldn't delete "${label}". ${(e as Error).message}`,
+      );
+    }
   };
 
   const handleClearAll = async () => {
     // Fan out deletes in parallel — no bulk-delete API, but for typical
-    // library sizes (tens of entries) this is fine. Individual failures
-    // are swallowed so one bad row doesn't strand the rest.
+    // library sizes (tens of entries) this is fine. Track per-item
+    // results so we can surface a meaningful aggregate toast and only
+    // remove successfully-deleted rows from local state.
     const targets = videos;
-    await Promise.all(targets.map((v) => api.deleteVideo(v.id).catch(() => undefined)));
-    setVideos([]);
+    const results = await Promise.all(
+      targets.map(async (v) => {
+        try {
+          await api.deleteVideo(v.id);
+          return { id: v.id, ok: true as const };
+        } catch (e) {
+          return { id: v.id, ok: false as const, err: e };
+        }
+      }),
+    );
+    const failed = results.filter((r) => !r.ok);
+    const succeededIds = new Set(results.filter((r) => r.ok).map((r) => r.id));
+    setVideos((prev) => prev.filter((v) => !succeededIds.has(v.id)));
     setError("");
+    if (failed.length > 0) {
+      const firstStatus = failed[0]?.err instanceof ApiError ? failed[0].err.status : 0;
+      toast.error(
+        failed.length === targets.length && firstStatus === 403
+          ? "You don't have permission to delete videos."
+          : `Couldn't delete ${failed.length} of ${targets.length} videos.`,
+      );
+    }
   };
 
   return (

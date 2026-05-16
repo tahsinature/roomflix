@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Captions, Gesture, MediaPlayer, MediaPlayerInstance, MediaProvider, Track, useMediaRemote, useMediaState } from "@vidstack/react";
+import { Captions, Gesture, MediaPlayer, MediaPlayerInstance, MediaProvider, Track, useMediaState } from "@vidstack/react";
 import { AlertTriangle, HelpCircle, Link2, Loader2, Play, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import "@vidstack/react/player/styles/base.css";
@@ -187,6 +187,13 @@ export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentT
 
     const p = playerRef.current;
     if (!p || !videoUrl) return;
+
+    // Fire an initial volume report. Vidstack's onVolumeChange only
+    // fires when the level/muted state actually changes — the default
+    // state on mount (1.0, unmuted) wouldn't otherwise be broadcast.
+    // Without this, peers see no volume info until the user touches
+    // the slider.
+    onVolumeChange?.(p.volume, p.muted);
     markApplying(400);
     const target = expectedTime();
     if (Number.isFinite(target)) {
@@ -219,11 +226,11 @@ export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentT
     const p = playerRef.current;
     if (!p) return;
     markApplying(400);
-    p.play()
-      .then(() => setAutoplayBlocked(false))
-      .catch(() => {
-        /* still blocked */
-      });
+    // Optimistic: hide the overlay immediately so the click feels
+    // instant. If play() rejects (e.g. still blocked for some reason),
+    // we'll flip it back to blocked and the overlay reappears.
+    setAutoplayBlocked(false);
+    p.play().catch(() => setAutoplayBlocked(true));
   };
 
   // Sync the active subtitle id to Vidstack's TextTrackList. Imperative because
@@ -286,7 +293,9 @@ export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentT
       onError={() => setPlaybackError("network")}
       // Local volume + mute changes — every drag of the slider triggers
       // this; the parent debounces before sending over WS.
-      onVolumeChange={(e) => onVolumeChange?.(e.detail.volume, e.detail.muted)}
+      // Vidstack passes the volume payload directly (volume/muted) —
+      // no event-with-detail wrapper at the callback boundary.
+      onVolumeChange={(e) => onVolumeChange?.(e.volume, e.muted)}
       className={PLAYER_FRAME_CLASS}
     >
       <MediaProvider>
@@ -307,7 +316,6 @@ export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentT
       <Controls subtitles={subtitles} activeSubtitleId={activeSubtitleId} onSelectSubtitle={setActiveSubtitleId} />
 
       <LoadingOverlay hasError={playbackError !== null} />
-      <PrePlayCover url={videoUrl} title={videoTitle ?? null} hasError={playbackError !== null} />
 
       {playbackError && (
         <div className="absolute inset-0 z-30 animate-fade-in">
@@ -316,12 +324,20 @@ export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentT
       )}
 
       {autoplayBlocked && !playbackError && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/75 backdrop-blur-sm animate-fade-in">
-          <Button variant="accent" size="lg" onClick={tryResumePlayback}>
-            <Play className="h-5 w-5 fill-current" />
-            Tap to join playback
-          </Button>
-        </div>
+        // Whole overlay is the click target — no button to aim at, no
+        // separate label to read. A single play glyph in the middle is
+        // enough hint, and tapping anywhere on the dimmed area resumes
+        // playback. Matches what users expect from any paused player.
+        <button
+          type="button"
+          onClick={tryResumePlayback}
+          aria-label="Resume playback"
+          className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in transition hover:bg-black/50"
+        >
+          <span className="flex h-16 w-16 items-center justify-center border border-white/20 bg-black/40 text-white shadow-[0_0_24px_rgba(0,0,0,0.5)] transition group-hover:scale-105">
+            <Play className="h-7 w-7 fill-current" />
+          </span>
+        </button>
       )}
     </MediaPlayer>
   );
@@ -414,32 +430,6 @@ function LoadingOverlay({ hasError }: { hasError: boolean }) {
     <div className="pointer-events-none absolute inset-0 z-[25] flex flex-col items-center justify-center gap-2 bg-black/30 backdrop-blur-[1px]">
       <Loader2 className="h-8 w-8 animate-spin text-accent/90" />
       <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-white/65">Loading video…</span>
-    </div>
-  );
-}
-
-// Cover screen shown when the video is loaded but hasn't been started yet
-// — fills the otherwise-blank black frame with the filename + a play button.
-// Vanishes once started=true. Reads Vidstack media state, so it lives
-// inside <MediaPlayer>.
-function PrePlayCover({ url, title, hasError }: { url: string; title: string | null; hasError: boolean }) {
-  const canPlay = useMediaState("canPlay");
-  const started = useMediaState("started");
-  const remote = useMediaRemote();
-  if (hasError || !canPlay || started) return null;
-  const display = title || urlFilename(url);
-  return (
-    <div className="absolute inset-0 z-[20] flex flex-col items-center justify-center gap-6 bg-gradient-to-b from-black/40 via-black/20 to-black/70 backdrop-blur-[2px]">
-      <div className="flex flex-col items-center gap-2 px-6 text-center">
-        <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-accent">Ready to play</div>
-        <h2 className="line-clamp-2 max-w-xl font-mono text-lg font-semibold text-white sm:text-2xl" title={url}>
-          {display}
-        </h2>
-      </div>
-      <Button variant="accent" size="lg" onClick={() => remote.play()}>
-        <Play className="h-5 w-5 fill-current" />
-        Play
-      </Button>
     </div>
   );
 }

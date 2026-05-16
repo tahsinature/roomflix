@@ -225,3 +225,45 @@ export function looksLikeCorsError(err: unknown): boolean {
     msg.includes("network error")
   );
 }
+
+// Classifies an upload failure so the queue can (a) decide whether to
+// auto-retry, and (b) show the user a useful one-word reason instead of
+// the raw SDK message.
+//
+//   network → transient (Wi-Fi blip, fetch abort, CORS preflight). Worth
+//             auto-retrying with backoff.
+//   config  → bucket policy / IAM / signature. Won't get better by
+//             retrying; the user has to fix something.
+//   size    → bucket cap or 413. Same as config — terminal.
+//   unknown → fall-through. Don't auto-retry (could be anything), but
+//             expose the raw message so the user can copy it.
+export type UploadErrorKind = "network" | "config" | "size" | "unknown";
+
+export function classifyUploadError(err: unknown): { kind: UploadErrorKind; label: string } {
+  if (!err) return { kind: "unknown", label: "Upload failed" };
+  const e = err as {
+    name?: string;
+    message?: string;
+    Code?: string;
+    $metadata?: { httpStatusCode?: number };
+  };
+  const msg = String(e.message ?? err);
+  const code = e.Code ?? "";
+  const status = e.$metadata?.httpStatusCode;
+
+  if (e.name === "TypeError" || /failed to fetch|network|cors/i.test(msg)) {
+    return { kind: "network", label: "Network error — connection dropped" };
+  }
+  if (
+    code === "AccessDenied" ||
+    code === "InvalidAccessKeyId" ||
+    code === "SignatureDoesNotMatch" ||
+    status === 403
+  ) {
+    return { kind: "config", label: code ? `Permission error (${code})` : "Permission error" };
+  }
+  if (code === "EntityTooLarge" || status === 413) {
+    return { kind: "size", label: "File too large for the backend" };
+  }
+  return { kind: "unknown", label: msg || "Upload failed" };
+}

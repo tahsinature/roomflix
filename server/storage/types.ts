@@ -2,7 +2,22 @@
 // interfaces, so swapping the impl for a different backend is a matter of
 // writing a new implementation and pointing the factory in ./index.ts at it
 // — no changes elsewhere.
-import type { AuthUser, InviteCode, InviteKind, PairingCode, Playlist, Space, SpaceMember, SpaceRole, StorageConfig, Subtitle, Video } from "@/protocol.ts";
+import type {
+  AuthUser,
+  InviteCode,
+  InviteKind,
+  PairingCode,
+  Playlist,
+  Space,
+  SpaceMember,
+  SpaceRole,
+  StorageActivation,
+  StorageConfig,
+  StorageConnection,
+  StorageProvider,
+  Subtitle,
+  Video,
+} from "@/protocol.ts";
 
 // VideoRepo entries belong to a space. The route layer resolves the
 // caller's current space + role, the repo enforces the spaceId on writes.
@@ -65,17 +80,80 @@ export interface SessionRepo {
   deleteByToken(token: string): Promise<boolean>;
 }
 
-// Per-space storage backend config (Cloudflare R2). The repo
-// transparently encrypts/decrypts the secret access key — callers always
-// see/provide the plaintext shape from protocol.ts.
+// DEPRECATED — backed by the legacy `storage_configs` collection. Kept
+// alive only for the boot migration that reads each row, creates a new
+// storage_connections row, and auto-activates it in the user's home
+// space. After migration completes nothing else should touch this.
 export interface StorageConfigRepo {
   get(spaceId: string): Promise<StorageConfig | null>;
   put(spaceId: string, input: Omit<StorageConfig, "updatedAt">): Promise<StorageConfig>;
   remove(spaceId: string): Promise<boolean>;
-  // Used by Phase-4 migration: copy a config originally keyed by userId
-  // into the new spaceId-keyed shape, then delete the old row.
-  reparentFromUser(oldUserId: string, spaceId: string): Promise<boolean>;
+  // Yields every legacy doc that hasn't been migrated yet. The boot
+  // migration calls this, processes each, then calls markMigrated so a
+  // re-run is a no-op.
+  listUnmigrated(): Promise<Array<StorageConfig & { _legacyKey: string }>>;
+  markMigrated(legacyKey: string): Promise<boolean>;
 }
+
+// Account-level storage credentials. Owned by a single user; secrets
+// are encrypted at rest. The repo never returns plaintext via the
+// regular list/get; getSecret() exposes it only when the caller has
+// authorization to use the credential.
+export interface StorageConnectionRepo {
+  // List every connection owned by this user (no secrets).
+  listForOwner(ownerId: string): Promise<StorageConnection[]>;
+  // Single connection lookup. Returns null when not found.
+  get(id: string): Promise<StorageConnection | null>;
+  // Many-by-id, used to hydrate a per-space derived view efficiently.
+  getMany(ids: string[]): Promise<StorageConnection[]>;
+  // Cleartext secret access key. Caller is responsible for permission
+  // checks (owner or has a grant). Separate from get() so casual list
+  // routes never accidentally surface it.
+  getSecret(id: string): Promise<string | null>;
+  create(input: {
+    ownerId: string;
+    label: string;
+    provider: StorageProvider;
+    accountId: string;
+    bucket: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    publicBaseUrl?: string;
+    maxBytes: number;
+  }): Promise<StorageConnection>;
+  // Partial update. Pass secretAccessKey to rotate the cred; omit to
+  // keep the existing encrypted value.
+  update(
+    id: string,
+    patch: {
+      label?: string;
+      accountId?: string;
+      bucket?: string;
+      accessKeyId?: string;
+      secretAccessKey?: string;
+      publicBaseUrl?: string;
+      maxBytes?: number;
+    },
+  ): Promise<StorageConnection | null>;
+  remove(id: string): Promise<boolean>;
+}
+
+// Per-(connection, space) marker that a connection is exposed in a
+// space. Caller (the route layer) enforces the invariant that the
+// space's owner is also the connection's owner before adding.
+export interface StorageActivationRepo {
+  listForOwner(ownerId: string): Promise<StorageActivation[]>;
+  listForSpace(spaceId: string): Promise<StorageActivation[]>;
+  listForConnection(connectionId: string): Promise<StorageActivation[]>;
+  // Upsert. When the row already exists, openToGuests is updated; the
+  // activatedAt timestamp is preserved on re-activate.
+  add(input: { connectionId: string; spaceId: string; openToGuests?: boolean }): Promise<StorageActivation>;
+  remove(connectionId: string, spaceId: string): Promise<boolean>;
+  // Cascade helpers — called when a connection or space is deleted.
+  removeAllForConnection(connectionId: string): Promise<number>;
+  removeAllForSpace(spaceId: string): Promise<number>;
+}
+
 
 // Per-space ordered playlists of library video IDs. Membership is stored
 // as ids rather than embedded videos so the playlist stays in sync with
@@ -148,7 +226,11 @@ export type Storage = {
   videos: VideoRepo;
   users: UserRepo;
   sessions: SessionRepo;
+  // Legacy — only the boot migration reads from this. Use storageConnections
+  // for everything else.
   storageConfigs: StorageConfigRepo;
+  storageConnections: StorageConnectionRepo;
+  storageActivations: StorageActivationRepo;
   playlists: PlaylistRepo;
   spaces: SpaceRepo;
   memberships: MembershipRepo;

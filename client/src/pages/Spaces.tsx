@@ -1,180 +1,17 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { Check, Copy, KeyRound, Loader2, Pencil, Plus, RefreshCw, Trash2, Users, X } from "lucide-react";
-import type { InviteCode, Space, SpaceMember, SpaceRole, SpaceSummary } from "@shared/protocol";
+import { Check, Copy, KeyRound, Loader2, Pencil, RefreshCw, Trash2, Users, X } from "lucide-react";
+import type { InviteCode, Space, SpaceMember, SpaceRole } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AdmitGuestDialog } from "@/components/AdmitGuestDialog";
-import { useAuth } from "@/auth/AuthContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-// /spaces — list memberships, create a new space, redeem an invite code,
-// and drill into individual spaces for member + invite management.
-export default function Spaces() {
-  const { spaces, refresh, currentSpace, switchSpace } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [creating, setCreating] = useState(searchParams.get("new") === "1");
-  const [selectedId, setSelectedId] = useState<string | null>(currentSpace?.id ?? spaces[0]?.id ?? null);
+// Sub-components used by /settings/space. This file used to host a
+// standalone /spaces page; that route now redirects into Settings, so
+// only the building blocks remain here.
 
-  useEffect(() => {
-    // Keep selection in sync if memberships shift under us (e.g. just
-    // joined a new space via redeem).
-    if (selectedId && spaces.some((s) => s.id === selectedId)) return;
-    setSelectedId(currentSpace?.id ?? spaces[0]?.id ?? null);
-  }, [spaces, currentSpace?.id, selectedId]);
-
-  return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-7 px-4 py-6 sm:px-6 sm:py-8">
-      <header className="flex flex-col leading-tight border-b border-border pb-4">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Spaces</span>
-        <h1 className="text-lg font-medium text-foreground">Your spaces and members</h1>
-      </header>
-
-      <section className="grid gap-6 md:grid-cols-[18rem_1fr]">
-        <aside className="space-y-3">
-          <SpaceList
-            spaces={spaces}
-            currentId={currentSpace?.id ?? null}
-            selectedId={selectedId}
-            onSelect={(id) => setSelectedId(id)}
-            onSwitch={async (id) => {
-              await switchSpace(id);
-              setSelectedId(id);
-            }}
-          />
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setCreating(true);
-                setSearchParams(
-                  (prev) => {
-                    const next = new URLSearchParams(prev);
-                    next.set("new", "1");
-                    return next;
-                  },
-                  { replace: true },
-                );
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              New space
-            </Button>
-            <RedeemInline onRedeemed={refresh} />
-          </div>
-        </aside>
-
-        <div>
-          {creating ? (
-            <CreateSpaceCard
-              onCancel={() => {
-                setCreating(false);
-                setSearchParams(
-                  (prev) => {
-                    const next = new URLSearchParams(prev);
-                    next.delete("new");
-                    return next;
-                  },
-                  { replace: true },
-                );
-              }}
-              onCreated={async (space) => {
-                setCreating(false);
-                setSearchParams(
-                  (prev) => {
-                    const next = new URLSearchParams(prev);
-                    next.delete("new");
-                    return next;
-                  },
-                  { replace: true },
-                );
-                await refresh();
-                await switchSpace(space.id);
-                setSelectedId(space.id);
-              }}
-            />
-          ) : selectedId ? (
-            <SpaceDetailCard
-              key={selectedId}
-              spaceId={selectedId}
-              onChanged={refresh}
-              onDeleted={async () => {
-                await refresh();
-                setSelectedId(null);
-              }}
-            />
-          ) : (
-            <div className="border border-border bg-bg-elevated/40 p-10 text-center text-sm text-muted-foreground">
-              Pick a space on the left, or create a new one.
-            </div>
-          )}
-        </div>
-      </section>
-    </main>
-  );
-}
-
-function SpaceList({
-  spaces,
-  currentId,
-  selectedId,
-  onSelect,
-  onSwitch,
-}: {
-  spaces: SpaceSummary[];
-  currentId: string | null;
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  onSwitch: (id: string) => Promise<void>;
-}) {
-  if (spaces.length === 0) {
-    return (
-      <div className="border border-border bg-bg-elevated/40 p-4 text-center text-sm text-muted-foreground">
-        You're not in any space yet.
-      </div>
-    );
-  }
-  return (
-    <ul className="border border-border">
-      {spaces.map((s) => {
-        const active = s.id === selectedId;
-        const isCurrent = s.id === currentId;
-        return (
-          <li key={s.id} className="border-b border-border last:border-b-0">
-            <button
-              type="button"
-              onClick={() => onSelect(s.id)}
-              className={cn("flex w-full items-center gap-2 px-3 py-2.5 text-left transition", active ? "bg-white/[0.04]" : "hover:bg-white/[0.02]")}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-foreground">{s.name}</div>
-                <div className="font-mono text-[10px] text-text-dim">{s.role}</div>
-              </div>
-              {isCurrent ? (
-                <span className="font-mono text-[10px] text-accent">active</span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void onSwitch(s.id);
-                  }}
-                  className="rounded border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground transition hover:border-border-hover hover:text-foreground"
-                >
-                  switch
-                </button>
-              )}
-            </button>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function CreateSpaceCard({ onCancel, onCreated }: { onCancel: () => void; onCreated: (space: Space) => void }) {
+export function CreateSpaceCard({ onCancel, onCreated }: { onCancel: () => void; onCreated: (space: Space) => void }) {
   const [name, setName] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -217,7 +54,10 @@ function CreateSpaceCard({ onCancel, onCreated }: { onCancel: () => void; onCrea
   );
 }
 
-function SpaceDetailCard({
+// Exported so /settings/space can render the same panel for just
+// the currently active space without duplicating the
+// fetch/render/danger-zone logic.
+export function SpaceDetailCard({
   spaceId,
   onChanged,
   onDeleted,
@@ -265,7 +105,7 @@ function SpaceDetailCard({
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1 border border-border bg-bg-elevated/40 p-6">
+      <header className="space-y-1 border border-border bg-bg-elevated/40 p-4 sm:p-6">
         <span className="section-label muted">Space</span>
         <SpaceTitleEditor
           name={space.name}
@@ -307,9 +147,11 @@ function SpaceDetailCard({
                     await api.removeMember(spaceId, m.userId);
                     await load();
                   }}
-                  className="font-mono text-[10px] text-text-dim transition hover:text-accent"
+                  aria-label={`Remove @${m.username}`}
+                  title="Remove from space"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center text-text-dim transition hover:text-accent"
                 >
-                  remove
+                  <X className="h-3.5 w-3.5" />
                 </button>
               )}
             </li>
@@ -331,10 +173,11 @@ function SpaceDetailCard({
                   await load();
                 }}
                 title="Mint a code that requires the recipient to register or sign in."
+                aria-label="New member invite code"
                 className="h-9"
               >
                 <RefreshCw className="h-3.5 w-3.5" />
-                Member code
+                <span className="hidden sm:inline">Member code</span>
               </Button>
               <Button
                 variant="accent"
@@ -344,10 +187,11 @@ function SpaceDetailCard({
                   await load();
                 }}
                 title="Mint a code for someone joining without an account. Default: 7-day expiry, unlimited uses."
+                aria-label="New guest invite code"
                 className="h-9"
               >
                 <RefreshCw className="h-3.5 w-3.5" />
-                Guest code
+                <span className="hidden sm:inline">Guest code</span>
               </Button>
             </div>
           </header>
@@ -384,7 +228,7 @@ function SpaceDetailCard({
 
       <AdmitGuestDialog open={admitGuestOpen} onClose={() => setAdmitGuestOpen(false)} />
 
-      <section className="border border-border bg-bg-elevated/40 p-6">
+      <section className="border border-border bg-bg-elevated/40 p-4 sm:p-6">
         <span className="section-label muted">Danger zone</span>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           {isOwner ? (
@@ -423,7 +267,7 @@ function SpaceDetailCard({
   );
 }
 
-function RedeemInline({ onRedeemed }: { onRedeemed: () => Promise<void> }) {
+export function RedeemInline({ onRedeemed }: { onRedeemed: () => Promise<void> }) {
   const [code, setCode] = useState("");
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
@@ -489,47 +333,53 @@ function InviteRow({ invite, onRevoke }: { invite: InviteCode; onRevoke: () => P
         : `expires ${formatRelative(invite.expiresAt - Date.now())}`;
 
   return (
-    <li className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2 last:border-b-0">
-      <code className="flex-1 min-w-0 font-mono text-sm tracking-wider text-foreground">{invite.code}</code>
-      <span
-        className={cn(
-          "border px-1.5 py-0.5 font-mono text-[10px] uppercase",
-          invite.kind === "guest" ? "border-accent/40 text-accent" : "border-border text-text-dim",
+    <li className="flex items-start gap-3 border-b border-border px-3 py-2.5 last:border-b-0">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <code className="font-mono text-sm tracking-wider text-foreground">{invite.code}</code>
+          <span
+            className={cn(
+              "border px-1.5 py-0.5 font-mono text-[10px] uppercase",
+              invite.kind === "guest" ? "border-accent/40 text-accent" : "border-border text-text-dim",
+            )}
+          >
+            {invite.kind}
+          </span>
+        </div>
+        <div className="mt-0.5 font-mono text-[10px] text-text-dim">
+          {invite.usesRemaining === null ? "unlimited" : `${invite.usesRemaining} left`} · {expiresIn}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        {invite.kind === "guest" && (
+          <button
+            type="button"
+            onClick={() => void copy("link")}
+            aria-label="Copy join link"
+            title="Copy /join/<code> URL"
+            className="border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground transition hover:border-border-hover hover:text-foreground"
+          >
+            {copied === "link" ? "copied" : "link"}
+          </button>
         )}
-      >
-        {invite.kind}
-      </span>
-      <span className="font-mono text-[10px] text-text-dim">
-        {invite.usesRemaining === null ? "unlimited" : `${invite.usesRemaining} left`} · {expiresIn}
-      </span>
-      {invite.kind === "guest" && (
         <button
           type="button"
-          onClick={() => void copy("link")}
-          aria-label="Copy join link"
-          title="Copy /join/<code> URL"
-          className="border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground transition hover:border-border-hover hover:text-foreground"
+          onClick={() => void copy("code")}
+          aria-label="Copy code"
+          title="Copy just the code"
+          className="flex h-7 w-7 items-center justify-center text-text-dim transition hover:text-foreground"
         >
-          {copied === "link" ? "copied" : "link"}
+          {copied === "code" ? <span className="font-mono text-[10px]">✓</span> : <Copy className="h-3.5 w-3.5" />}
         </button>
-      )}
-      <button
-        type="button"
-        onClick={() => void copy("code")}
-        aria-label="Copy code"
-        title="Copy just the code"
-        className="flex h-7 w-7 items-center justify-center text-text-dim transition hover:text-foreground"
-      >
-        {copied === "code" ? <span className="font-mono text-[10px]">✓</span> : <Copy className="h-3.5 w-3.5" />}
-      </button>
-      <button
-        type="button"
-        onClick={() => void onRevoke()}
-        aria-label="Revoke"
-        className="flex h-7 w-7 items-center justify-center text-text-dim transition hover:text-accent"
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
+        <button
+          type="button"
+          onClick={() => void onRevoke()}
+          aria-label="Revoke"
+          className="flex h-7 w-7 items-center justify-center text-text-dim transition hover:text-accent"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
     </li>
   );
 }

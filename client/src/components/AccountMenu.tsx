@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Check, ChevronDown, LogOut, Pencil, Plus, Settings, Users2 } from "lucide-react";
+import { Check, ChevronDown, LogOut, SlidersHorizontal, Users2 } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 import { cn } from "@/lib/utils";
 
@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 // button + identity button + logout icon. Guests get a simplified
 // version: identity row + leave session only (they can't manage spaces
 // or edit a persistent profile).
-export function AccountMenu({ onEditProfile, className }: { onEditProfile: () => void; className?: string }) {
+export function AccountMenu({ className }: { className?: string }) {
   const { user, guest, isGuest, identityLabel, currentSpace, spaces, switchSpace, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -20,10 +20,10 @@ export function AccountMenu({ onEditProfile, className }: { onEditProfile: () =>
   const location = useLocation();
 
   // Active when the user is on a route this menu "owns" — i.e. one of
-  // its internal links is the current page. /spaces (and any sub-paths)
-  // is the main one. Keeps the trigger highlighted so the user always
-  // knows where their current page lives in the nav.
-  const isActive = location.pathname.startsWith("/spaces");
+  // its internal links is the current page. /settings (which now hosts
+  // the spaces hub too) is the main one. Keeps the trigger highlighted
+  // so the user always knows where their current page lives in the nav.
+  const isActive = location.pathname.startsWith("/settings");
 
   // Close on real outside click (not window blur) and Escape — mirrors
   // the ViewerPill behavior so multi-window testing isn't disrupted.
@@ -96,18 +96,15 @@ export function AccountMenu({ onEditProfile, className }: { onEditProfile: () =>
           </div>
 
           {!isGuest && (
-            <button
-              type="button"
+            <Link
+              to="/settings/profile"
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                setOpen(false);
-                onEditProfile();
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition hover:bg-white/[0.04]"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-foreground transition hover:bg-white/[0.04]"
             >
-              <Pencil className="h-3.5 w-3.5 text-text-dim" />
-              Edit profile
-            </button>
+              <SlidersHorizontal className="h-3.5 w-3.5 text-text-dim" />
+              Settings
+            </Link>
           )}
 
           {!isGuest && (
@@ -134,27 +131,21 @@ export function AccountMenu({ onEditProfile, className }: { onEditProfile: () =>
                   );
                 })}
                 {spaces.length === 0 && (
-                  <li className="px-3 py-2 text-sm text-text-dim">You're not in any space yet.</li>
+                  // Onboarding path: zero spaces. Sends them to the
+                  // hub where create/redeem live, since the menu no
+                  // longer hosts those CTAs directly.
+                  <li>
+                    <Link
+                      to="/settings/space"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => setOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground transition hover:bg-white/[0.04] hover:text-foreground"
+                    >
+                      You're not in any space yet — set one up.
+                    </Link>
+                  </li>
                 )}
               </ul>
-              <Link
-                to="/spaces"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground transition hover:bg-white/[0.04] hover:text-foreground"
-              >
-                <Settings className="h-3.5 w-3.5" />
-                Manage spaces
-              </Link>
-              <Link
-                to="/spaces?new=1"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground transition hover:bg-white/[0.04] hover:text-foreground"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                New space
-              </Link>
             </>
           )}
 
