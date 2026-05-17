@@ -41,25 +41,6 @@ type SessionPresenceValue = {
   setStatus: (status: PresenceStatus) => void;
 };
 
-// Build-time WS origin. Resolution order:
-//   1. VITE_WS_BASE (explicit override; right answer for GH Pages
-//      builds pointing at the Bun server on a different origin).
-//   2. VITE_API_BASE (derive ws[s] from the API origin — typical
-//      cross-origin setup where API and WS share a host).
-//   3. Page origin in prod, hardcoded :3000 in dev (the Vite WS proxy
-//      was unreliable in practice).
-function wsBaseUrl(): string {
-  const explicitWs = import.meta.env.VITE_WS_BASE;
-  if (explicitWs) return explicitWs.replace(/\/$/, "");
-  const apiBase = import.meta.env.VITE_API_BASE;
-  if (apiBase) {
-    return apiBase.replace(/^http/i, "ws").replace(/\/$/, "");
-  }
-  const proto = location.protocol === "https:" ? "wss" : "ws";
-  const host = import.meta.env.DEV ? `${location.hostname}:3000` : location.host;
-  return `${proto}://${host}`;
-}
-
 const DEFAULT: SessionPresenceValue = {
   state: null,
   viewers: [],
@@ -146,11 +127,16 @@ export function SessionPresenceProvider({ children }: { children: ReactNode }) {
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
     const connect = () => {
+      const proto = location.protocol === "https:" ? "wss" : "ws";
+      // Dev: bypass Vite's WS proxy (unreliable; see useSessionSync
+      // history). Cookies are host-scoped not port-scoped, so the
+      // session cookie still travels.
+      const host = import.meta.env.DEV ? `${location.hostname}:3000` : location.host;
       const params = new URLSearchParams({
         client: clientIdRef.current,
         status: desiredStatusRef.current,
       });
-      const ws = new WebSocket(`${wsBaseUrl()}/ws?${params.toString()}`);
+      const ws = new WebSocket(`${proto}://${host}/ws?${params.toString()}`);
       wsRef.current = ws;
 
       ws.onopen = () => {

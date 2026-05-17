@@ -118,30 +118,6 @@ await runStorageMigration();
 
 const app = new Hono();
 
-// CORS for cross-origin clients (e.g. the GitHub Pages mirror).
-// CORS_ORIGINS is a comma-separated allowlist; empty/unset = no CORS
-// (same-origin only, current behavior). The middleware echoes the
-// allowed origin back and includes Access-Control-Allow-Credentials
-// so the session cookie travels.
-const corsOrigins = (process.env.CORS_ORIGINS ?? "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-if (corsOrigins.length > 0) {
-  const { cors } = await import("hono/cors");
-  app.use(
-    "/api/*",
-    cors({
-      origin: (origin) => (corsOrigins.includes(origin) ? origin : null),
-      credentials: true,
-      allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowHeaders: ["Content-Type"],
-      maxAge: 3600,
-    }),
-  );
-  console.log(`[roomflix] CORS enabled for ${corsOrigins.join(", ")}`);
-}
-
 app.get("/healthz", (c) => c.text("ok"));
 
 app.route("/api/auth", buildAuthRouter(storage));
@@ -172,22 +148,8 @@ app.route("/api/account/storage", buildAccountStorageRouter(storage));
 app.route("/api/storage/secret", buildStorageSecretRouter(storage));
 app.route("/api/playlists", buildPlaylistsRouter(storage));
 
-// Toggle: when set, the server stops serving the bundled client and
-// 302s every non-API/non-WS request to STATIC_REDIRECT_URL with the
-// original path + query preserved. Use this to shift static asset
-// load to GitHub Pages (or any other static host) without rebuilding
-// the container. Flip it off in env to fall back to local serving.
-const STATIC_REDIRECT_URL = (process.env.STATIC_REDIRECT_URL ?? "").replace(/\/$/, "");
-if (STATIC_REDIRECT_URL) {
-  console.log(`[roomflix] STATIC_REDIRECT_URL set — / and assets will 302 to ${STATIC_REDIRECT_URL}`);
-}
-
-// SPA fallback (or 302 if the redirect toggle is on).
+// SPA fallback.
 app.all("*", async (c) => {
-  if (STATIC_REDIRECT_URL) {
-    const url = new URL(c.req.url);
-    return c.redirect(`${STATIC_REDIRECT_URL}${url.pathname}${url.search}`, 302);
-  }
   if (!HAS_CLIENT_BUILD) {
     return c.text("roomflix server running. Start the Vite dev server for the UI.");
   }
