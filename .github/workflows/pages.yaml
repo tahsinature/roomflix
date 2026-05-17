@@ -1,0 +1,54 @@
+name: Deploy client to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+  # Allow manual reruns from the Actions tab (handy when only env
+  # values change but no commits).
+  workflow_dispatch:
+
+# Standard Pages perms — `pages: write` to publish, `id-token: write`
+# for the OIDC handshake the deploy action uses.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one Pages deploy at a time. If a second push lands while we're
+# building, GitHub queues it and skips superseded runs.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+
+      # Workspaces install — root resolves both client and server deps.
+      - run: bun install --frozen-lockfile
+
+      # Build the client with the prod env baked in.
+      #   PAGES_BASE   → Vite `base` for project-pages URL
+      #   VITE_API_BASE → cross-origin API host (the Bun server)
+      # WS base is derived from VITE_API_BASE by SessionPresence.
+      - name: Build client
+        env:
+          PAGES_BASE: /roomflix/
+          VITE_API_BASE: https://roomflix.tahsin.us
+        run: bun run --cwd client build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: client/dist
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

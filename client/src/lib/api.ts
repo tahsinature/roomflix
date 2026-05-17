@@ -55,12 +55,20 @@ export class ApiError extends Error {
   }
 }
 
+// API origin baked at build time. Empty / undefined → use the page's
+// own origin (the right default for same-origin Bun-served builds).
+// For GitHub Pages builds, set VITE_API_BASE to the Bun server's URL.
+const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+  const url = API_BASE ? `${API_BASE}${path}` : path;
+  const res = await fetch(url, {
     ...init,
-    // Always send the session cookie. Same-origin in prod; Vite dev server
-    // proxies /api to the Bun server so credentials still flow through.
-    credentials: "same-origin",
+    // `include` (vs `same-origin`) lets the session cookie travel on
+    // cross-origin requests when VITE_API_BASE points off-page. Same-
+    // origin builds get the same behavior; the server's CORS+cookie
+    // config decides whether the cookie actually gets sent/set.
+    credentials: API_BASE ? "include" : "same-origin",
     headers: {
       "content-type": "application/json",
       ...(init?.headers ?? {}),

@@ -54,11 +54,19 @@ function writeSessionCookie(c: Context, token: string, expiresAt: number) {
 // Exposed so other modules (e.g. the join-request approve flow) can
 // set the session cookie without duplicating the option matrix. Pass
 // the absolute expiry epoch ms; defaults to a fresh TTL window.
+//
+// SameSite: "Lax" works for same-origin (browser sends on top-level
+// navigations + same-site XHR). For cross-origin setups — e.g. the
+// client hosted on GitHub Pages but the API on roomflix.tahsin.us —
+// the browser only sends the cookie when SameSite=None;Secure.
+// COOKIE_CROSS_SITE=true flips it. Forces secure regardless of
+// COOKIE_SECURE since browsers reject SameSite=None without it.
 export function sessionCookieOptions(expiresAt: number = Date.now() + SESSION_TTL_MS) {
+  const crossSite = process.env.COOKIE_CROSS_SITE === "true";
   return {
     httpOnly: true,
-    sameSite: "Lax" as const,
-    secure: cookieSecure(),
+    sameSite: (crossSite ? "None" : "Lax") as "None" | "Lax",
+    secure: crossSite ? true : cookieSecure(),
     path: "/",
     expires: new Date(expiresAt),
   };
