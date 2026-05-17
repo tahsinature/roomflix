@@ -45,6 +45,13 @@ const STALLED_TIMEOUT_MS = 15_000;
 // itself doesn't get distorted or letterboxed at the wrong ratio.
 const PLAYER_FRAME_CLASS = "relative aspect-video w-full overflow-hidden bg-black border border-border shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]";
 
+// Build the subtitle-proxy URL. Same VITE_API_BASE plumbing as the
+// rest of the client; empty / unset = same-origin (Bun-served).
+const SUBTITLE_API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
+function subtitleProxyUrl(src: string): string {
+  return `${SUBTITLE_API_BASE}/api/library/subtitle?url=${encodeURIComponent(src)}`;
+}
+
 // Frame for placeholder states (empty / loading / format-error). On phones
 // aspect-video gives ~200px which can't fit the URL form, so we drop to a
 // content-sized box with a min-height floor. On sm+ (≥640px) the aspect ratio
@@ -281,7 +288,14 @@ export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentT
       src={{ src: videoUrl, type: inferVideoMime(videoUrl) }}
       load="eager"
       playsInline
-      crossOrigin={null}
+      // Cross-origin `<track>` (subtitle) loads require the parent
+      // <video> to be in CORS mode. We flip to "anonymous" when the
+      // build is configured for a cross-origin API host (GH Pages) —
+      // implies the video host (typically R2) also returns CORS
+      // headers, which is the same allowlist add as for the storage
+      // browser. Same-origin builds keep `null` so videos on non-CORS
+      // CDNs still play.
+      crossOrigin={SUBTITLE_API_BASE ? "anonymous" : null}
       keyTarget="document"
       onPlay={handlePlay}
       onPause={handlePause}
@@ -300,11 +314,13 @@ export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentT
     >
       <MediaProvider>
         {subtitles.map((s) => (
-          // Route every subtitle through our same-origin proxy so the
-          // browser doesn't reject cross-origin fetches when the user's
-          // CDN doesn't return CORS headers (most don't, by default).
-          // The proxy normalizes everything to VTT regardless of source.
-          <Track key={s.id} id={s.id} src={`/api/library/subtitle?url=${encodeURIComponent(s.url)}`} type="vtt" kind="subtitles" label={s.label} lang={s.lang} />
+          // Route every subtitle through our proxy so the browser
+          // doesn't reject cross-origin fetches when the user's CDN
+          // doesn't return CORS headers (most don't, by default). The
+          // proxy normalizes everything to VTT. Prefix with the API
+          // origin (VITE_API_BASE) for builds served from a different
+          // host than the Bun server — e.g. GitHub Pages.
+          <Track key={s.id} id={s.id} src={subtitleProxyUrl(s.url)} type="vtt" kind="subtitles" label={s.label} lang={s.lang} />
         ))}
       </MediaProvider>
 
