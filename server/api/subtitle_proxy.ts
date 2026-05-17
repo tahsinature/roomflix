@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 
-import { requireSpaceMember } from "@/auth.ts";
+import { rateLimit } from "@/middleware/rate-limit.ts";
 import type { Storage } from "@/storage/index.ts";
 
 const FETCH_TIMEOUT_MS = 10_000;
@@ -11,12 +11,20 @@ const MAX_BYTES = 2_000_000; // 2 MB; typical subtitle files are 10–100 KB.
 // Browsers refuse to read cross-origin <track> bodies unless the source
 // host returns CORS headers, which most static hosts (R2 included by
 // default) don't. We fetch server-side and re-serve same-origin so the
-// browser stops caring about CORS. Side benefit: we normalize SRT to VTT
-// here so the client always sees one canonical format. Space-gated so
-// the endpoint can't be used as an open proxy.
-export function buildSubtitleProxyRouter(storage: Storage) {
+// browser stops caring about CORS. Side benefit: we normalize SRT to
+// VTT here so the client always sees one canonical format.
+//
+// Public (no auth gate). A <track> element with crossOrigin="anonymous"
+// strips credentials from its fetch, so a cookie-gated proxy returns
+// 401 for cross-origin builds (GH Pages). Subtitle URLs aren't secret;
+// the abuse surface is "open relay" which is bounded by:
+//   - per-IP rate limit (10/min — typical playback is 1 fetch per
+//     subtitle per video)
+//   - MAX_BYTES cap (2 MB)
+//   - FETCH_TIMEOUT_MS cap (10s)
+export function buildSubtitleProxyRouter(_storage: Storage) {
   const app = new Hono();
-  app.use("*", requireSpaceMember(storage));
+  app.use("*", rateLimit({ bucket: "subtitle-proxy", max: 10 }));
 
   app.get("/", async (c) => {
     const target = c.req.query("url");
