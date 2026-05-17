@@ -19,14 +19,21 @@ const ALGO = { name: "ECDH", namedCurve: "P-256" } as const;
 //
 // `extraBody` lets the caller attach additional fields to the request
 // (e.g. an id) — they're merged alongside `clientPub`.
+// Same VITE_API_BASE plumbing as lib/api.ts — keeps this raw-fetch
+// path on the right origin when the client is served from a different
+// host than the API (e.g. GitHub Pages mirror → roomflix.tahsin.us).
+const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
+
 export async function fetchSecret(path: string, extraBody?: Record<string, unknown>): Promise<string> {
   const subtle = window.crypto.subtle;
   const myKeys = await subtle.generateKey(ALGO, true, ["deriveBits"]);
   const myPub = (await subtle.exportKey("jwk", myKeys.publicKey)) as unknown as EcdhPublicJwk;
 
-  const res = await fetch(path, {
+  const url = API_BASE ? `${API_BASE}${path}` : path;
+  const res = await fetch(url, {
     method: "POST",
-    credentials: "same-origin",
+    // include vs same-origin — see lib/api.ts request() for rationale.
+    credentials: API_BASE ? "include" : "same-origin",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ ...(extraBody ?? {}), clientPub: myPub }),
   });
