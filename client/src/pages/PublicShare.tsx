@@ -5,6 +5,9 @@ import type { PublicShare as PublicShareData, PublicShareGate, PublicShareItem }
 import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { VideoPlayer } from "@/components/player/VideoPlayer";
+import { AudioPlayer } from "@/components/player/AudioPlayer";
+import { PhotoPlayer } from "@/components/player/PhotoPlayer";
 import { cn, mediaKind, urlFilename } from "@/lib/utils";
 
 // Public, unauthenticated viewer for a /share/:code link. Resolves the
@@ -147,15 +150,20 @@ function ShareViewer({ share }: { share: PublicShareData }) {
     [items.length],
   );
 
-  // ←/→ navigate a multi-item share.
+  // ←/→ navigate a multi-item share. Capture phase + stopImmediatePropagation
+  // so a video item's player doesn't ALSO seek on the same keypress; a
+  // fullscreen video keeps the arrows for seeking.
   useEffect(() => {
     if (!isCollection) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight") step(1);
-      else if (e.key === "ArrowLeft") step(-1);
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      if (e.target instanceof HTMLInputElement || document.fullscreenElement) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      step(e.key === "ArrowRight" ? 1 : -1);
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
   }, [isCollection, step]);
 
   return (
@@ -171,7 +179,7 @@ function ShareViewer({ share }: { share: PublicShareData }) {
       </header>
 
       <main className="relative flex min-h-0 flex-1 items-center justify-center">
-        {current ? <MediaItem item={current} /> : <p className="text-sm text-white/50">This share is empty.</p>}
+        {current ? <ShareMedia item={current} onEnded={isCollection ? () => step(1) : undefined} /> : <p className="text-sm text-white/50">This share is empty.</p>}
         {isCollection && (
           <>
             <StepButton side="left" disabled={index <= 0} onClick={() => step(-1)} />
@@ -205,27 +213,44 @@ function ShareViewer({ share }: { share: PublicShareData }) {
   );
 }
 
-// Renders a single item by media kind — plain elements, no sync layer.
-function MediaItem({ item }: { item: PublicShareItem }) {
+// Renders the current item with the SAME players the theater uses —
+// PhotoPlayer / AudioPlayer / VideoPlayer — so there's no second media
+// implementation to keep in sync. They run UNSYNCED here: the sync inputs
+// are static (playing stays false, no server clock), so each player's
+// reconcile effect settles once on mount and then hands control to its
+// own local UI. Collection navigation is owned by ShareViewer, so
+// PhotoPlayer gets total=1 to suppress its own arrows.
+function ShareMedia({ item, onEnded }: { item: PublicShareItem; onEnded?: () => void }) {
   const kind = mediaKind(item.url);
+  const noop = () => {};
+  const staticSync = { playing: false, currentTime: 0, updatedAt: 0, serverTime: 0 };
+
   if (kind === "image") {
-    return <img src={item.url} alt={item.name || ""} className="max-h-full max-w-full object-contain" />;
+    return <PhotoPlayer key={item.url} url={item.url} title={item.name} index={0} total={1} onNext={noop} onPrev={noop} />;
   }
   if (kind === "audio") {
     return (
-      <div className="flex w-full max-w-lg flex-col items-center gap-5 px-6">
-        <span className="flex h-20 w-20 items-center justify-center border border-white/15 bg-white/[0.04] text-white/60">
-          <Music className="h-9 w-9" />
-        </span>
-        <div className="truncate text-center text-sm text-white/80">{item.name || urlFilename(item.url)}</div>
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-        <audio key={item.url} src={item.url} controls autoPlay className="w-full" />
+      <div className="flex h-full w-full items-center justify-center p-4 sm:p-8">
+        <div className="w-full max-w-3xl">
+          <AudioPlayer key={item.url} url={item.url} title={item.name} {...staticSync} onPlay={noop} onPause={noop} onSeek={noop} onEnded={onEnded} />
+        </div>
       </div>
     );
   }
   return (
-    // eslint-disable-next-line jsx-a11y/media-has-caption
-    <video key={item.url} src={item.url} controls autoPlay playsInline className="max-h-full max-w-full" />
+    <VideoPlayer
+      key={item.url}
+      fill
+      videoUrl={item.url}
+      videoTitle={item.name}
+      subtitles={[]}
+      {...staticSync}
+      onPlay={noop}
+      onPause={noop}
+      onSeek={noop}
+      onLoadUrl={noop}
+      onEnded={onEnded}
+    />
   );
 }
 
