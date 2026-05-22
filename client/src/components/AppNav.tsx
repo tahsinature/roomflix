@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { Database, HelpCircle, Library as LibraryIcon, LogOut, Menu, SlidersHorizontal, Users2, X } from "lucide-react";
+import { Database, HelpCircle, Library as LibraryIcon, Link2, LogOut, Menu, SlidersHorizontal, Users2, X } from "lucide-react";
 import { AccountMenu } from "@/components/AccountMenu";
 import { SpaceChip } from "@/components/SpaceChip";
 import { ViewerPill } from "@/components/ViewerPill";
@@ -60,6 +60,9 @@ export function AppNav() {
               <NavLink to="/storage" className={navLinkClass}>
                 Storage
               </NavLink>
+              <NavLink to="/shares" className={navLinkClass}>
+                Shares
+              </NavLink>
               <AccountMenu />
             </div>
 
@@ -86,6 +89,10 @@ export function AppNav() {
             <MobileNavLink to="/storage" onClick={() => setMobileOpen(false)}>
               <Database className="h-4 w-4 text-accent" />
               Storage
+            </MobileNavLink>
+            <MobileNavLink to="/shares" onClick={() => setMobileOpen(false)}>
+              <Link2 className="h-4 w-4 text-accent" />
+              Shares
             </MobileNavLink>
             {!isGuest && (
               <MobileNavLink to="/settings/space" onClick={() => setMobileOpen(false)}>

@@ -383,6 +383,54 @@ export type CollectionHealth = {
   items: Record<string, HealthStatus>;
 };
 
+// ── Public share links ──────────────────────────────────────────────
+// A shareable, optionally passcode-gated link to a single media URL or a
+// whole collection — reachable WITHOUT a session at /share/:code. The
+// passcode hash never crosses the wire; `hasPasscode` stands in for it.
+export type ShareTargetKind = "url" | "collection";
+
+export type ShareLink = {
+  id: string; // also the public code in /share/:code
+  spaceId: string;
+  createdBy: string;
+  label: string;
+  targetKind: ShareTargetKind;
+  targetUrl: string | null;
+  targetTitle: string | null;
+  targetCollectionId: string | null;
+  hasPasscode: boolean;
+  expiresAt: number | null;
+  maxAccesses: number | null;
+  accessCount: number;
+  disabled: boolean;
+  createdAt: number;
+  lastAccessedAt: number | null;
+};
+
+// One recorded open of a share link — the rows behind the access log.
+export type ShareAccess = {
+  id: string;
+  ip: string;
+  userAgent: string;
+  accessedAt: number;
+};
+
+// The public payload served once a share resolves (and unlocks). Carries
+// no owner / space / passcode data. `items` holds one entry for a url
+// share, N for a collection.
+export type PublicShareItem = { url: string; name: string };
+
+export type PublicShare = {
+  label: string;
+  kind: ShareTargetKind;
+  title: string;
+  items: PublicShareItem[];
+};
+
+// Response of GET /api/share/:code and POST .../unlock — a small state
+// machine the public page renders directly. A missing code is a 404.
+export type PublicShareGate = { state: "ready"; share: PublicShare } | { state: "passcode"; label: string } | { state: "unavailable"; reason: "disabled" | "expired" | "limit" };
+
 // Messages sent by the client to the server.
 //
 // Collection messages:

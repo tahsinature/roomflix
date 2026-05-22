@@ -6,6 +6,8 @@ import Welcome from "@/pages/Welcome";
 import Watch from "@/pages/Watch";
 import Library from "@/pages/Library";
 import CollectionEdit from "@/pages/CollectionEdit";
+import Shares from "@/pages/Shares";
+import PublicShare from "@/pages/PublicShare";
 import Help from "@/pages/Help";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
@@ -67,6 +69,11 @@ export default function App() {
           it has its own SiteNav and lives outside the authed shell. */}
       <Route path="/welcome" element={<Welcome />} />
 
+      {/* /share/:code — a PUBLIC share-link viewer. No auth: the code
+          (plus an optional passcode) is the only credential, so it lives
+          entirely outside the authed shell. */}
+      <Route path="/share/:code" element={<PublicShare />} />
+
       {/* /watch is the theater — a full-bleed, chrome-free home-theater
           surface. Its own layout gates auth but renders no AppNav; the
           page owns the entire viewport. */}
@@ -82,6 +89,7 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/library" element={<Library />} />
         <Route path="/collections/:id" element={<CollectionEdit />} />
+        <Route path="/shares" element={<Shares />} />
         <Route path="/help" element={<Help />} />
         {/* /spaces → /settings/space. Spaces management is now a
             Settings section; the redirect catches any old links. */}

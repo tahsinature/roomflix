@@ -55,8 +55,13 @@ const PLAYER_FRAME_CLASS = "relative aspect-video w-full overflow-hidden bg-blac
 const STATIC_FRAME_CLASS = "relative min-h-[24rem] w-full overflow-hidden bg-black border border-border shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] sm:aspect-video sm:min-h-0";
 
 // Theater mode: drop the card chrome (border / shadow / aspect box) and
-// fill the parent — the theater surface owns the framing.
-const FILL_FRAME_CLASS = "relative h-full w-full overflow-hidden bg-black";
+// fill the parent — the theater surface owns the framing. Vidstack's
+// base.css only stretches the <video> to full height in fullscreen
+// (otherwise height:auto + the player's 16:9 aspect box, which shrinks a
+// portrait clip to a tiny letterboxed rectangle); [&_video]:h-full forces
+// it to fill the frame here too. object-fit:contain (also from base.css)
+// keeps the real aspect ratio.
+const FILL_FRAME_CLASS = "relative h-full w-full overflow-hidden bg-black [&_video]:h-full";
 
 type PlaybackErrorKind = "network" | "format" | "stalled";
 

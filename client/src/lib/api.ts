@@ -8,6 +8,9 @@ import type {
   JoinRequest,
   LibraryHealth,
   ProbeResult,
+  PublicShareGate,
+  ShareAccess,
+  ShareLink,
   Space,
   SpaceJoinPolicy,
   SessionStateSnapshot,
@@ -201,6 +204,31 @@ export const api = {
       body: JSON.stringify(patch),
     }),
   deleteCollection: (id: string) => request<void>(`/api/collections/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  // Share links — public, optionally passcode-gated links to a media URL
+  // or a collection. CRUD here is authed; redemption is the public route.
+  listShares: () => request<ShareLink[]>("/api/shares"),
+  createShare: (input: {
+    label?: string;
+    targetKind: "url" | "collection";
+    targetUrl?: string;
+    targetTitle?: string;
+    targetCollectionId?: string;
+    passcode?: string;
+    expiresAt?: number | null;
+    maxAccesses?: number | null;
+  }) => request<ShareLink>("/api/shares", { method: "POST", body: JSON.stringify(input) }),
+  updateShare: (id: string, patch: { label?: string; disabled?: boolean; expiresAt?: number | null; maxAccesses?: number | null; passcode?: string | null }) =>
+    request<ShareLink>(`/api/shares/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  deleteShare: (id: string) => request<void>(`/api/shares/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  shareAccesses: (id: string) => request<ShareAccess[]>(`/api/shares/${encodeURIComponent(id)}/accesses`),
+  // Public share redemption — no session required.
+  getPublicShare: (code: string) => request<PublicShareGate>(`/api/share/${encodeURIComponent(code)}`),
+  unlockPublicShare: (code: string, passcode: string) =>
+    request<PublicShareGate>(`/api/share/${encodeURIComponent(code)}/unlock`, {
+      method: "POST",
+      body: JSON.stringify({ passcode }),
+    }),
 
   // Spaces.
   listSpaces: () => request<SpaceSummary[]>("/api/spaces"),

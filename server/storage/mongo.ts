@@ -7,6 +7,9 @@ import type {
   JoinRequest,
   JoinRequester,
   JoinRequestStatus,
+  ShareAccess,
+  ShareLink,
+  ShareTargetKind,
   Space,
   SpaceJoinPolicy,
   SpaceMember,
@@ -25,11 +28,14 @@ import type {
   MembershipRepo,
   Session,
   SessionRepo,
+  ShareAccessRepo,
+  ShareLinkRepo,
   SpaceRepo,
   Storage,
   StorageActivationRepo,
   StorageConfigRepo,
   StorageConnectionRepo,
+  StoredShareLink,
   StoredUser,
   UserRepo,
   VideoRepo,
@@ -39,6 +45,8 @@ import {
   InviteModel,
   JoinRequestModel,
   SessionModel,
+  ShareAccessModel,
+  ShareLinkModel,
   SpaceMemberModel,
   SpaceModel,
   StorageActivationModel,
@@ -88,6 +96,8 @@ export async function createMongoStorage(mongoUrl: string): Promise<Storage> {
     memberships: new MongoMembershipRepo(),
     invites: new MongoInviteRepo(),
     joinRequests: new MongoJoinRequestRepo(),
+    shareLinks: new MongoShareLinkRepo(),
+    shareAccesses: new MongoShareAccessRepo(),
     async close() {
       await mongoose.disconnect();
     },
@@ -681,6 +691,107 @@ class MongoInviteRepo implements InviteRepo {
   }
 }
 
+class MongoShareLinkRepo implements ShareLinkRepo {
+  async listForSpace(spaceId: string): Promise<ShareLink[]> {
+    const docs = await ShareLinkModel.find({ spaceId }).sort({ createdAt: -1 }).lean();
+    return docs.map(toShareLink);
+  }
+
+  async get(spaceId: string, id: string): Promise<ShareLink | null> {
+    const doc = await ShareLinkModel.findOne({ _id: id, spaceId }).lean();
+    return doc ? toShareLink(doc) : null;
+  }
+
+  async getByCode(code: string): Promise<StoredShareLink | null> {
+    const doc = await ShareLinkModel.findOne({ _id: code }).lean();
+    return doc ? toStoredShareLink(doc) : null;
+  }
+
+  async create(input: {
+    spaceId: string;
+    createdBy: string;
+    label: string;
+    targetKind: ShareTargetKind;
+    targetUrl: string | null;
+    targetTitle: string | null;
+    targetCollectionId: string | null;
+    passcodeHash: string | null;
+    expiresAt: number | null;
+    maxAccesses: number | null;
+  }): Promise<ShareLink> {
+    const doc = {
+      _id: generateShareCode(),
+      spaceId: input.spaceId,
+      createdBy: input.createdBy,
+      label: input.label.trim(),
+      targetKind: input.targetKind,
+      targetUrl: input.targetUrl,
+      targetTitle: input.targetTitle,
+      targetCollectionId: input.targetCollectionId,
+      passcodeHash: input.passcodeHash,
+      expiresAt: input.expiresAt,
+      maxAccesses: input.maxAccesses,
+      accessCount: 0,
+      disabled: false,
+      createdAt: Date.now(),
+      lastAccessedAt: null,
+    };
+    await ShareLinkModel.create(doc);
+    return toShareLink(doc);
+  }
+
+  async update(
+    spaceId: string,
+    id: string,
+    patch: { label?: string; disabled?: boolean; expiresAt?: number | null; maxAccesses?: number | null; passcodeHash?: string | null },
+  ): Promise<ShareLink | null> {
+    const set: Record<string, unknown> = {};
+    if (patch.label !== undefined) set.label = patch.label.trim();
+    if (patch.disabled !== undefined) set.disabled = patch.disabled;
+    if (patch.expiresAt !== undefined) set.expiresAt = patch.expiresAt;
+    if (patch.maxAccesses !== undefined) set.maxAccesses = patch.maxAccesses;
+    if (patch.passcodeHash !== undefined) set.passcodeHash = patch.passcodeHash;
+    const updated = await ShareLinkModel.findOneAndUpdate({ _id: id, spaceId }, { $set: set }, { returnDocument: "after" }).lean();
+    return updated ? toShareLink(updated) : null;
+  }
+
+  async remove(spaceId: string, id: string): Promise<boolean> {
+    const result = await ShareLinkModel.deleteOne({ _id: id, spaceId });
+    return result.deletedCount === 1;
+  }
+
+  async recordAccess(code: string): Promise<void> {
+    await ShareLinkModel.updateOne({ _id: code }, { $inc: { accessCount: 1 }, $set: { lastAccessedAt: Date.now() } });
+  }
+
+  async removeAllForSpace(spaceId: string): Promise<number> {
+    const result = await ShareLinkModel.deleteMany({ spaceId });
+    return result.deletedCount;
+  }
+}
+
+class MongoShareAccessRepo implements ShareAccessRepo {
+  async add(input: { shareId: string; ip: string; userAgent: string }): Promise<void> {
+    await ShareAccessModel.create({
+      _id: randomId() + randomId(),
+      shareId: input.shareId,
+      ip: input.ip,
+      userAgent: input.userAgent,
+      accessedAt: Date.now(),
+    });
+  }
+
+  async listForShare(shareId: string): Promise<ShareAccess[]> {
+    const docs = await ShareAccessModel.find({ shareId }).sort({ accessedAt: -1 }).lean();
+    return docs.map(toShareAccess);
+  }
+
+  async removeAllForShare(shareId: string): Promise<number> {
+    const result = await ShareAccessModel.deleteMany({ shareId });
+    return result.deletedCount;
+  }
+}
+
 // Human-friendly invite codes — 8 chars, unambiguous alphabet (no 0/O/1/I/l).
 // 28^8 ≈ 3.8e11 — plenty of entropy for the personal scale we target.
 function generateInviteCode(): string {
@@ -689,6 +800,18 @@ function generateInviteCode(): string {
   for (let i = 0; i < 8; i++) {
     out += alphabet[Math.floor(Math.random() * alphabet.length)];
   }
+  return out;
+}
+
+// Public share codes. Unlike invite codes these are reachable WITHOUT a
+// session — the code IS the credential — so they're crypto-random and
+// long: 24 chars over a 54-symbol alphabet ≈ 138 bits, unguessable.
+function generateShareCode(): string {
+  const alphabet = "abcdefghjkmnpqrstuvwxyz23456789ACDEFGHJKLMNPQRSTUVWXYZ";
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  let out = "";
+  for (const b of bytes) out += alphabet[b % alphabet.length];
   return out;
 }
 
@@ -948,6 +1071,57 @@ function toInvite(doc: InviteLean): InviteCode {
     expiresAt: doc.expiresAt ?? null,
     createdAt: doc.createdAt,
   };
+}
+
+type ShareLinkLean = {
+  _id: string;
+  spaceId: string;
+  createdBy: string;
+  label?: string;
+  targetKind: string;
+  targetUrl?: string | null;
+  targetTitle?: string | null;
+  targetCollectionId?: string | null;
+  passcodeHash?: string | null;
+  expiresAt?: number | null;
+  maxAccesses?: number | null;
+  accessCount?: number;
+  disabled?: boolean;
+  createdAt: number;
+  lastAccessedAt?: number | null;
+};
+function toShareLink(doc: ShareLinkLean): ShareLink {
+  return {
+    id: doc._id,
+    spaceId: doc.spaceId,
+    createdBy: doc.createdBy,
+    label: doc.label ?? "",
+    targetKind: doc.targetKind === "collection" ? "collection" : "url",
+    targetUrl: doc.targetUrl ?? null,
+    targetTitle: doc.targetTitle ?? null,
+    targetCollectionId: doc.targetCollectionId ?? null,
+    hasPasscode: typeof doc.passcodeHash === "string" && doc.passcodeHash.length > 0,
+    expiresAt: doc.expiresAt ?? null,
+    maxAccesses: doc.maxAccesses ?? null,
+    accessCount: doc.accessCount ?? 0,
+    disabled: doc.disabled ?? false,
+    createdAt: doc.createdAt,
+    lastAccessedAt: doc.lastAccessedAt ?? null,
+  };
+}
+function toStoredShareLink(doc: ShareLinkLean): StoredShareLink {
+  return { ...toShareLink(doc), passcodeHash: doc.passcodeHash ?? null };
+}
+
+type ShareAccessLean = {
+  _id: string;
+  shareId: string;
+  ip?: string;
+  userAgent?: string;
+  accessedAt: number;
+};
+function toShareAccess(doc: ShareAccessLean): ShareAccess {
+  return { id: doc._id, ip: doc.ip ?? "", userAgent: doc.userAgent ?? "", accessedAt: doc.accessedAt };
 }
 
 // ──────────────────────────────────────────────────────────────────────

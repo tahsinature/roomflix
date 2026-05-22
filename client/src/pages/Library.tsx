@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, HelpCircle, Library as LibraryIcon, Loader2, Pencil, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, HelpCircle, Library as LibraryIcon, Loader2, Pencil, Plus, RefreshCw, Share2, Trash2, XCircle } from "lucide-react";
 import type { Collection, LibraryHealth, ProbeResult, Subtitle, Video, VideoHealth } from "@shared/protocol";
 import { CollectionsSection } from "@/components/CollectionsSection";
 import { useAuth } from "@/auth/AuthContext";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { HealthDot } from "@/components/HealthDot";
 import { EditVideoDialog } from "@/components/EditVideoDialog";
 import { PlayButton } from "@/components/PlayButton";
+import { ShareDialog } from "@/components/ShareDialog";
 import { SubtitleBadge } from "@/components/SubtitleBadge";
 import { cn, formatBytes, urlFilename } from "@/lib/utils";
 
@@ -382,6 +383,7 @@ function VideoRow({
 }) {
   const [busy, setBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   // Two-step delete: first click arms (button turns coral), second click
   // commits. Auto-disarms after 3s of no follow-up.
@@ -475,6 +477,9 @@ function VideoRow({
               )}
             </div>
           )}
+          <Button size="icon" variant="ghost" onClick={() => setShareOpen(true)} aria-label="Share video" title="Create a share link">
+            <Share2 className="h-4 w-4" />
+          </Button>
           <Button size="icon" variant="ghost" onClick={() => setEditOpen(true)} aria-label="Edit video" title="Edit video">
             <Pencil className="h-4 w-4" />
           </Button>
@@ -493,6 +498,7 @@ function VideoRow({
       </div>
 
       <EditVideoDialog video={video} health={health} open={editOpen} onClose={() => setEditOpen(false)} onUpdate={onUpdate} />
+      {shareOpen && <ShareDialog target={{ kind: "url", url: video.url, title: video.title }} onClose={() => setShareOpen(false)} />}
     </li>
   );
 }

@@ -6,6 +6,8 @@ export { InviteModel } from "@/models/invite.ts";
 export { JoinRequestModel } from "@/models/join-request.ts";
 export { PlaylistModel } from "@/models/playlist.ts";
 export { SessionModel } from "@/models/session.ts";
+export { ShareAccessModel } from "@/models/share-access.ts";
+export { ShareLinkModel } from "@/models/share-link.ts";
 export { SpaceModel } from "@/models/space.ts";
 export { SpaceMemberModel } from "@/models/space-member.ts";
 export { StorageActivationModel } from "@/models/storage-activation.ts";

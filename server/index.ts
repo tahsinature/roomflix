@@ -26,6 +26,8 @@ import { buildAccountStorageRouter } from "@/api/account_storage.ts";
 import { buildSpaceStorageRouter } from "@/api/space_storage.ts";
 import { buildStorageSecretRouter } from "@/api/storage_secret.ts";
 import { buildCollectionsRouter } from "@/api/collections.ts";
+import { buildSharesRouter } from "@/api/shares.ts";
+import { buildPublicShareRouter } from "@/api/public_share.ts";
 import { buildInvitesRouter, buildJoinRequestsRouter, buildSessionSpaceRouter, buildSpacesRouter } from "@/api/spaces.ts";
 import { buildSessionMembersRouter, buildSessionStateRouter } from "@/api/session_state.ts";
 import { getCurrentPrincipalFromRequest } from "@/auth.ts";
@@ -147,6 +149,10 @@ app.route("/api/library/subtitle", buildSubtitleProxyRouter(storage));
 app.route("/api/account/storage", buildAccountStorageRouter(storage));
 app.route("/api/storage/secret", buildStorageSecretRouter(storage));
 app.route("/api/collections", buildCollectionsRouter(storage));
+app.route("/api/shares", buildSharesRouter(storage));
+// Public, unauthenticated — share-link redemption. Mounted at the
+// singular /api/share so it never collides with the authed /api/shares.
+app.route("/api/share", buildPublicShareRouter(storage));
 
 // SPA fallback.
 app.all("*", async (c) => {

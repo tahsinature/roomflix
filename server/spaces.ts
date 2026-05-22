@@ -66,6 +66,10 @@ export async function deleteSpaceCascade(storage: Storage, spaceId: string): Pro
   const collections = await storage.collections.list(spaceId);
   await Promise.all(collections.map((col) => storage.collections.remove(spaceId, col.id)));
   await storage.storageConfigs.remove(spaceId).catch(() => undefined);
+  // Share links + their access logs.
+  const shareLinks = await storage.shareLinks.listForSpace(spaceId);
+  await Promise.all(shareLinks.map((s) => storage.shareAccesses.removeAllForShare(s.id)));
+  await storage.shareLinks.removeAllForSpace(spaceId);
   await storage.invites.removeAllForSpace(spaceId);
   await storage.joinRequests.removeAllForSpace(spaceId);
   await storage.memberships.removeAllForSpace(spaceId);

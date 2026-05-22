@@ -9,6 +9,9 @@ import type {
   InviteCode,
   JoinRequest,
   JoinRequester,
+  ShareAccess,
+  ShareLink,
+  ShareTargetKind,
   Space,
   SpaceJoinPolicy,
   SpaceMember,
@@ -226,6 +229,51 @@ export interface JoinRequestRepo {
   removeAllForSpace(spaceId: string): Promise<number>;
 }
 
+// Persisted share-link record. passcodeHash never leaves the server;
+// ShareLink (the wire shape) carries `hasPasscode` instead.
+export type StoredShareLink = ShareLink & { passcodeHash: string | null };
+
+// Public share links — passcode-/expiry-gated pointers to a media URL or
+// a collection, redeemed without a session. The code IS the credential,
+// so getByCode is intentionally NOT space-scoped.
+export interface ShareLinkRepo {
+  listForSpace(spaceId: string): Promise<ShareLink[]>;
+  get(spaceId: string, id: string): Promise<ShareLink | null>;
+  // Public lookup — returns the internal record (incl. passcodeHash) so
+  // the public route can verify the passcode.
+  getByCode(code: string): Promise<StoredShareLink | null>;
+  create(input: {
+    spaceId: string;
+    createdBy: string;
+    label: string;
+    targetKind: ShareTargetKind;
+    targetUrl: string | null;
+    targetTitle: string | null;
+    targetCollectionId: string | null;
+    passcodeHash: string | null;
+    expiresAt: number | null;
+    maxAccesses: number | null;
+  }): Promise<ShareLink>;
+  // Partial update. passcodeHash: undefined leaves it untouched, null
+  // clears it, a string rotates it.
+  update(
+    spaceId: string,
+    id: string,
+    patch: { label?: string; disabled?: boolean; expiresAt?: number | null; maxAccesses?: number | null; passcodeHash?: string | null },
+  ): Promise<ShareLink | null>;
+  remove(spaceId: string, id: string): Promise<boolean>;
+  // Atomically bump accessCount + stamp lastAccessedAt — called per open.
+  recordAccess(code: string): Promise<void>;
+  removeAllForSpace(spaceId: string): Promise<number>;
+}
+
+// Per-open access log for share links (IP, user-agent, timestamp).
+export interface ShareAccessRepo {
+  add(input: { shareId: string; ip: string; userAgent: string }): Promise<void>;
+  listForShare(shareId: string): Promise<ShareAccess[]>;
+  removeAllForShare(shareId: string): Promise<number>;
+}
+
 export type Storage = {
   videos: VideoRepo;
   users: UserRepo;
@@ -240,6 +288,8 @@ export type Storage = {
   memberships: MembershipRepo;
   invites: InviteRepo;
   joinRequests: JoinRequestRepo;
+  shareLinks: ShareLinkRepo;
+  shareAccesses: ShareAccessRepo;
   // Lifecycle hook so the server can disconnect cleanly on shutdown.
   close(): Promise<void>;
 };

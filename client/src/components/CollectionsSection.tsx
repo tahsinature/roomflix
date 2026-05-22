@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Film, Layers, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { Film, Layers, Pencil, Play, Plus, Share2, Trash2 } from "lucide-react";
 import type { Collection } from "@shared/protocol";
 import { api, ApiError } from "@/lib/api";
 import { useToast } from "@/components/Toast";
+import { ShareDialog } from "@/components/ShareDialog";
 import { Button } from "@/components/ui/button";
 import { cn, isImageUrl } from "@/lib/utils";
 
@@ -68,6 +69,7 @@ function CollectionCard({ collection, onDelete }: { collection: Collection; onDe
   const navigate = useNavigate();
   const [armed, setArmed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     if (!armed) return;
@@ -133,6 +135,15 @@ function CollectionCard({ collection, onDelete }: { collection: Collection; onDe
         </div>
         <button
           type="button"
+          aria-label="Share collection"
+          title="Create a share link"
+          onClick={() => setShareOpen(true)}
+          className="flex h-8 w-8 items-center justify-center text-text-dim transition hover:text-foreground"
+        >
+          <Share2 className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
           aria-label="Edit collection"
           title="Edit collection"
           onClick={() => navigate(`/collections/${collection.id}`)}
@@ -151,6 +162,7 @@ function CollectionCard({ collection, onDelete }: { collection: Collection; onDe
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
+      {shareOpen && <ShareDialog target={{ kind: "collection", collectionId: collection.id, title: collection.title }} onClose={() => setShareOpen(false)} />}
     </li>
   );
 }
