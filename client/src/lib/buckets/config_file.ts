@@ -17,9 +17,7 @@ export function configFilename(conn: Connection): string {
   return `roomflix-${conn.provider}-${safeBucket}.json`;
 }
 
-export type ParsedConfig =
-  | { ok: true; connection: Connection }
-  | { ok: false; reason: string };
+export type ParsedConfig = { ok: true; connection: Connection } | { ok: false; reason: string };
 
 export async function parseConfigFile(file: File): Promise<ParsedConfig> {
   let text: string;

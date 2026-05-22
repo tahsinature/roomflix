@@ -1,11 +1,12 @@
 import mongoose from "mongoose";
 
 import type {
+  Collection,
+  CollectionItem,
   InviteCode,
   JoinRequest,
   JoinRequester,
   JoinRequestStatus,
-  Playlist,
   Space,
   SpaceJoinPolicy,
   SpaceMember,
@@ -18,10 +19,10 @@ import type {
   Video,
 } from "@/protocol.ts";
 import type {
+  CollectionRepo,
   InviteRepo,
   JoinRequestRepo,
   MembershipRepo,
-  PlaylistRepo,
   Session,
   SessionRepo,
   SpaceRepo,
@@ -34,9 +35,9 @@ import type {
   VideoRepo,
 } from "@/storage/types.ts";
 import {
+  CollectionModel,
   InviteModel,
   JoinRequestModel,
-  PlaylistModel,
   SessionModel,
   SpaceMemberModel,
   SpaceModel,
@@ -82,7 +83,7 @@ export async function createMongoStorage(mongoUrl: string): Promise<Storage> {
     storageConfigs: new MongoStorageConfigRepo(),
     storageConnections: new MongoStorageConnectionRepo(),
     storageActivations: new MongoStorageActivationRepo(),
-    playlists: new MongoPlaylistRepo(),
+    collections: new MongoCollectionRepo(),
     spaces: new MongoSpaceRepo(),
     memberships: new MongoMembershipRepo(),
     invites: new MongoInviteRepo(),
@@ -109,13 +110,7 @@ class MongoVideoRepo implements VideoRepo {
     return doc ? toVideo(doc) : null;
   }
 
-  async create(input: {
-    spaceId: string;
-    addedBy: string;
-    url: string;
-    title?: string;
-    subtitles?: Subtitle[];
-  }): Promise<Video> {
+  async create(input: { spaceId: string; addedBy: string; url: string; title?: string; subtitles?: Subtitle[] }): Promise<Video> {
     const url = input.url.trim();
     const existing = await this.findByUrl(input.spaceId, url);
     if (existing) return existing;
@@ -144,11 +139,7 @@ class MongoVideoRepo implements VideoRepo {
     }
   }
 
-  async update(
-    spaceId: string,
-    id: string,
-    patch: { url?: string; title?: string; subtitles?: Subtitle[] },
-  ): Promise<Video | null> {
+  async update(spaceId: string, id: string, patch: { url?: string; title?: string; subtitles?: Subtitle[] }): Promise<Video | null> {
     const existing = await VideoModel.findOne({ _id: id, spaceId }).lean();
     if (!existing) return null;
 
@@ -182,10 +173,7 @@ class MongoVideoRepo implements VideoRepo {
   }
 
   async reparent(oldOwnerId: string, spaceId: string): Promise<number> {
-    const result = await VideoModel.updateMany(
-      { ownerId: oldOwnerId },
-      { $set: { spaceId, addedBy: oldOwnerId }, $unset: { ownerId: "" } },
-    );
+    const result = await VideoModel.updateMany({ ownerId: oldOwnerId }, { $set: { spaceId, addedBy: oldOwnerId }, $unset: { ownerId: "" } });
     return result.modifiedCount;
   }
 }
@@ -237,13 +225,7 @@ class MongoUserRepo implements UserRepo {
 }
 
 class MongoSessionRepo implements SessionRepo {
-  async create(input: {
-    token: string;
-    userId: string | null;
-    currentSpaceId: string | null;
-    guestDisplayName: string | null;
-    expiresAt: number;
-  }): Promise<Session> {
+  async create(input: { token: string; userId: string | null; currentSpaceId: string | null; guestDisplayName: string | null; expiresAt: number }): Promise<Session> {
     const doc = {
       _id: input.token,
       userId: input.userId,
@@ -456,60 +438,48 @@ class MongoStorageActivationRepo implements StorageActivationRepo {
   }
 }
 
-class MongoPlaylistRepo implements PlaylistRepo {
-  async list(spaceId: string): Promise<Playlist[]> {
-    const docs = await PlaylistModel.find({ spaceId }).sort({ createdAt: -1 }).lean();
-    return docs.map(toPlaylist);
+class MongoCollectionRepo implements CollectionRepo {
+  async list(spaceId: string): Promise<Collection[]> {
+    const docs = await CollectionModel.find({ spaceId }).sort({ createdAt: -1 }).lean();
+    return docs.map(toCollection);
   }
 
-  async get(spaceId: string, id: string): Promise<Playlist | null> {
-    const doc = await PlaylistModel.findOne({ _id: id, spaceId }).lean();
-    return doc ? toPlaylist(doc) : null;
+  async get(spaceId: string, id: string): Promise<Collection | null> {
+    const doc = await CollectionModel.findOne({ _id: id, spaceId }).lean();
+    return doc ? toCollection(doc) : null;
   }
 
-  async getById(id: string): Promise<Playlist | null> {
-    const doc = await PlaylistModel.findOne({ _id: id }).lean();
-    return doc ? toPlaylist(doc) : null;
+  async getById(id: string): Promise<Collection | null> {
+    const doc = await CollectionModel.findOne({ _id: id }).lean();
+    return doc ? toCollection(doc) : null;
   }
 
-  async create(input: { spaceId: string; createdBy: string; title: string; videoIds: string[] }): Promise<Playlist> {
+  async create(input: { spaceId: string; createdBy: string; title: string; items: CollectionItem[] }): Promise<Collection> {
     const now = Date.now();
     const doc = {
       _id: randomId(),
       spaceId: input.spaceId,
       createdBy: input.createdBy,
-      title: input.title.trim() || "Untitled playlist",
-      videoIds: dedupe(input.videoIds),
+      title: input.title.trim() || "Untitled collection",
+      items: normalizeCollectionItems(input.items),
       createdAt: now,
       updatedAt: now,
     };
-    await PlaylistModel.create(doc);
-    return toPlaylist(doc);
+    await CollectionModel.create(doc);
+    return toCollection(doc);
   }
 
-  async update(
-    spaceId: string,
-    id: string,
-    patch: { title?: string; videoIds?: string[] },
-  ): Promise<Playlist | null> {
+  async update(spaceId: string, id: string, patch: { title?: string; items?: CollectionItem[] }): Promise<Collection | null> {
     const set: Record<string, unknown> = { updatedAt: Date.now() };
-    if (patch.title !== undefined) set.title = patch.title.trim() || "Untitled playlist";
-    if (patch.videoIds !== undefined) set.videoIds = dedupe(patch.videoIds);
-    const updated = await PlaylistModel.findOneAndUpdate({ _id: id, spaceId }, { $set: set }, { returnDocument: "after" }).lean();
-    return updated ? toPlaylist(updated) : null;
+    if (patch.title !== undefined) set.title = patch.title.trim() || "Untitled collection";
+    if (patch.items !== undefined) set.items = normalizeCollectionItems(patch.items);
+    const updated = await CollectionModel.findOneAndUpdate({ _id: id, spaceId }, { $set: set }, { returnDocument: "after" }).lean();
+    return updated ? toCollection(updated) : null;
   }
 
   async remove(spaceId: string, id: string): Promise<boolean> {
-    const result = await PlaylistModel.deleteOne({ _id: id, spaceId });
+    const result = await CollectionModel.deleteOne({ _id: id, spaceId });
     return result.deletedCount === 1;
-  }
-
-  async reparent(oldOwnerId: string, spaceId: string): Promise<number> {
-    const result = await PlaylistModel.updateMany(
-      { ownerId: oldOwnerId },
-      { $set: { spaceId, createdBy: oldOwnerId }, $unset: { ownerId: "" } },
-    );
-    return result.modifiedCount;
   }
 }
 
@@ -548,12 +518,7 @@ class MongoSpaceRepo implements SpaceRepo {
 }
 
 class MongoJoinRequestRepo implements JoinRequestRepo {
-  async create(input: {
-    spaceId: string;
-    code: string;
-    requester: JoinRequester;
-    ttlMs: number;
-  }): Promise<JoinRequest> {
+  async create(input: { spaceId: string; code: string; requester: JoinRequester; ttlMs: number }): Promise<JoinRequest> {
     const now = Date.now();
     const doc = {
       _id: randomId(),
@@ -610,11 +575,7 @@ class MongoJoinRequestRepo implements JoinRequestRepo {
   }
 
   async setTerminalStatus(id: string, status: "denied" | "cancelled"): Promise<JoinRequest | null> {
-    const updated = await JoinRequestModel.findOneAndUpdate(
-      { _id: id, status: "pending" },
-      { $set: { status } },
-      { returnDocument: "after" },
-    ).lean();
+    const updated = await JoinRequestModel.findOneAndUpdate({ _id: id, status: "pending" }, { $set: { status } }, { returnDocument: "after" }).lean();
     return updated ? toJoinRequest(updated) : null;
   }
 
@@ -625,13 +586,7 @@ class MongoJoinRequestRepo implements JoinRequestRepo {
 }
 
 class MongoMembershipRepo implements MembershipRepo {
-  async add(input: {
-    spaceId: string;
-    userId: string;
-    username: string;
-    role: SpaceRole;
-    displayName?: string | null;
-  }): Promise<SpaceMember> {
+  async add(input: { spaceId: string; userId: string; username: string; role: SpaceRole; displayName?: string | null }): Promise<SpaceMember> {
     const existing = await SpaceMemberModel.findOne({ spaceId: input.spaceId, userId: input.userId }).lean();
     if (existing) return toMember(existing);
     const doc = {
@@ -679,12 +634,7 @@ class MongoMembershipRepo implements MembershipRepo {
 }
 
 class MongoInviteRepo implements InviteRepo {
-  async create(input: {
-    spaceId: string;
-    createdBy: string;
-    usesRemaining: number | null;
-    expiresAt: number | null;
-  }): Promise<InviteCode> {
+  async create(input: { spaceId: string; createdBy: string; usesRemaining: number | null; expiresAt: number | null }): Promise<InviteCode> {
     const doc = {
       _id: generateInviteCode(),
       spaceId: input.spaceId,
@@ -721,11 +671,7 @@ class MongoInviteRepo implements InviteRepo {
     if (expiresAt !== null && expiresAt < Date.now()) return null;
     if (usesRemaining === null) return toInvite(existing);
     if (usesRemaining <= 0) return null;
-    const updated = await InviteModel.findOneAndUpdate(
-      { _id: code, usesRemaining: { $gt: 0 } },
-      { $inc: { usesRemaining: -1 } },
-      { returnDocument: "after" },
-    ).lean();
+    const updated = await InviteModel.findOneAndUpdate({ _id: code, usesRemaining: { $gt: 0 } }, { $inc: { usesRemaining: -1 } }, { returnDocument: "after" }).lean();
     return updated ? toInvite(updated) : null;
   }
 
@@ -884,22 +830,22 @@ function toStorageActivation(doc: StorageActivationLean): StorageActivation {
   };
 }
 
-type PlaylistLean = {
+type CollectionLean = {
   _id: string;
   spaceId: string;
   createdBy: string;
   title: string;
-  videoIds: string[];
+  items?: Array<{ url: string; name?: string | null }>;
   createdAt: number;
   updatedAt: number;
 };
-function toPlaylist(doc: PlaylistLean): Playlist {
+function toCollection(doc: CollectionLean): Collection {
   return {
     id: doc._id,
     spaceId: doc.spaceId,
     createdBy: doc.createdBy,
     title: doc.title,
-    videoIds: doc.videoIds,
+    items: (doc.items ?? []).map((it) => ({ url: it.url, name: it.name ?? "" })),
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -1007,14 +953,17 @@ function toInvite(doc: InviteLean): InviteCode {
 // ──────────────────────────────────────────────────────────────────────
 // Helpers
 
-function dedupe(ids: string[]): string[] {
+// Coerce collection items to a clean, de-duplicated list — trims URLs,
+// drops blanks, and keeps the first occurrence of each URL.
+function normalizeCollectionItems(items: CollectionItem[]): CollectionItem[] {
   const seen = new Set<string>();
-  const out: string[] = [];
-  for (const id of ids) {
-    if (typeof id !== "string" || !id.trim()) continue;
-    if (seen.has(id)) continue;
-    seen.add(id);
-    out.push(id);
+  const out: CollectionItem[] = [];
+  for (const it of items) {
+    if (!it || typeof it.url !== "string") continue;
+    const url = it.url.trim();
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    out.push({ url, name: typeof it.name === "string" ? it.name.trim() : "" });
   }
   return out;
 }

@@ -35,7 +35,7 @@ export function CreateSpaceCard({ onCancel, onCreated }: { onCancel: () => void;
     <form onSubmit={submit} className="space-y-4 border border-border bg-bg-elevated/40 p-6">
       <div>
         <h2 className="text-base font-medium text-foreground">Create a new space</h2>
-        <p className="mt-1 text-sm text-muted-foreground">A space has its own library, playlists, storage backend, and members.</p>
+        <p className="mt-1 text-sm text-muted-foreground">A space has its own library, collections, storage backend, and members.</p>
       </div>
       <label className="block">
         <span className="section-label muted mb-1.5 block">Name</span>
@@ -58,15 +58,7 @@ export function CreateSpaceCard({ onCancel, onCreated }: { onCancel: () => void;
 // Exported so /settings/space can render the same panel for just
 // the currently active space without duplicating the
 // fetch/render/danger-zone logic.
-export function SpaceDetailCard({
-  spaceId,
-  onChanged,
-  onDeleted,
-}: {
-  spaceId: string;
-  onChanged: () => Promise<void>;
-  onDeleted: () => Promise<void>;
-}) {
+export function SpaceDetailCard({ spaceId, onChanged, onDeleted }: { spaceId: string; onChanged: () => Promise<void>; onDeleted: () => Promise<void> }) {
   const { joinRequestSignal } = useSessionPresence();
   const [data, setData] = useState<{ space: Space; members: SpaceMember[]; invites: InviteCode[]; role: SpaceRole } | null>(null);
   const [pendingRequests, setPendingRequests] = useState<JoinRequest[]>([]);
@@ -152,32 +144,28 @@ export function SpaceDetailCard({
           {members.map((m) => {
             const hasDisplayName = !!m.displayName?.trim();
             return (
-            <li key={m.userId} className="flex items-center gap-3 border-b border-border px-3 py-2 last:border-b-0">
-              <Users className="h-3.5 w-3.5 text-text-dim" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm text-foreground">
-                  {hasDisplayName ? m.displayName : `@${m.username}`}
+              <li key={m.userId} className="flex items-center gap-3 border-b border-border px-3 py-2 last:border-b-0">
+                <Users className="h-3.5 w-3.5 text-text-dim" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm text-foreground">{hasDisplayName ? m.displayName : `@${m.username}`}</div>
+                  <div className="font-mono text-[10px] text-text-dim">{hasDisplayName ? `@${m.username} · ${m.role}` : m.role}</div>
                 </div>
-                <div className="font-mono text-[10px] text-text-dim">
-                  {hasDisplayName ? `@${m.username} · ${m.role}` : m.role}
-                </div>
-              </div>
-              {isOwner && m.role !== "owner" && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (!confirm(`Remove @${m.username} from this space?`)) return;
-                    await api.removeMember(spaceId, m.userId);
-                    await load();
-                  }}
-                  aria-label={`Remove @${m.username}`}
-                  title="Remove from space"
-                  className="flex h-7 w-7 shrink-0 items-center justify-center text-text-dim transition hover:text-accent"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </li>
+                {isOwner && m.role !== "owner" && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!confirm(`Remove @${m.username} from this space?`)) return;
+                      await api.removeMember(spaceId, m.userId);
+                      await load();
+                    }}
+                    aria-label={`Remove @${m.username}`}
+                    title="Remove from space"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center text-text-dim transition hover:text-accent"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </li>
             );
           })}
         </ul>
@@ -234,7 +222,14 @@ export function SpaceDetailCard({
           ) : (
             <ul className="border border-border">
               {invites.map((inv) => (
-                <InviteRow key={inv.code} invite={inv} onRevoke={async () => { await api.revokeInvite(spaceId, inv.code); await load(); }} />
+                <InviteRow
+                  key={inv.code}
+                  invite={inv}
+                  onRevoke={async () => {
+                    await api.revokeInvite(spaceId, inv.code);
+                    await load();
+                  }}
+                />
               ))}
             </ul>
           )}
@@ -249,7 +244,7 @@ export function SpaceDetailCard({
               variant="destructive"
               size="sm"
               onClick={async () => {
-                if (!confirm(`Delete "${space.name}"? Library, playlists, imports, and storage config for this space will be removed.`)) return;
+                if (!confirm(`Delete "${space.name}"? Library, collections, imports, and storage config for this space will be removed.`)) return;
                 await api.deleteSpace(spaceId);
                 await onChanged();
                 await onDeleted();
@@ -272,7 +267,7 @@ export function SpaceDetailCard({
             </Button>
           )}
           <span className="font-mono text-[11px] text-text-dim">
-            {isOwner ? "This will cascade-delete library + playlists." : "You'll lose access to library + playlists in this space."}
+            {isOwner ? "This will cascade-delete library + collections." : "You'll lose access to library + collections in this space."}
           </span>
         </div>
       </section>
@@ -345,12 +340,7 @@ function InviteRow({ invite, onRevoke }: { invite: InviteCode; onRevoke: () => P
     setTimeout(() => setCopied(null), 1500);
   };
 
-  const expiresIn =
-    invite.expiresAt === null
-      ? "never expires"
-      : invite.expiresAt < Date.now()
-        ? "expired"
-        : `expires ${formatRelative(invite.expiresAt - Date.now())}`;
+  const expiresIn = invite.expiresAt === null ? "never expires" : invite.expiresAt < Date.now() ? "expired" : `expires ${formatRelative(invite.expiresAt - Date.now())}`;
 
   return (
     <li className="flex items-start gap-3 border-b border-border px-3 py-2.5 last:border-b-0">
@@ -379,12 +369,7 @@ function InviteRow({ invite, onRevoke }: { invite: InviteCode; onRevoke: () => P
         >
           {copied === "code" ? <span className="font-mono text-[10px]">✓</span> : <Copy className="h-3.5 w-3.5" />}
         </button>
-        <button
-          type="button"
-          onClick={() => void onRevoke()}
-          aria-label="Revoke"
-          className="flex h-7 w-7 items-center justify-center text-text-dim transition hover:text-accent"
-        >
+        <button type="button" onClick={() => void onRevoke()} aria-label="Revoke" className="flex h-7 w-7 items-center justify-center text-text-dim transition hover:text-accent">
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
@@ -406,15 +391,7 @@ function formatRelative(ms: number): string {
 // Inline title editor. Click the pencil → edit-in-place input with
 // save/cancel. Save triggers the parent's rename callback. Members
 // (non-owners) just see the static title with no pencil.
-function SpaceTitleEditor({
-  name,
-  canEdit,
-  onRename,
-}: {
-  name: string;
-  canEdit: boolean;
-  onRename: (next: string) => Promise<void>;
-}) {
+function SpaceTitleEditor({ name, canEdit, onRename }: { name: string; canEdit: boolean; onRename: (next: string) => Promise<void> }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(name);
   const [pending, setPending] = useState(false);
@@ -502,7 +479,6 @@ function SpaceTitleEditor({
   );
 }
 
-
 // Join-policy chooser. Owner-only — gates whether invite redemption is
 // instant ("open") or routes through a per-request approval queue.
 // New spaces default to "open" so the canonical watch-along flow
@@ -528,13 +504,7 @@ function JoinPolicyPanel({ space, onChange }: { space: Space; onChange: (next: S
         </p>
       </header>
       <div className="grid gap-2 sm:grid-cols-2">
-        <PolicyOption
-          label="Open"
-          desc="Frictionless. Default."
-          active={space.joinPolicy === "open"}
-          busy={busy === "open"}
-          onClick={() => void pick("open")}
-        />
+        <PolicyOption label="Open" desc="Frictionless. Default." active={space.joinPolicy === "open"} busy={busy === "open"} onClick={() => void pick("open")} />
         <PolicyOption
           label="Approval"
           desc="You approve each join. Adds friction; useful for vetted spaces."
@@ -556,9 +526,7 @@ function PolicyOption({ label, desc, active, busy, onClick }: { label: string; d
       disabled={busy}
       className={cn(
         "flex flex-col items-start gap-1 border px-3 py-2.5 text-left transition",
-        active
-          ? "border-accent/50 bg-accent/10"
-          : "border-border bg-bg-elevated/40 hover:border-border-hover hover:bg-bg-elevated/70",
+        active ? "border-accent/50 bg-accent/10" : "border-border bg-bg-elevated/40 hover:border-border-hover hover:bg-bg-elevated/70",
       )}
     >
       <span className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -574,15 +542,7 @@ function PolicyOption({ label, desc, active, busy, onClick }: { label: string; d
 // Per-request row in the admin queue. Approve = run the same write
 // the "open" path would have run, plus deliver a cookie back to the
 // joiner on their next status poll. Deny just marks the request.
-function PendingRequestsPanel({
-  requests,
-  onApprove,
-  onDeny,
-}: {
-  requests: JoinRequest[];
-  onApprove: (id: string) => Promise<void>;
-  onDeny: (id: string) => Promise<void>;
-}) {
+function PendingRequestsPanel({ requests, onApprove, onDeny }: { requests: JoinRequest[]; onApprove: (id: string) => Promise<void>; onDeny: (id: string) => Promise<void> }) {
   return (
     <section>
       <header className="mb-2 flex items-center justify-between">
@@ -597,15 +557,7 @@ function PendingRequestsPanel({
   );
 }
 
-function PendingRow({
-  request,
-  onApprove,
-  onDeny,
-}: {
-  request: JoinRequest;
-  onApprove: (id: string) => Promise<void>;
-  onDeny: (id: string) => Promise<void>;
-}) {
+function PendingRow({ request, onApprove, onDeny }: { request: JoinRequest; onApprove: (id: string) => Promise<void>; onDeny: (id: string) => Promise<void> }) {
   const [busy, setBusy] = useState<"approve" | "deny" | null>(null);
   const act = async (kind: "approve" | "deny") => {
     if (busy) return;
@@ -617,17 +569,16 @@ function PendingRow({
       setBusy(null);
     }
   };
-  const who =
-    request.requester.kind === "user"
-      ? request.requester.displayName?.trim() || `@${request.requester.username}`
-      : request.requester.displayName;
+  const who = request.requester.kind === "user" ? request.requester.displayName?.trim() || `@${request.requester.username}` : request.requester.displayName;
   const tag = request.requester.kind === "user" ? "member" : "guest";
   return (
     <li className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2.5 last:border-b-0">
       <Users className="h-3.5 w-3.5 shrink-0 text-text-dim" />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm text-foreground">{who}</div>
-        <div className="font-mono text-[10px] text-text-dim">{tag} · expires in {formatRelative(request.expiresAt - Date.now())}</div>
+        <div className="font-mono text-[10px] text-text-dim">
+          {tag} · expires in {formatRelative(request.expiresAt - Date.now())}
+        </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
         <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => void act("deny")}>
@@ -642,4 +593,3 @@ function PendingRow({
     </li>
   );
 }
-

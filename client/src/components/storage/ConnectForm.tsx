@@ -144,7 +144,14 @@ export function ConnectForm({
           <Input type="number" inputMode="decimal" min="0.1" step="0.1" value={fields.maxGb} onChange={(e) => set("maxGb", e.target.value)} placeholder="e.g. 10" />
         </Field>
         <Field label="Public base URL" hint="Optional — enables Library matching">
-          <Input value={fields.publicBaseUrl} onChange={(e) => set("publicBaseUrl", e.target.value)} placeholder="https://pub-….r2.dev" autoCapitalize="off" autoCorrect="off" spellCheck={false} />
+          <Input
+            value={fields.publicBaseUrl}
+            onChange={(e) => set("publicBaseUrl", e.target.value)}
+            placeholder="https://pub-….r2.dev"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+          />
         </Field>
         <Field label="Label" hint="Optional — for your own reference">
           <Input value={fields.label} onChange={(e) => set("label", e.target.value)} placeholder="e.g. Roomflix videos" />

@@ -117,13 +117,7 @@ export default function Join() {
 // Code-entry pad. Validates with /api/invites/lookup before handing
 // the (code, spaceName) off to the parent — that way the next screen
 // can show "Joining <space>" without an extra round-trip.
-function InviteCodeEntry({
-  initialCode,
-  onValidated,
-}: {
-  initialCode: string;
-  onValidated: (code: string, spaceName: string) => void;
-}) {
+function InviteCodeEntry({ initialCode, onValidated }: { initialCode: string; onValidated: (code: string, spaceName: string) => void }) {
   const [code, setCode] = useState(initialCode);
   const [error, setError] = useState("");
   const ranInitial = useRef(false);
@@ -149,12 +143,8 @@ function InviteCodeEntry({
 
   return (
     <>
-      <h1 className="text-balance text-center text-[28px] font-bold leading-[1.1] tracking-tightest sm:text-[32px]">
-        Enter your invite code.
-      </h1>
-      <p className="mt-3 text-center text-[14px] leading-[1.6] text-muted-foreground">
-        The 8-character code your host shared (hyphen is optional).
-      </p>
+      <h1 className="text-balance text-center text-[28px] font-bold leading-[1.1] tracking-tightest sm:text-[32px]">Enter your invite code.</h1>
+      <p className="mt-3 text-center text-[14px] leading-[1.6] text-muted-foreground">The 8-character code your host shared (hyphen is optional).</p>
 
       <div className="mt-8">
         <CodeInput
@@ -222,31 +212,14 @@ function InvitePicker({
           <Users2 className="h-3 w-3" />
           Joining <span className="text-foreground">{spaceName ?? "this space"}</span>
         </div>
-        <h1 className="mt-5 text-balance text-[28px] font-bold leading-[1.1] tracking-tightest sm:text-[32px]">
-          How do you want to join?
-        </h1>
+        <h1 className="mt-5 text-balance text-[28px] font-bold leading-[1.1] tracking-tightest sm:text-[32px]">How do you want to join?</h1>
         <p className="mt-3 font-mono text-[11px] text-text-dim">code · {display}</p>
       </div>
 
       <div className="mt-8 grid gap-3">
-        <PickerOption
-          icon={<Users2 className="h-4 w-4 text-accent" />}
-          title="Watch as a guest"
-          desc="No account. Pick a display name and you're in."
-          onClick={onPickGuest}
-        />
-        <PickerOption
-          icon={<LogIn className="h-4 w-4 text-accent" />}
-          title="Sign in"
-          desc="Use an existing Roomflix account."
-          onClick={onPickSignIn}
-        />
-        <PickerOption
-          icon={<UserPlus className="h-4 w-4 text-accent" />}
-          title="Create an account"
-          desc="Save a library, rejoin later from anywhere."
-          onClick={onPickRegister}
-        />
+        <PickerOption icon={<Users2 className="h-4 w-4 text-accent" />} title="Watch as a guest" desc="No account. Pick a display name and you're in." onClick={onPickGuest} />
+        <PickerOption icon={<LogIn className="h-4 w-4 text-accent" />} title="Sign in" desc="Use an existing Roomflix account." onClick={onPickSignIn} />
+        <PickerOption icon={<UserPlus className="h-4 w-4 text-accent" />} title="Create an account" desc="Save a library, rejoin later from anywhere." onClick={onPickRegister} />
       </div>
 
       <button type="button" onClick={onBack} className="mt-6 block w-full text-center text-[12px] text-text-dim transition hover:text-foreground">
@@ -273,15 +246,7 @@ function PickerOption({ icon, title, desc, onClick }: { icon: React.ReactNode; t
   );
 }
 
-function GuestNameForm({
-  spaceName,
-  onSubmit,
-  onBack,
-}: {
-  spaceName: string | null;
-  onSubmit: (displayName: string) => Promise<void>;
-  onBack: () => void;
-}) {
+function GuestNameForm({ spaceName, onSubmit, onBack }: { spaceName: string | null; onSubmit: (displayName: string) => Promise<void>; onBack: () => void }) {
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -312,9 +277,7 @@ function GuestNameForm({
           Joining <span className="text-foreground">{spaceName ?? "this space"}</span>
         </div>
         <h1 className="mt-5 text-balance text-[28px] font-bold leading-[1.1] tracking-tightest sm:text-[32px]">Pick a name.</h1>
-        <p className="mt-3 text-[14px] leading-[1.6] text-muted-foreground">
-          Other people in the space will see this when you're online.
-        </p>
+        <p className="mt-3 text-[14px] leading-[1.6] text-muted-foreground">Other people in the space will see this when you're online.</p>
       </div>
 
       <label className="mt-8 block">

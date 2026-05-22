@@ -1,14 +1,5 @@
 import type { ServerWebSocket } from "bun";
-import {
-  emptySessionState,
-  type Participant,
-  type PresenceStatus,
-  type ServerMessage,
-  type SessionState,
-  type SpaceMember,
-  type Viewer,
-  type Volume,
-} from "@/protocol.ts";
+import { emptySessionState, type Participant, type PresenceStatus, type ServerMessage, type SessionState, type SpaceMember, type Viewer, type Volume } from "@/protocol.ts";
 import type { Storage } from "@/storage/index.ts";
 
 // One playback session per space — replaces the old per-room model.
@@ -243,11 +234,7 @@ function broadcastMemberUpdated(spaceId: string, member: SpaceMember): void {
 //
 // `newDisplayName` is the resolved label including the "@username"
 // fallback when the user cleared their displayName — caller computes it.
-export async function propagateUserDisplayName(
-  userId: string,
-  newDisplayName: string,
-  storage: Storage,
-): Promise<void> {
+export async function propagateUserDisplayName(userId: string, newDisplayName: string, storage: Storage): Promise<void> {
   const affected = new Set<string>();
   for (const session of sessions.values()) {
     for (const ws of session.sockets) {

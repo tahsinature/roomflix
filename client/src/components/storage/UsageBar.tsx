@@ -17,12 +17,7 @@ export function UsageBar({ usedBytes, maxBytes, objects }: { usedBytes: number; 
       </div>
       <div className="mt-3 h-1.5 w-full bg-white/[0.04]">
         <div
-          className={cn(
-            "h-full transition-all duration-500",
-            tone === "ok" && "bg-live",
-            tone === "warn" && "bg-amber-300",
-            tone === "danger" && "bg-accent",
-          )}
+          className={cn("h-full transition-all duration-500", tone === "ok" && "bg-live", tone === "warn" && "bg-amber-300", tone === "danger" && "bg-accent")}
           style={{ width: `${pct}%` }}
         />
       </div>

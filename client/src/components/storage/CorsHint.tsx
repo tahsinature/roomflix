@@ -25,11 +25,7 @@ export function CorsHint({ origin }: { origin?: string }) {
 
   return (
     <div className="border border-amber-300/30 bg-amber-300/[0.06] p-4 text-xs text-amber-100">
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center gap-2 text-left"
-      >
+      <button type="button" onClick={() => setExpanded((v) => !v)} className="flex w-full items-center gap-2 text-left">
         <ShieldAlert className="h-4 w-4 shrink-0 text-amber-300" />
         <div className="min-w-0 flex-1">
           <div className="font-medium text-amber-200">Connection blocked — your bucket needs CORS</div>
@@ -49,9 +45,7 @@ export function CorsHint({ origin }: { origin?: string }) {
           </ol>
 
           <div className="relative">
-            <pre className="max-h-56 overflow-auto border border-amber-300/20 bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-amber-100/90">
-              {json}
-            </pre>
+            <pre className="max-h-56 overflow-auto border border-amber-300/20 bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-amber-100/90">{json}</pre>
             <Button
               type="button"
               variant="outline"

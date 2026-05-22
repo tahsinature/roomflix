@@ -25,15 +25,15 @@ export default function Help() {
 
       <Section label={`What's a "direct link"?`}>
         <p className="text-sm leading-[1.7] text-muted-foreground">
-          Think of a direct link like the URL to a downloadable PDF — paste it into the address bar and the file itself opens. A YouTube link is the URL to a <em className="font-serif-em text-foreground/80">page</em> about
-          a video; the file is in there, but it's wrapped in a website.
+          Think of a direct link like the URL to a downloadable PDF — paste it into the address bar and the file itself opens. A YouTube link is the URL to a{" "}
+          <em className="font-serif-em text-foreground/80">page</em> about a video; the file is in there, but it's wrapped in a website.
         </p>
 
         <div className="border border-border bg-white/[0.02] p-4">
           <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan">Quick test</div>
           <p className="mt-1.5 text-sm leading-[1.7] text-foreground/90">
-            Open the URL in a fresh browser tab. If the browser starts playing the video or downloads the file, it's direct. If you see a website (logo, controls, suggestions),
-            it isn't.
+            Open the URL in a fresh browser tab. If the browser starts playing the video or downloads the file, it's direct. If you see a website (logo, controls, suggestions), it
+            isn't.
           </p>
         </div>
 
@@ -84,8 +84,8 @@ export default function Help() {
           <HostOption name="Internet Archive" hint="For public-domain content or your own creative work you want to keep public forever." />
         </div>
         <p className="pt-1 text-xs leading-[1.7] text-muted-foreground">
-          …and plenty of others — AWS S3, DigitalOcean Spaces, Wasabi, iDrive E2, MinIO, GitHub Releases for small files, an old Raspberry Pi at home, your university web space.
-          If it can serve a video file over HTTPS with byte-range requests, it'll play.
+          …and plenty of others — AWS S3, DigitalOcean Spaces, Wasabi, iDrive E2, MinIO, GitHub Releases for small files, an old Raspberry Pi at home, your university web space. If
+          it can serve a video file over HTTPS with byte-range requests, it'll play.
         </p>
       </Section>
 
@@ -139,11 +139,7 @@ function Code({ children }: { children: React.ReactNode }) {
 
 function ExampleRow({ kind, url, note }: { kind: "ok" | "bad" | "warn"; url: string; note: string }) {
   const styles =
-    kind === "ok"
-      ? { Icon: CheckCircle2, color: "text-live" }
-      : kind === "bad"
-        ? { Icon: XCircle, color: "text-accent" }
-        : { Icon: AlertTriangle, color: "text-amber-300" };
+    kind === "ok" ? { Icon: CheckCircle2, color: "text-live" } : kind === "bad" ? { Icon: XCircle, color: "text-accent" } : { Icon: AlertTriangle, color: "text-amber-300" };
   return (
     <div className="flex items-start gap-2.5 border border-border bg-white/[0.02] px-3 py-2.5">
       <styles.Icon className={cn("mt-0.5 h-4 w-4 shrink-0", styles.color)} />
@@ -160,9 +156,7 @@ function HostOption({ name, hint, tag }: { name: string; hint: string; tag?: str
     <div className="border border-border bg-white/[0.02] px-3.5 py-3">
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium text-foreground">{name}</span>
-        {tag && (
-          <span className="border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-accent">{tag}</span>
-        )}
+        {tag && <span className="border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-accent">{tag}</span>}
       </div>
       <p className="mt-0.5 text-xs leading-[1.7] text-muted-foreground">{hint}</p>
     </div>

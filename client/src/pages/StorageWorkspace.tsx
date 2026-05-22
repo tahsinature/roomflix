@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { S3Client } from "@aws-sdk/client-s3";
 import { AlertTriangle, X } from "lucide-react";
-import type { Subtitle, Video } from "@shared/protocol";
-import { FileBrowser, LibraryHintBanner } from "@/components/storage/FileBrowser";
+import type { Collection, CollectionItem, Subtitle, Video } from "@shared/protocol";
+import { FileBrowser, LibraryHintBanner, publicUrlForKey, type CollectionTarget } from "@/components/storage/FileBrowser";
 import { UploadQueuePanel, type UploadQueueItem } from "@/components/storage/UploadQueuePanel";
 import { UsageBar } from "@/components/storage/UsageBar";
 import { EditVideoDialog } from "@/components/EditVideoDialog";
@@ -22,7 +22,8 @@ import {
 } from "@/lib/buckets/client";
 import type { BrowseResult, Connection, FileEntry, Usage } from "@/lib/buckets/types";
 import { api } from "@/lib/api";
-import { canonicalUrl, formatBytes } from "@/lib/utils";
+import { useToast } from "@/components/Toast";
+import { canonicalUrl, formatBytes, isMediaUrl } from "@/lib/utils";
 
 type ConnectError = { kind: "auth" | "cors" | "other"; message: string };
 
@@ -35,6 +36,7 @@ type ConnectError = { kind: "auth" | "cors" | "other"; message: string };
 // Loading/restoring/reconnecting is the caller's concern; this
 // component renders the workspace UI given a working connection.
 export function StorageWorkspace({ connection }: { connection: Connection }) {
+  const toast = useToast();
   const clientRef = useRef<S3Client | null>(null);
   const [busy, setBusy] = useState(true);
   const [connectError, setConnectError] = useState<ConnectError | null>(null);
@@ -42,6 +44,7 @@ export function StorageWorkspace({ connection }: { connection: Connection }) {
   const [browseLoading, setBrowseLoading] = useState(false);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [libraryByUrl, setLibraryByUrl] = useState<Map<string, Video> | null>(null);
+  const [collections, setCollections] = useState<Collection[]>([]);
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [mutationError, setMutationError] = useState("");
@@ -98,11 +101,7 @@ export function StorageWorkspace({ connection }: { connection: Connection }) {
   // Manual retry — reset attempts so the auto-retry budget refreshes,
   // and let the upload processor pick the item up again on its next tick.
   const retryFromQueue = (id: string) =>
-    setUploadQueue((q) =>
-      q.map((it) =>
-        it.id === id ? { ...it, status: "pending", attempts: 0, message: undefined, errorKind: undefined } : it,
-      ),
-    );
+    setUploadQueue((q) => q.map((it) => (it.id === id ? { ...it, status: "pending", attempts: 0, message: undefined, errorKind: undefined } : it)));
 
   // Sequential upload processor — picks the first pending item.
   //
@@ -124,11 +123,7 @@ export function StorageWorkspace({ connection }: { connection: Connection }) {
     uploadProcessing.current = true;
     (async () => {
       const attempts = (nextItem.attempts ?? 0) + 1;
-      setUploadQueue((q) =>
-        q.map((it) =>
-          it.id === nextItem.id ? { ...it, status: "uploading", attempts, message: undefined } : it,
-        ),
-      );
+      setUploadQueue((q) => q.map((it) => (it.id === nextItem.id ? { ...it, status: "uploading", attempts, message: undefined } : it)));
       try {
         const key = nextItem.prefix + nextItem.file.name;
         await uploadFile(client, connection.bucket, key, nextItem.file);
@@ -163,20 +158,10 @@ export function StorageWorkspace({ connection }: { connection: Connection }) {
           // user removing/retrying the item during the wait — only
           // resume if it's still in "retrying".
           setTimeout(() => {
-            setUploadQueue((q) =>
-              q.map((it) =>
-                it.id === nextItem.id && it.status === "retrying"
-                  ? { ...it, status: "pending", message: undefined }
-                  : it,
-              ),
-            );
+            setUploadQueue((q) => q.map((it) => (it.id === nextItem.id && it.status === "retrying" ? { ...it, status: "pending", message: undefined } : it)));
           }, delaySec * 1000);
         } else {
-          setUploadQueue((q) =>
-            q.map((it) =>
-              it.id === nextItem.id ? { ...it, status: "error", errorKind: kind, message: label } : it,
-            ),
-          );
+          setUploadQueue((q) => q.map((it) => (it.id === nextItem.id ? { ...it, status: "error", errorKind: kind, message: label } : it)));
         }
       } finally {
         uploadProcessing.current = false;
@@ -227,6 +212,20 @@ export function StorageWorkspace({ connection }: { connection: Connection }) {
       .catch(() => {
         if (!cancelled) setLibraryByUrl(null);
       });
+    return () => {
+      cancelled = true;
+    };
+  }, [connection.bucket]);
+
+  // Collections — space-wide; feeds the folder-row "add to collection" picker.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listCollections()
+      .then((cs) => {
+        if (!cancelled) setCollections(cs);
+      })
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
@@ -440,6 +439,54 @@ export function StorageWorkspace({ connection }: { connection: Connection }) {
     });
   }, []);
 
+  // Resolve a collection target to its items: a folder contributes every
+  // media file under it; a single file contributes just itself. Public
+  // URLs come from the connection's base URL, so the collection is
+  // viewable without bucket credentials.
+  const collectTargetItems = useCallback(
+    async (target: CollectionTarget): Promise<CollectionItem[]> => {
+      const base = connection.publicBaseUrl;
+      if (!base) throw new Error("Set a public base URL on this connection first.");
+      if (target.kind === "file") {
+        if (!isMediaUrl(target.key)) throw new Error("That file isn't a playable media file.");
+        return [{ url: publicUrlForKey(base, target.key), name: target.key.split("/").pop() || target.key }];
+      }
+      const client = clientRef.current;
+      if (!client) throw new Error("Not connected.");
+      const entries = await listAllUnderPrefix(client, connection.bucket, target.prefix);
+      const media = entries.filter((e) => isMediaUrl(e.key)).sort((a, b) => a.key.localeCompare(b.key));
+      if (media.length === 0) throw new Error("This folder has no media files.");
+      return media.map((e) => ({ url: publicUrlForKey(base, e.key), name: e.key.slice(target.prefix.length) }));
+    },
+    [connection.bucket, connection.publicBaseUrl],
+  );
+
+  const handleNewCollection = useCallback(
+    async (target: CollectionTarget) => {
+      const items = await collectTargetItems(target);
+      const title =
+        target.kind === "folder" ? target.prefix.split("/").filter(Boolean).pop() || "Collection" : (target.key.split("/").pop() || "Collection").replace(/\.[^.]+$/, "");
+      const created = await api.createCollection({ title, items });
+      setCollections((prev) => [created, ...prev]);
+      toast.success(`Collection "${created.title}" created — ${items.length} item${items.length === 1 ? "" : "s"}.`);
+    },
+    [collectTargetItems, toast],
+  );
+
+  const handleAddToCollection = useCallback(
+    async (target: CollectionTarget, collectionId: string) => {
+      const newItems = await collectTargetItems(target);
+      const existing = await api.getCollection(collectionId);
+      const haveUrls = new Set(existing.items.map((it) => it.url));
+      const merged = [...existing.items, ...newItems.filter((it) => !haveUrls.has(it.url))];
+      const updated = await api.updateCollection(collectionId, { items: merged });
+      setCollections((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      const added = merged.length - existing.items.length;
+      toast.success(added === 0 ? `Already in "${updated.title}".` : `Added ${added} item${added === 1 ? "" : "s"} to "${updated.title}".`);
+    },
+    [collectTargetItems, toast],
+  );
+
   const handleOpenLibraryEntry = useCallback(
     (publicUrl: string) => {
       const video = libraryByUrl?.get(canonicalUrl(publicUrl));
@@ -448,20 +495,25 @@ export function StorageWorkspace({ connection }: { connection: Connection }) {
     [libraryByUrl],
   );
 
-  const handleUpdateVideo = useCallback(
-    async (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => {
-      const updated = await api.updateVideo(id, patch);
-      setLibraryByUrl((prev) => {
-        const next = new Map(prev ?? []);
-        next.set(canonicalUrl(updated.url), updated);
-        return next;
-      });
-      setEditingVideo(updated);
-    },
-    [],
-  );
+  const handleUpdateVideo = useCallback(async (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => {
+    const updated = await api.updateVideo(id, patch);
+    setLibraryByUrl((prev) => {
+      const next = new Map(prev ?? []);
+      next.set(canonicalUrl(updated.url), updated);
+      return next;
+    });
+    setEditingVideo(updated);
+  }, []);
 
   const matchEnabled = useMemo(() => Boolean(connection.publicBaseUrl), [connection.publicBaseUrl]);
+
+  // Canonical URLs already present in some collection — feeds the file
+  // browser's "in a collection" indicator, mirroring the library badge.
+  const collectionUrls = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of collections) for (const it of c.items) set.add(canonicalUrl(it.url));
+    return set;
+  }, [collections]);
 
   if (busy) {
     return (
@@ -501,19 +553,16 @@ export function StorageWorkspace({ connection }: { connection: Connection }) {
         headroom={uploadHeadroom}
         onAcceptFiles={acceptFiles}
         publicBaseUrl={connection.publicBaseUrl}
-        libraryByUrl={matchEnabled ? libraryByUrl ?? undefined : undefined}
+        libraryByUrl={matchEnabled ? (libraryByUrl ?? undefined) : undefined}
+        collectionUrls={matchEnabled ? collectionUrls : undefined}
         onAddToLibrary={matchEnabled ? handleAddToLibrary : undefined}
         onOpenLibraryEntry={matchEnabled ? handleOpenLibraryEntry : undefined}
+        collections={collections}
+        onNewCollection={matchEnabled ? handleNewCollection : undefined}
+        onAddToCollection={matchEnabled ? handleAddToCollection : undefined}
       />
-      <UploadQueuePanel
-        queue={uploadQueue}
-        onClearDone={clearDoneFromQueue}
-        onRemove={removeFromQueue}
-        onRetry={retryFromQueue}
-      />
-      {editingVideo && (
-        <EditVideoDialog open video={editingVideo} onClose={() => setEditingVideo(null)} onUpdate={handleUpdateVideo} />
-      )}
+      <UploadQueuePanel queue={uploadQueue} onClearDone={clearDoneFromQueue} onRemove={removeFromQueue} onRetry={retryFromQueue} />
+      {editingVideo && <EditVideoDialog open video={editingVideo} onClose={() => setEditingVideo(null)} onUpdate={handleUpdateVideo} />}
     </div>
   );
 }

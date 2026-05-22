@@ -16,8 +16,4 @@ const storageActivationSchema = new Schema(
   { _id: false, versionKey: false, strict: true, minimize: false },
 );
 
-export const StorageActivationModel = model(
-  "StorageActivation",
-  storageActivationSchema,
-  "storage_activations",
-);
+export const StorageActivationModel = model("StorageActivation", storageActivationSchema, "storage_activations");

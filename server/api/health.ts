@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 
-import type { HealthStatus, LibraryHealth, VideoHealth } from "@/protocol.ts";
-import { fetchProbe } from "@/probe.ts";
+import type { LibraryHealth, VideoHealth } from "@/protocol.ts";
+import { mapWithConcurrency, probeHealth } from "@/probe.ts";
 import type { Storage } from "@/storage/index.ts";
 import { requireSpaceMember } from "@/auth.ts";
 
@@ -46,7 +46,7 @@ export function buildHealthRouter(storage: Storage) {
       }
     }
 
-    const results = await mapWithConcurrency(jobs, PROBE_CONCURRENCY, (job) => probeUrl(job.url));
+    const results = await mapWithConcurrency(jobs, PROBE_CONCURRENCY, (job) => probeHealth(job.url));
 
     const out: LibraryHealth = { checkedAt: Date.now(), videos: {} };
     for (const v of videos) out.videos[v.id] = { video: "unverified", subtitles: {} };
@@ -63,31 +63,4 @@ export function buildHealthRouter(storage: Storage) {
   });
 
   return app;
-}
-
-async function probeUrl(url: string): Promise<HealthStatus> {
-  const probe = await fetchProbe(url);
-  switch (probe.kind) {
-    case "ok":
-      return "ok";
-    case "head-disallowed":
-      return "unverified";
-    case "http-error":
-    case "network-error":
-      return "gone";
-  }
-}
-
-async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let cursor = 0;
-  async function worker() {
-    while (cursor < items.length) {
-      const i = cursor++;
-      results[i] = await fn(items[i]!);
-    }
-  }
-  const workers = Array.from({ length: Math.min(limit, items.length) }, worker);
-  await Promise.all(workers);
-  return results;
 }

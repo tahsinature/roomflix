@@ -25,11 +25,11 @@ export type SessionSync = {
     pause: (currentTime: number) => void;
     seek: (currentTime: number) => void;
     setUrl: (videoUrl: string) => void;
-    loadPlaylist: (playlistId: string) => void;
-    playlistNext: () => void;
-    playlistPrev: () => void;
-    playlistJumpTo: (index: number) => void;
-    setPlaylistLoop: (loop: boolean) => void;
+    loadCollection: (collectionId: string) => void;
+    collectionNext: () => void;
+    collectionPrev: () => void;
+    collectionJumpTo: (index: number) => void;
+    setCollectionLoop: (loop: boolean) => void;
     videoEnded: (endedUrl: string) => void;
     // Debounced to ~200ms — slider drags fire dozens of events per
     // second and we don't want one per ws.send. The trailing edge wins.
@@ -65,11 +65,11 @@ export function useSessionSync(): SessionSync {
       pause: (currentTime: number) => presence.send({ type: "pause", currentTime }),
       seek: (currentTime: number) => presence.send({ type: "seek", currentTime }),
       setUrl: (videoUrl: string) => presence.send({ type: "setUrl", videoUrl }),
-      loadPlaylist: (playlistId: string) => presence.send({ type: "loadPlaylist", playlistId }),
-      playlistNext: () => presence.send({ type: "playlistNext" }),
-      playlistPrev: () => presence.send({ type: "playlistPrev" }),
-      playlistJumpTo: (index: number) => presence.send({ type: "playlistJumpTo", index }),
-      setPlaylistLoop: (loop: boolean) => presence.send({ type: "setPlaylistLoop", loop }),
+      loadCollection: (collectionId: string) => presence.send({ type: "loadCollection", collectionId }),
+      collectionNext: () => presence.send({ type: "collectionNext" }),
+      collectionPrev: () => presence.send({ type: "collectionPrev" }),
+      collectionJumpTo: (index: number) => presence.send({ type: "collectionJumpTo", index }),
+      setCollectionLoop: (loop: boolean) => presence.send({ type: "setCollectionLoop", loop }),
       videoEnded: (endedUrl: string) => presence.send({ type: "videoEnded", endedUrl }),
       setVolume: (level: number, muted: boolean) => {
         pendingVolume.current = { level, muted };

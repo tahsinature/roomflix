@@ -90,17 +90,8 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
 
   const Icon = toast.variant === "error" ? AlertCircle : toast.variant === "success" ? CheckCircle2 : Info;
   const variantStyles =
-    toast.variant === "error"
-      ? "border-accent/50 bg-accent/15"
-      : toast.variant === "success"
-        ? "border-emerald-500/40 bg-emerald-500/10"
-        : "border-border bg-bg-elevated/95";
-  const iconStyles =
-    toast.variant === "error"
-      ? "text-accent"
-      : toast.variant === "success"
-        ? "text-emerald-400"
-        : "text-text-dim";
+    toast.variant === "error" ? "border-accent/50 bg-accent/15" : toast.variant === "success" ? "border-emerald-500/40 bg-emerald-500/10" : "border-border bg-bg-elevated/95";
+  const iconStyles = toast.variant === "error" ? "text-accent" : toast.variant === "success" ? "text-emerald-400" : "text-text-dim";
 
   return (
     <div
@@ -112,12 +103,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
     >
       <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", iconStyles)} />
       <p className="min-w-0 flex-1 text-sm leading-relaxed">{toast.message}</p>
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label="Dismiss"
-        className="flex h-5 w-5 shrink-0 items-center justify-center text-text-dim transition hover:text-foreground"
-      >
+      <button type="button" onClick={onDismiss} aria-label="Dismiss" className="flex h-5 w-5 shrink-0 items-center justify-center text-text-dim transition hover:text-foreground">
         <X className="h-3.5 w-3.5" />
       </button>
     </div>

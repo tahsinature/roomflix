@@ -24,15 +24,40 @@ export function canonicalUrl(url: string): string {
   }
 }
 
-// Extension-based media classification. Returns "audio" for the common audio
-// containers, "video" for everything else (including unknown). The kind drives
-// which player we render — same room state, same sync protocol underneath.
+// Extension-based media classification. Returns "audio"/"image" for the
+// common containers, "video" for everything else (including unknown). The
+// kind drives which player we render — same room state, same sync protocol
+// underneath.
 const AUDIO_EXTENSIONS = new Set(["mp3", "m4a", "aac", "flac", "wav", "opus", "oga", "weba"]);
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "avif", "bmp", "heic", "heif", "tiff", "tif", "svg"]);
+const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "mkv", "mov", "m4v", "ogv", "ogg", "avi", "3gp", "mpeg", "mpg"]);
 
-export function mediaKind(url: string | null | undefined): "audio" | "video" {
+export type MediaKind = "audio" | "video" | "image";
+
+function extensionOf(url: string): string | undefined {
+  return url.split("?")[0].split("#")[0].split(".").pop()?.toLowerCase();
+}
+
+export function mediaKind(url: string | null | undefined): MediaKind {
   if (!url) return "video";
-  const ext = url.split("?")[0].split("#")[0].split(".").pop()?.toLowerCase();
-  return ext && AUDIO_EXTENSIONS.has(ext) ? "audio" : "video";
+  const ext = extensionOf(url);
+  if (ext && IMAGE_EXTENSIONS.has(ext)) return "image";
+  if (ext && AUDIO_EXTENSIONS.has(ext)) return "audio";
+  return "video";
+}
+
+// True when the URL (or bare object key) ends in a known image extension.
+export function isImageUrl(url: string): boolean {
+  const ext = extensionOf(url);
+  return ext !== undefined && IMAGE_EXTENSIONS.has(ext);
+}
+
+// True when the URL/key ends in any known media extension — video, audio,
+// or image. Used to pick media files out of a storage folder when building
+// a collection.
+export function isMediaUrl(url: string): boolean {
+  const ext = extensionOf(url);
+  return ext !== undefined && (IMAGE_EXTENSIONS.has(ext) || AUDIO_EXTENSIONS.has(ext) || VIDEO_EXTENSIONS.has(ext));
 }
 
 // mm:ss for tracks under an hour, hh:mm:ss otherwise. Used by the audio

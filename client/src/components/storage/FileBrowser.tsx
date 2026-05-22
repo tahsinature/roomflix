@@ -7,6 +7,7 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  Layers,
   Library as LibraryIcon,
   Loader2,
   Pencil,
@@ -19,15 +20,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/CopyButton";
+import { Modal } from "@/components/Modal";
 import { urlIsClearlyNotMedia } from "@/lib/play";
-import { canonicalUrl, cn, formatBytes } from "@/lib/utils";
+import { canonicalUrl, cn, formatBytes, isMediaUrl } from "@/lib/utils";
 import type { BrowseResult } from "@/lib/buckets/types";
-import type { Video } from "@shared/protocol";
+import type { Collection, Video } from "@shared/protocol";
 
 export function publicUrlForKey(base: string, key: string): string {
   const b = base.endsWith("/") ? base.slice(0, -1) : base;
   return `${b}/${key}`;
 }
+
+// What a collection action targets — a whole folder (all its media) or a
+// single file. The storage page resolves each to collection items.
+export type CollectionTarget = { kind: "folder"; prefix: string } | { kind: "file"; key: string };
 
 // File browser with selection, per-row delete, inline new-folder, and a
 // bulk-action bar that appears when anything is selected. The page above
@@ -48,8 +54,12 @@ export function FileBrowser({
   onAcceptFiles,
   publicBaseUrl,
   libraryByUrl,
+  collectionUrls,
   onAddToLibrary,
   onOpenLibraryEntry,
+  collections,
+  onNewCollection,
+  onAddToCollection,
 }: {
   result: BrowseResult | null;
   loading: boolean;
@@ -78,13 +88,24 @@ export function FileBrowser({
   // files that aren't yet in the library.
   publicBaseUrl?: string;
   libraryByUrl?: Map<string, Video>;
+  // Canonical URLs that already appear in at least one collection — drives
+  // the "in a collection" indicator on file rows.
+  collectionUrls?: Set<string>;
   onAddToLibrary?: (url: string) => Promise<void>;
   onOpenLibraryEntry?: (publicUrl: string) => void;
+  // When set, folder and file rows show a "collection" action — start a
+  // new collection or add into an existing one. `collections` feeds the
+  // picker; a folder contributes all its media, a file just itself.
+  collections?: Collection[];
+  onNewCollection?: (target: CollectionTarget) => Promise<void>;
+  onAddToCollection?: (target: CollectionTarget, collectionId: string) => Promise<void>;
 }) {
   // Selection IDs: file keys for files, prefix-with-trailing-slash for folders.
   // A Set keeps toggling O(1) and the union of files+folders fits naturally.
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
+  // Target (folder or file) a collection action is being chosen for.
+  const [collectionTarget, setCollectionTarget] = useState<CollectionTarget | null>(null);
 
   // Clear selection when the user navigates or when the listing reloads to
   // anything substantially different — keeps stale IDs out of bulk operations.
@@ -108,10 +129,7 @@ export function FileBrowser({
   }, [result]);
 
   const flatItems: { id: string; type: "folder" | "file" }[] = result
-    ? [
-        ...result.folders.map((f) => ({ id: f.prefix, type: "folder" as const })),
-        ...result.files.map((f) => ({ id: f.key, type: "file" as const })),
-      ]
+    ? [...result.folders.map((f) => ({ id: f.prefix, type: "folder" as const })), ...result.files.map((f) => ({ id: f.key, type: "file" as const }))]
     : [];
 
   const toggleSelection = (index: number, shiftKey: boolean) => {
@@ -182,13 +200,7 @@ export function FileBrowser({
   };
 
   return (
-    <section
-      className="relative border border-border bg-bg-elevated/40"
-      onDragEnter={onDragEnter}
-      onDragLeave={onDragLeave}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-    >
+    <section className="relative border border-border bg-bg-elevated/40" onDragEnter={onDragEnter} onDragLeave={onDragLeave} onDragOver={onDragOver} onDrop={onDrop}>
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
         <Breadcrumb prefix={result?.prefix ?? ""} onNavigate={onNavigate} />
         <div className="flex items-center gap-1">
@@ -256,6 +268,7 @@ export function FileBrowser({
                 onToggleSelect={(e) => toggleSelection(i, e.shiftKey)}
                 onDelete={() => onDeleteFolder(f.prefix)}
                 onRename={(newName) => onRenameFolder(f.prefix, newName)}
+                onCollectionAction={onNewCollection ? () => setCollectionTarget({ kind: "folder", prefix: f.prefix }) : undefined}
               />
             ))}
             {result.files.map((f, i) => {
@@ -263,6 +276,7 @@ export function FileBrowser({
               // Match in canonical form so percent-encoded vs literal chars
               // (e.g. spaces vs %20) don't trip up the library lookup.
               const inLibrary = url !== null && libraryByUrl?.has(canonicalUrl(url)) === true;
+              const inCollection = url !== null && collectionUrls?.has(canonicalUrl(url)) === true;
               // Reuse the same media-extension whitelist that PlayButton +
               // LibraryPicker use to gate Play. If the file isn't playable
               // media, the "+ Library" button doesn't apply — hide it.
@@ -282,8 +296,10 @@ export function FileBrowser({
                   onRename={(newName) => onRenameFile(f.key, newName)}
                   publicUrl={url}
                   inLibrary={inLibrary}
+                  inCollection={inCollection}
                   onAddToLibrary={isMedia ? onAddToLibrary : undefined}
                   onOpenLibraryEntry={onOpenLibraryEntry}
+                  onCollectionAction={isMediaUrl(f.key) && onNewCollection ? () => setCollectionTarget({ kind: "file", key: f.key }) : undefined}
                 />
               );
             })}
@@ -306,16 +322,112 @@ export function FileBrowser({
           </div>
         </div>
       )}
+
+      {collectionTarget !== null && onNewCollection && onAddToCollection && (
+        <CollectionTargetModal
+          target={collectionTarget}
+          parent={result?.prefix ?? ""}
+          collections={collections ?? []}
+          onNewCollection={onNewCollection}
+          onAddToCollection={onAddToCollection}
+          onClose={() => setCollectionTarget(null)}
+        />
+      )}
     </section>
   );
 }
 
+// Modal for the "add to collection" action on a folder or file row. A
+// modal (rather than an inline dropdown) sidesteps the row's overflow
+// clipping and works the same on touch.
+function CollectionTargetModal({
+  target,
+  parent,
+  collections,
+  onNewCollection,
+  onAddToCollection,
+  onClose,
+}: {
+  target: CollectionTarget;
+  parent: string;
+  collections: Collection[];
+  onNewCollection: (target: CollectionTarget) => Promise<void>;
+  onAddToCollection: (target: CollectionTarget, collectionId: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const label = target.kind === "folder" ? target.prefix.slice(parent.length, target.prefix.length - 1) || target.prefix : target.key.slice(parent.length) || target.key;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const run = async (fn: () => Promise<void>) => {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await fn();
+      onClose();
+    } catch (e) {
+      setError((e as Error).message || "Something went wrong.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open title={`Add “${label}” to a collection`} onClose={busy ? () => {} : onClose} className="max-w-md">
+      <div className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          {target.kind === "folder" ? "Includes every video, audio, and image file in the folder." : "Adds this file as a single collection item."}
+        </p>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => run(() => onNewCollection(target))}
+          className="flex w-full items-center gap-2 border border-accent/40 bg-accent/10 px-3 py-2.5 text-left text-sm text-foreground transition hover:bg-accent/15 disabled:opacity-50"
+        >
+          <Plus className="h-4 w-4 shrink-0 text-accent" />
+          {target.kind === "folder" ? "New collection from this folder" : "New collection with this file"}
+        </button>
+        {collections.length > 0 && (
+          <div>
+            <div className="section-label muted mb-1.5">Or add into an existing collection</div>
+            <ul className="max-h-60 overflow-y-auto border border-border">
+              {collections.map((c) => (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => run(() => onAddToCollection(target, c.id))}
+                    className="flex w-full items-center justify-between gap-3 border-b border-border px-3 py-2 text-left text-sm text-foreground transition last:border-b-0 hover:bg-white/[0.04] disabled:opacity-50"
+                  >
+                    <span className="truncate">{c.title}</span>
+                    <span className="shrink-0 font-mono text-[10px] text-text-dim">{c.items.length}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {error && <div className="border border-accent/40 bg-accent/10 px-3 py-2 text-xs text-foreground">{error}</div>}
+        {busy && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Working…
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
 
 function Breadcrumb({ prefix, onNavigate }: { prefix: string; onNavigate: (prefix: string) => void }) {
   const segments = prefix.split("/").filter(Boolean);
   return (
     <nav className="flex min-w-0 items-center gap-1 overflow-hidden text-xs">
-      <button type="button" onClick={() => onNavigate("")} className="flex items-center gap-1.5 px-1.5 py-1 text-muted-foreground transition hover:bg-white/[0.04] hover:text-foreground">
+      <button
+        type="button"
+        onClick={() => onNavigate("")}
+        className="flex items-center gap-1.5 px-1.5 py-1 text-muted-foreground transition hover:bg-white/[0.04] hover:text-foreground"
+      >
         <FolderOpen className="h-3.5 w-3.5" />
         <span className="font-mono">/</span>
       </button>
@@ -328,7 +440,11 @@ function Breadcrumb({ prefix, onNavigate }: { prefix: string; onNavigate: (prefi
             <button
               type="button"
               onClick={() => onNavigate(target)}
-              className={isLast ? "truncate px-1.5 py-1 font-mono text-foreground" : "truncate px-1.5 py-1 font-mono text-muted-foreground transition hover:bg-white/[0.04] hover:text-foreground"}
+              className={
+                isLast
+                  ? "truncate px-1.5 py-1 font-mono text-foreground"
+                  : "truncate px-1.5 py-1 font-mono text-muted-foreground transition hover:bg-white/[0.04] hover:text-foreground"
+              }
             >
               {seg}
             </button>
@@ -472,13 +588,7 @@ function SelectionBar({
     >
       <div className="flex min-w-0 items-center gap-3">
         <Checkbox checked={allSelected} onChange={onToggleAll} aria-label={isSelecting ? "Toggle selection of all rows" : "Select all in this folder"} />
-        {isSelecting ? (
-          <span className="font-medium text-accent">
-            {count} selected
-          </span>
-        ) : (
-          <span className="text-[11px] text-text-dim">Select all in this folder</span>
-        )}
+        {isSelecting ? <span className="font-medium text-accent">{count} selected</span> : <span className="text-[11px] text-text-dim">Select all in this folder</span>}
       </div>
       {isSelecting && (
         <div className="flex items-center gap-1">
@@ -506,6 +616,7 @@ function FolderRow({
   onToggleSelect,
   onDelete,
   onRename,
+  onCollectionAction,
 }: {
   prefix: string;
   parent: string;
@@ -516,6 +627,7 @@ function FolderRow({
   onToggleSelect: (e: React.MouseEvent) => void;
   onDelete: () => Promise<void>;
   onRename: (newName: string) => Promise<void>;
+  onCollectionAction?: () => void;
 }) {
   const name = prefix.slice(parent.length, prefix.length - 1);
   const [armed, setArmed] = useState(false);
@@ -578,10 +690,31 @@ function FolderRow({
           <RenameInput initial={name} busy={renaming} onSubmit={commitRename} onCancel={() => setEditing(false)} />
         </div>
       ) : (
-        <button type="button" onClick={onOpen} onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }} disabled={deleting} className="flex min-w-0 flex-1 items-center gap-3 py-3 text-left disabled:cursor-not-allowed">
+        <button
+          type="button"
+          onClick={onOpen}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            setEditing(true);
+          }}
+          disabled={deleting}
+          className="flex min-w-0 flex-1 items-center gap-3 py-3 text-left disabled:cursor-not-allowed"
+        >
           <Folder className="h-4 w-4 shrink-0 text-cyan/80" />
           <span className="min-w-0 flex-1 truncate text-sm text-foreground">{name || prefix}</span>
           <span className="shrink-0 font-mono text-[11px] text-text-dim">folder</span>
+        </button>
+      )}
+      {onCollectionAction && !editing && (
+        <button
+          type="button"
+          onClick={onCollectionAction}
+          disabled={deleting}
+          aria-label={`Add folder ${name} to a collection`}
+          title="Add this folder to a collection"
+          className="shrink-0 p-1.5 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground disabled:opacity-50"
+        >
+          <Layers className="h-3.5 w-3.5" />
         </button>
       )}
       {!editing && (
@@ -604,11 +737,7 @@ function FolderRow({
         title={deleting ? "Deleting…" : armed ? "Click again to confirm" : "Delete folder"}
         className={cn(
           "mr-3 shrink-0 p-1.5 transition",
-          deleting
-            ? "text-muted-foreground"
-            : armed
-              ? "animate-pulse-soft bg-accent text-white"
-              : "text-muted-foreground hover:bg-white/[0.05] hover:text-accent",
+          deleting ? "text-muted-foreground" : armed ? "animate-pulse-soft bg-accent text-white" : "text-muted-foreground hover:bg-white/[0.05] hover:text-accent",
         )}
       >
         {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
@@ -630,8 +759,10 @@ function FileRow({
   onRename,
   publicUrl,
   inLibrary,
+  inCollection,
   onAddToLibrary,
   onOpenLibraryEntry,
+  onCollectionAction,
 }: {
   fullKey: string;
   parent: string;
@@ -645,8 +776,10 @@ function FileRow({
   onRename: (newName: string) => Promise<void>;
   publicUrl: string | null;
   inLibrary: boolean;
+  inCollection: boolean;
   onAddToLibrary?: (url: string) => Promise<void>;
   onOpenLibraryEntry?: (publicUrl: string) => void;
+  onCollectionAction?: () => void;
 }) {
   const name = fullKey.slice(parent.length);
   const [armed, setArmed] = useState(false);
@@ -707,87 +840,111 @@ function FileRow({
     }
   };
 
+  // Library / collection chips, grouped so they wrap as one cluster.
+  // Library + collection affordances as compact icon buttons — the same
+  // weight as rename/copy/delete, so the row reads as one even toolbar
+  // rather than two prominent labelled pills. A green check = already in
+  // the library (click to edit); a library glyph = add it; a layers glyph
+  // = add to a collection.
+  const chips = publicUrl && (inLibrary || onAddToLibrary || onCollectionAction) && (
+    <div className="flex shrink-0 items-center">
+      {inLibrary && (
+        <button
+          type="button"
+          onClick={onOpenLibraryEntry ? () => onOpenLibraryEntry(publicUrl) : undefined}
+          disabled={!onOpenLibraryEntry}
+          aria-label="In your library"
+          title={onOpenLibraryEntry ? "In your library — edit entry" : "In your library"}
+          className="p-1.5 text-live transition hover:bg-white/[0.05] disabled:cursor-default"
+        >
+          <Check className="h-3.5 w-3.5" />
+        </button>
+      )}
+      {!inLibrary && onAddToLibrary && (
+        <button
+          type="button"
+          onClick={addToLibrary}
+          disabled={adding}
+          aria-label="Add to library"
+          title={addError || "Add to library"}
+          className="p-1.5 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground disabled:opacity-50"
+        >
+          {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : addError ? <X className="h-3.5 w-3.5 text-accent" /> : <LibraryIcon className="h-3.5 w-3.5" />}
+        </button>
+      )}
+      {onCollectionAction && (
+        <button
+          type="button"
+          onClick={onCollectionAction}
+          aria-label="Add to a collection"
+          title={inCollection ? "In a collection — add to another" : "Add to a collection"}
+          className={cn("p-1.5 transition hover:bg-white/[0.05]", inCollection ? "text-cyan" : "text-muted-foreground hover:text-foreground")}
+        >
+          <Layers className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <li
       className={cn(
         "flex items-center gap-3 border-b border-border overflow-hidden transition-all duration-300 ease-in-out",
         selected && !deleting ? "bg-accent/[0.06]" : !deleting && "hover:bg-white/[0.02]",
-        deleting ? "max-h-0 opacity-0 border-b-transparent" : "max-h-[120px] last:border-b-0",
+        deleting ? "max-h-0 opacity-0 border-b-transparent" : "max-h-[160px] last:border-b-0",
       )}
     >
-      <div className="pl-4">
+      <div className="shrink-0 pl-4">
         <Checkbox checked={selected} onChange={onToggleSelect} aria-label={`Select ${name}`} />
       </div>
-      <div className="flex min-w-0 flex-1 items-center gap-3 py-3">
-        <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-        {editing ? (
-          <RenameInput initial={name} busy={renaming} onSubmit={commitRename} onCancel={() => setEditing(false)} />
-        ) : (
-          <span
-            onDoubleClick={() => setEditing(true)}
-            className="min-w-0 flex-1 truncate text-sm text-foreground"
-            title={fullKey}
-          >
-            {name}
-          </span>
-        )}
-        {publicUrl && inLibrary && (
+      {/* Wrapping content: the name keeps a readable minimum width; the
+          chips + meta + row actions wrap onto a second line when the
+          window is too narrow to fit everything beside it. */}
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 pr-3">
+        <div className="flex min-w-[12rem] flex-1 items-center gap-2">
+          <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+          {editing ? (
+            <RenameInput initial={name} busy={renaming} onSubmit={commitRename} onCancel={() => setEditing(false)} />
+          ) : (
+            <span onDoubleClick={() => setEditing(true)} className="min-w-0 flex-1 truncate text-sm text-foreground" title={fullKey}>
+              {name}
+            </span>
+          )}
+        </div>
+
+        {chips}
+
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <span className="mr-1 font-mono text-[11px] tabular-nums text-text-dim">{formatBytes(size)}</span>
+          {lastModified && <span className="mr-1 hidden font-mono text-[11px] text-text-dim sm:inline">{lastModified.toISOString().slice(0, 10)}</span>}
+          {!editing && (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              disabled={deleting}
+              aria-label={`Rename ${name}`}
+              title="Rename"
+              className="p-1.5 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground disabled:opacity-50"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {publicUrl && <CopyButton text={publicUrl} label="public link" />}
           <button
             type="button"
-            onClick={onOpenLibraryEntry ? () => onOpenLibraryEntry(publicUrl) : undefined}
-            disabled={!onOpenLibraryEntry}
-            title={onOpenLibraryEntry ? "Edit library entry" : publicUrl}
-            className="inline-flex shrink-0 items-center gap-1 border border-live/30 bg-live/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-live transition hover:border-live/60 hover:bg-live/20 disabled:cursor-default disabled:hover:border-live/30 disabled:hover:bg-live/10"
+            onClick={trigger}
+            disabled={deleting || editing}
+            aria-label={armed ? "Click again to confirm delete" : `Delete ${name}`}
+            title={deleting ? "Deleting…" : armed ? "Click again to confirm" : "Delete"}
+            className={cn(
+              "p-1.5 transition",
+              deleting ? "text-muted-foreground" : armed ? "animate-pulse-soft bg-accent text-white" : "text-muted-foreground hover:bg-white/[0.05] hover:text-accent",
+            )}
           >
-            <Check className="h-3 w-3" />
-            In library
+            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
           </button>
-        )}
-        {publicUrl && !inLibrary && onAddToLibrary && (
-          <button
-            type="button"
-            onClick={addToLibrary}
-            disabled={adding}
-            title={addError || "Add to library"}
-            className="inline-flex shrink-0 items-center gap-1 border border-border bg-bg-elevated px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground transition hover:border-accent/40 hover:text-foreground disabled:opacity-50"
-          >
-            {adding ? <Loader2 className="h-3 w-3 animate-spin" /> : addError ? <X className="h-3 w-3 text-accent" /> : <Plus className="h-3 w-3" />}
-            {addError ? "Failed" : adding ? "Adding" : "Library"}
-          </button>
-        )}
-        <span className="shrink-0 font-mono text-[11px] tabular-nums text-text-dim">{formatBytes(size)}</span>
-        {lastModified && <span className="hidden shrink-0 font-mono text-[11px] text-text-dim sm:inline">{lastModified.toISOString().slice(0, 10)}</span>}
+        </div>
       </div>
-      {!editing && (
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          disabled={deleting}
-          aria-label={`Rename ${name}`}
-          title="Rename"
-          className="shrink-0 p-1.5 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground disabled:opacity-50"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
-      )}
-      {publicUrl && <CopyButton text={publicUrl} label="public link" />}
-      <button
-        type="button"
-        onClick={trigger}
-        disabled={deleting || editing}
-        aria-label={armed ? "Click again to confirm delete" : `Delete ${name}`}
-        title={deleting ? "Deleting…" : armed ? "Click again to confirm" : "Delete"}
-        className={cn(
-          "mr-3 shrink-0 p-1.5 transition",
-          deleting
-            ? "text-muted-foreground"
-            : armed
-              ? "animate-pulse-soft bg-accent text-white"
-              : "text-muted-foreground hover:bg-white/[0.05] hover:text-accent",
-        )}
-      >
-        {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-      </button>
     </li>
   );
 }
@@ -798,17 +955,7 @@ function FileRow({
 // Enter saves, Esc cancels, blur cancels (safer than blur-saves on
 // accidental focus loss). Slashes in the input are rejected since they'd
 // create unintended subfolders.
-function RenameInput({
-  initial,
-  busy,
-  onSubmit,
-  onCancel,
-}: {
-  initial: string;
-  busy: boolean;
-  onSubmit: (next: string) => void;
-  onCancel: () => void;
-}) {
+function RenameInput({ initial, busy, onSubmit, onCancel }: { initial: string; busy: boolean; onSubmit: (next: string) => void; onCancel: () => void }) {
   const [value, setValue] = useState(initial);
   const inputRef = useRef<HTMLInputElement>(null);
 

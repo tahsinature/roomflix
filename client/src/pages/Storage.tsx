@@ -53,15 +53,11 @@ export default function Storage() {
     <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-5">
         <div className="flex flex-col leading-tight">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            {currentSpace?.name ?? "Buckets"}
-          </span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{currentSpace?.name ?? "Buckets"}</span>
           <h1 className="flex items-center gap-2 text-base font-semibold tracking-tight text-foreground">
             <Database className="h-4 w-4 text-accent" />
             Storage
-            {connections && (
-              <span className="font-mono text-[12px] font-normal text-text-dim">· {connections.length}</span>
-            )}
+            {connections && <span className="font-mono text-[12px] font-normal text-text-dim">· {connections.length}</span>}
           </h1>
         </div>
         {user && (
@@ -88,19 +84,12 @@ export default function Storage() {
         <EmptyState isOwner={!!user} />
       ) : (
         <>
-          <ConnectionStrip
-            connections={connections}
-            activeId={activeId}
-            onSelect={setActiveId}
-            currentUserId={user?.id ?? null}
-          />
+          <ConnectionStrip connections={connections} activeId={activeId} onSelect={setActiveId} currentUserId={user?.id ?? null} />
           <div className="min-w-0">
             {active ? (
               <DrillDown connection={active} key={active.id} />
             ) : (
-              <div className="flex min-h-[12rem] items-center justify-center border border-border bg-bg-elevated/40 text-sm text-text-dim">
-                Pick a connection
-              </div>
+              <div className="flex min-h-[12rem] items-center justify-center border border-border bg-bg-elevated/40 text-sm text-text-dim">Pick a connection</div>
             )}
           </div>
         </>
@@ -129,29 +118,14 @@ function ConnectionStrip({
     <ul className="flex flex-wrap items-stretch gap-2">
       {connections.map((c) => (
         <li key={c.id}>
-          <ConnectionPill
-            connection={c}
-            active={c.id === activeId}
-            mine={!!currentUserId && c.ownerId === currentUserId}
-            onClick={() => onSelect(c.id)}
-          />
+          <ConnectionPill connection={c} active={c.id === activeId} mine={!!currentUserId && c.ownerId === currentUserId} onClick={() => onSelect(c.id)} />
         </li>
       ))}
     </ul>
   );
 }
 
-function ConnectionPill({
-  connection: c,
-  active,
-  mine,
-  onClick,
-}: {
-  connection: StorageConnection;
-  active: boolean;
-  mine: boolean;
-  onClick: () => void;
-}) {
+function ConnectionPill({ connection: c, active, mine, onClick }: { connection: StorageConnection; active: boolean; mine: boolean; onClick: () => void }) {
   const ownerName = c.ownerDisplayName?.trim() || (c.ownerUsername ? `@${c.ownerUsername}` : "space owner");
   const ownerLabel = mine ? "yours" : `by ${ownerName}`;
   return (
@@ -228,9 +202,7 @@ function EmptyState({ isOwner }: { isOwner: boolean }) {
       <Database className="mx-auto h-6 w-6 text-text-dim" />
       <p className="mt-3 text-sm text-foreground">No storage available in this space.</p>
       <p className="mt-1 text-xs text-muted-foreground">
-        {isOwner
-          ? "Open settings to add a connection and activate it here."
-          : "The space owner hasn't shared any storage with you yet."}
+        {isOwner ? "Open settings to add a connection and activate it here." : "The space owner hasn't shared any storage with you yet."}
       </p>
       {isOwner && (
         <Link

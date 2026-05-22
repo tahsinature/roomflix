@@ -46,9 +46,7 @@ function SectionLink({ to, icon, children }: { to: string; icon: React.ReactNode
       className={({ isActive }) =>
         cn(
           "flex items-center gap-2 border px-3 py-2 text-sm transition",
-          isActive
-            ? "border-accent/40 bg-accent/10 text-foreground"
-            : "border-transparent text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+          isActive ? "border-accent/40 bg-accent/10 text-foreground" : "border-transparent text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
         )
       }
     >

@@ -191,11 +191,7 @@ export function AudioPlayer({ url, title, playing, currentTime, updatedAt, serve
         <Title text={displayTitle} url={url} />
 
         <div className="w-full max-w-2xl">
-          <div
-            ref={containerRef}
-            className={cn("min-h-[96px] w-full cursor-pointer transition-opacity", !isReady && "opacity-40")}
-            aria-label="Audio waveform — click to seek"
-          />
+          <div ref={containerRef} className={cn("min-h-[96px] w-full cursor-pointer transition-opacity", !isReady && "opacity-40")} aria-label="Audio waveform — click to seek" />
           {error && (
             <div className="mt-3 flex items-start justify-center gap-2 border border-amber-300/30 bg-amber-300/[0.06] p-3 text-xs text-amber-100">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />

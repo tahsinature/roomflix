@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { ServerWebSocket } from "bun";
 import { Hono } from "hono";
 
-import { type ClientMessage, type ServerMessage } from "@/protocol.ts";
+import { type Collection, type ClientMessage, type ServerMessage } from "@/protocol.ts";
 import {
   broadcastJoinRequestPending,
   broadcastPresence,
@@ -25,17 +25,14 @@ import { buildAuthRouter } from "@/api/auth.ts";
 import { buildAccountStorageRouter } from "@/api/account_storage.ts";
 import { buildSpaceStorageRouter } from "@/api/space_storage.ts";
 import { buildStorageSecretRouter } from "@/api/storage_secret.ts";
-import { buildPlaylistsRouter } from "@/api/playlists.ts";
-import {
-  buildInvitesRouter,
-  buildJoinRequestsRouter,
-  buildSessionSpaceRouter,
-  buildSpacesRouter,
-} from "@/api/spaces.ts";
+import { buildCollectionsRouter } from "@/api/collections.ts";
+import { buildInvitesRouter, buildJoinRequestsRouter, buildSessionSpaceRouter, buildSpacesRouter } from "@/api/spaces.ts";
 import { buildSessionMembersRouter, buildSessionStateRouter } from "@/api/session_state.ts";
 import { getCurrentPrincipalFromRequest } from "@/auth.ts";
 import { assertEncryptionKey } from "@/crypto.ts";
 import { ensureHomeSpace } from "@/spaces.ts";
+import { runCollectionMigration } from "@/migrate-collections.ts";
+import { PlaylistModel } from "@/models/index.ts";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const IS_PROD = process.env.NODE_ENV === "production";
@@ -70,7 +67,7 @@ async function runSpaceMigration(): Promise<void> {
     if (existing.length > 0) continue;
     const home = await ensureHomeSpace(storage, user);
     await storage.videos.reparent(user.id, home.id);
-    await storage.playlists.reparent(user.id, home.id);
+    await PlaylistModel.updateMany({ ownerId: user.id }, { $set: { spaceId: home.id, createdBy: user.id }, $unset: { ownerId: "" } });
     migrated++;
   }
   if (migrated > 0) console.log(`[roomflix] reparented ${migrated} legacy user(s) into Home spaces`);
@@ -110,11 +107,14 @@ async function runStorageMigration(): Promise<void> {
     migrated++;
   }
   console.log(
-    `[roomflix] storage migration: moved ${migrated} legacy config(s) → connections` +
-      (skipped > 0 ? ` (skipped ${skipped} orphan row(s) whose space no longer exists)` : ""),
+    `[roomflix] storage migration: moved ${migrated} legacy config(s) → connections` + (skipped > 0 ? ` (skipped ${skipped} orphan row(s) whose space no longer exists)` : ""),
   );
 }
 await runStorageMigration();
+
+// Convert any pre-unification playlists / albums into the unified
+// `collections` (idempotent — see migrate-collections.ts).
+await runCollectionMigration(storage);
 
 const app = new Hono();
 
@@ -146,7 +146,7 @@ app.route("/api/library/probe", buildProbeRouter(storage));
 app.route("/api/library/subtitle", buildSubtitleProxyRouter(storage));
 app.route("/api/account/storage", buildAccountStorageRouter(storage));
 app.route("/api/storage/secret", buildStorageSecretRouter(storage));
-app.route("/api/playlists", buildPlaylistsRouter(storage));
+app.route("/api/collections", buildCollectionsRouter(storage));
 
 // SPA fallback.
 app.all("*", async (c) => {
@@ -159,55 +159,36 @@ app.all("*", async (c) => {
   return new Response(Bun.file(join(CLIENT_DIST, "index.html")));
 });
 
-async function applyVideoToSession(session: Session, videoId: string, opts: { autoplay: boolean }): Promise<void> {
-  const video = await storage.videos.get(session.spaceId, videoId);
-  if (!video) {
+// Seed the session's current-item fields from a collection item.
+// Subtitles are pulled from a matching Library entry when one exists, so a
+// video item that's also a saved library video keeps its captions.
+// `playing` is set true (autoplay) — harmless for photo items, which
+// ignore it.
+async function applyCollectionItem(session: Session, collection: Collection, index: number): Promise<void> {
+  const item = collection.items[index];
+  session.state.collectionIndex = index;
+  session.state.currentTime = 0;
+  if (!item) {
     session.state.videoUrl = null;
     session.state.videoTitle = null;
     session.state.subtitles = [];
     session.state.playing = false;
-    session.state.currentTime = 0;
     return;
   }
-  session.state.videoUrl = video.url;
-  session.state.videoTitle = video.title;
-  session.state.subtitles = video.subtitles;
-  session.state.currentTime = 0;
-  session.state.playing = opts.autoplay;
+  session.state.videoUrl = item.url;
+  session.state.videoTitle = item.name?.trim() || null;
+  session.state.playing = true;
+  const entry = await storage.videos.findByUrl(session.spaceId, item.url).catch(() => null);
+  session.state.subtitles = entry ? entry.subtitles : [];
 }
 
-// Walk a playlist in `direction` (+1 forward, -1 backward) starting from
-// `fromIndex`, skipping ids whose library entry has been deleted. Loop
-// wraps once at the end; without loop, we clamp.
-async function findPlayableIndex(
-  videoIds: string[],
-  fromIndex: number,
-  direction: 1 | -1,
-  spaceId: string,
-  loop: boolean,
-): Promise<{ index: number; videoId: string } | null> {
-  if (videoIds.length === 0) return null;
-  let i = fromIndex;
-  for (let step = 0; step < videoIds.length; step++) {
-    i += direction;
-    if (i < 0 || i >= videoIds.length) {
-      if (!loop) return null;
-      i = (i + videoIds.length) % videoIds.length;
-    }
-    const id = videoIds[i]!;
-    const video = await storage.videos.get(spaceId, id);
-    if (video) return { index: i, videoId: id };
-  }
-  return null;
-}
-
-async function findFirstPlayable(videoIds: string[], spaceId: string): Promise<{ index: number; videoId: string } | null> {
-  for (let i = 0; i < videoIds.length; i++) {
-    const id = videoIds[i]!;
-    const video = await storage.videos.get(spaceId, id);
-    if (video) return { index: i, videoId: id };
-  }
-  return null;
+// Next index in `direction`. Wraps when loop is on; returns null when the
+// step would run off an end with loop off.
+function stepCollectionIndex(current: number, direction: 1 | -1, count: number, loop: boolean): number | null {
+  if (count === 0) return null;
+  const next = current + direction;
+  if (next < 0 || next >= count) return loop ? (next + count) % count : null;
+  return next;
 }
 
 async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientMessage) {
@@ -271,8 +252,8 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
       // immediately rather than landing in a paused-with-cover state.
       // Mirrors loadPlaylist's autoplay:true semantics.
       session.state.playing = true;
-      session.state.playlistId = null;
-      session.state.playlistIndex = 0;
+      session.state.collectionId = null;
+      session.state.collectionIndex = 0;
       // Auto-save into the space library (idempotent on url) so everyone
       // in the space sees the title + subtitles, not just the setter.
       try {
@@ -285,75 +266,58 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
         session.state.subtitles = [];
       }
       break;
-    case "loadPlaylist": {
-      const playlist = await storage.playlists.get(session.spaceId, message.playlistId);
-      if (!playlist) return;
-      session.state.playlistId = playlist.id;
-      session.state.playlistIndex = 0;
-      const first = playlist.videoIds.length > 0 ? await findFirstPlayable(playlist.videoIds, session.spaceId) : null;
-      if (first) {
-        session.state.playlistIndex = first.index;
-        await applyVideoToSession(session, first.videoId, { autoplay: true });
-      } else {
-        session.state.videoUrl = null;
-        session.state.videoTitle = null;
-        session.state.subtitles = [];
-        session.state.playing = false;
-        session.state.currentTime = 0;
-      }
+    case "loadCollection": {
+      const collection = await storage.collections.get(session.spaceId, message.collectionId);
+      if (!collection) return;
+      session.state.collectionId = collection.id;
+      await applyCollectionItem(session, collection, 0);
       break;
     }
-    case "playlistNext":
-    case "playlistPrev": {
-      if (!session.state.playlistId) return;
-      const playlist = await storage.playlists.getById(session.state.playlistId);
-      if (!playlist || playlist.spaceId !== session.spaceId) return;
-      const direction = message.type === "playlistNext" ? 1 : -1;
-      const target = await findPlayableIndex(playlist.videoIds, session.state.playlistIndex, direction, session.spaceId, session.state.playlistLoop);
-      if (!target) {
+    case "collectionNext":
+    case "collectionPrev": {
+      if (!session.state.collectionId) return;
+      const collection = await storage.collections.getById(session.state.collectionId);
+      if (!collection || collection.spaceId !== session.spaceId) return;
+      const direction = message.type === "collectionNext" ? 1 : -1;
+      const target = stepCollectionIndex(session.state.collectionIndex, direction, collection.items.length, session.state.collectionLoop);
+      if (target === null) {
         session.state.playing = false;
         break;
       }
-      session.state.playlistIndex = target.index;
-      await applyVideoToSession(session, target.videoId, { autoplay: true });
+      await applyCollectionItem(session, collection, target);
       break;
     }
-    case "playlistJumpTo": {
-      if (!session.state.playlistId) return;
-      const playlist = await storage.playlists.getById(session.state.playlistId);
-      if (!playlist || playlist.spaceId !== session.spaceId) return;
+    case "collectionJumpTo": {
+      if (!session.state.collectionId) return;
+      const collection = await storage.collections.getById(session.state.collectionId);
+      if (!collection || collection.spaceId !== session.spaceId) return;
       const idx = Math.floor(message.index);
-      if (idx < 0 || idx >= playlist.videoIds.length) return;
-      const id = playlist.videoIds[idx]!;
-      const video = await storage.videos.get(session.spaceId, id);
-      if (!video) return;
-      session.state.playlistIndex = idx;
-      await applyVideoToSession(session, id, { autoplay: true });
+      if (idx < 0 || idx >= collection.items.length) return;
+      await applyCollectionItem(session, collection, idx);
       break;
     }
+    case "setCollectionLoop":
+      session.state.collectionLoop = !!message.loop;
+      break;
     case "videoEnded": {
       if (message.endedUrl !== session.state.videoUrl) return;
-      if (!session.state.playlistId) {
+      if (!session.state.collectionId) {
         session.state.playing = false;
         break;
       }
-      const playlist = await storage.playlists.getById(session.state.playlistId);
-      if (!playlist || playlist.spaceId !== session.spaceId) {
+      const collection = await storage.collections.getById(session.state.collectionId);
+      if (!collection || collection.spaceId !== session.spaceId) {
         session.state.playing = false;
         break;
       }
-      const target = await findPlayableIndex(playlist.videoIds, session.state.playlistIndex, 1, session.spaceId, session.state.playlistLoop);
-      if (!target) {
+      const target = stepCollectionIndex(session.state.collectionIndex, 1, collection.items.length, session.state.collectionLoop);
+      if (target === null) {
         session.state.playing = false;
         break;
       }
-      session.state.playlistIndex = target.index;
-      await applyVideoToSession(session, target.videoId, { autoplay: true });
+      await applyCollectionItem(session, collection, target);
       break;
     }
-    case "setPlaylistLoop":
-      session.state.playlistLoop = !!message.loop;
-      break;
   }
 
   session.state.updatedAt = now;
@@ -405,10 +369,7 @@ const server = Bun.serve<WsData>({
       // defensive fallback in case it's somehow empty.
       const identityKind: "user" | "guest" = principal.kind === "user" ? "user" : "guest";
       const identityId = principal.kind === "user" ? principal.user.id : principal.session.token;
-      const displayName =
-        principal.kind === "user"
-          ? principal.user.displayName?.trim() || `@${principal.user.username}`
-          : principal.session.guestDisplayName?.trim() || "Guest";
+      const displayName = principal.kind === "user" ? principal.user.displayName?.trim() || `@${principal.user.username}` : principal.session.guestDisplayName?.trim() || "Guest";
 
       // Initial presence status. Pre-presence-aware clients (legacy
       // /watch hook) don't send the query param — they default to

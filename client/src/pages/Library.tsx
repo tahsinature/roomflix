@@ -1,18 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  AlertTriangle,
-  HelpCircle,
-  Library as LibraryIcon,
-  Loader2,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Trash2,
-  XCircle,
-} from "lucide-react";
-import type { LibraryHealth, Playlist, ProbeResult, Subtitle, Video, VideoHealth } from "@shared/protocol";
-import { PlaylistsSection } from "@/components/PlaylistsSection";
+import { AlertTriangle, HelpCircle, Library as LibraryIcon, Loader2, Pencil, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
+import type { Collection, LibraryHealth, ProbeResult, Subtitle, Video, VideoHealth } from "@shared/protocol";
+import { CollectionsSection } from "@/components/CollectionsSection";
 import { useAuth } from "@/auth/AuthContext";
 import { api, ApiError } from "@/lib/api";
 import { useToast } from "@/components/Toast";
@@ -32,21 +22,18 @@ export default function Library() {
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState("");
 
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
 
-  // Initial load: fetch list + playlists, then auto-fire the health check
+  // Initial load: fetch list + collections, then auto-fire the health check
   // (no refresh — uses cache).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [list, pls] = await Promise.all([
-          api.listVideos(),
-          api.listPlaylists().catch(() => [] as Playlist[]),
-        ]);
+        const [list, cols] = await Promise.all([api.listVideos(), api.listCollections().catch(() => [] as Collection[])]);
         if (cancelled) return;
         setVideos(list);
-        setPlaylists(pls);
+        setCollections(cols);
         setLoading(false);
         setVerifying(true);
         const h = await api.libraryHealth();
@@ -95,11 +82,7 @@ export default function Library() {
       void reverify();
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 0;
-      toast.error(
-        status === 403
-          ? "You don't have permission to edit this video."
-          : `Couldn't update video. ${(e as Error).message}`,
-      );
+      toast.error(status === 403 ? "You don't have permission to edit this video." : `Couldn't update video. ${(e as Error).message}`);
     }
   };
 
@@ -111,11 +94,7 @@ export default function Library() {
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 0;
       const label = video?.title || video?.url || "video";
-      toast.error(
-        status === 403
-          ? "You don't have permission to delete videos."
-          : `Couldn't delete "${label}". ${(e as Error).message}`,
-      );
+      toast.error(status === 403 ? "You don't have permission to delete videos." : `Couldn't delete "${label}". ${(e as Error).message}`);
     }
   };
 
@@ -142,21 +121,30 @@ export default function Library() {
     if (failed.length > 0) {
       const firstStatus = failed[0]?.err instanceof ApiError ? failed[0].err.status : 0;
       toast.error(
-        failed.length === targets.length && firstStatus === 403
-          ? "You don't have permission to delete videos."
-          : `Couldn't delete ${failed.length} of ${targets.length} videos.`,
+        failed.length === targets.length && firstStatus === 403 ? "You don't have permission to delete videos." : `Couldn't delete ${failed.length} of ${targets.length} videos.`,
       );
+    }
+  };
+
+  // Append a saved library video to a collection (idempotent on url).
+  const handleAddVideoToCollection = async (collectionId: string, video: Video) => {
+    const col = collections.find((c) => c.id === collectionId);
+    if (!col || col.items.some((it) => it.url === video.url)) return;
+    try {
+      const updated = await api.updateCollection(col.id, {
+        items: [...col.items, { url: video.url, name: video.title }],
+      });
+      setCollections((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      toast.success(`Added to “${updated.title}”.`);
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : 0;
+      toast.error(status === 403 ? "You don't have permission to edit that collection." : `Couldn't add to collection. ${(e as Error).message}`);
     }
   };
 
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-7 px-4 py-6 sm:px-6 sm:py-8">
-      <LibraryHeader
-        count={videos.length}
-        verifying={verifying}
-        onReverify={reverify}
-        onClearAll={handleClearAll}
-      />
+      <LibraryHeader count={videos.length} verifying={verifying} onReverify={reverify} onClearAll={handleClearAll} />
 
       <section className="border border-border bg-bg-elevated/40 p-6">
         <AddVideoForm onAdd={handleAdd} />
@@ -164,9 +152,7 @@ export default function Library() {
 
       {error && <div className="border border-accent/30 bg-accent/10 p-3 text-sm text-accent">{error}</div>}
 
-      {!loading && (
-        <PlaylistsSection playlists={playlists} library={videos} onChange={setPlaylists} />
-      )}
+      {!loading && <CollectionsSection collections={collections} onChange={setCollections} />}
 
       {loading ? (
         <div className="text-sm text-muted-foreground">Loading library…</div>
@@ -175,7 +161,7 @@ export default function Library() {
       ) : (
         <section>
           <header className="mb-3 flex items-center justify-between">
-            <span className="section-label muted">Saved videos</span>
+            <span className="section-label muted">Saved media</span>
             <span className="font-mono text-[11px] text-text-dim">
               {videos.length} {videos.length === 1 ? "entry" : "entries"}
             </span>
@@ -186,15 +172,10 @@ export default function Library() {
                 key={v.id}
                 video={v}
                 health={health?.videos[v.id]}
-                playlists={playlists}
+                collections={collections}
                 onUpdate={handleUpdate}
                 onRemove={handleRemove}
-                onAddToPlaylist={async (playlistId) => {
-                  const p = playlists.find((x) => x.id === playlistId);
-                  if (!p || p.videoIds.includes(v.id)) return;
-                  const updated = await api.updatePlaylist(p.id, { videoIds: [...p.videoIds, v.id] });
-                  setPlaylists((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
-                }}
+                onAddToCollection={(collectionId) => handleAddVideoToCollection(collectionId, v)}
               />
             ))}
           </ul>
@@ -204,17 +185,7 @@ export default function Library() {
   );
 }
 
-function LibraryHeader({
-  count,
-  verifying,
-  onReverify,
-  onClearAll,
-}: {
-  count: number;
-  verifying: boolean;
-  onReverify: () => void;
-  onClearAll: () => Promise<void>;
-}) {
+function LibraryHeader({ count, verifying, onReverify, onClearAll }: { count: number; verifying: boolean; onReverify: () => void; onClearAll: () => Promise<void> }) {
   const { currentSpace } = useAuth();
   const [armedClear, setArmedClear] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -244,9 +215,7 @@ function LibraryHeader({
     <div className="flex flex-col gap-4 border-b border-border pb-5">
       <header className="flex items-center justify-between gap-3">
         <div className="flex flex-col leading-tight">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            {currentSpace?.name ?? "Saved"}
-          </span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{currentSpace?.name ?? "Saved"}</span>
           <h1 className="flex items-center gap-2 text-base font-semibold tracking-tight text-foreground">
             <LibraryIcon className="h-4 w-4 text-accent" />
             Library
@@ -267,11 +236,7 @@ function LibraryHeader({
             title={count === 0 ? "Library is empty" : armedClear ? "Click again to confirm" : "Delete all entries"}
             className={cn(armedClear && "animate-pulse-soft")}
           >
-            {clearing ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Trash2 className={cn("h-3.5 w-3.5", !armedClear && "text-accent/80")} />
-            )}
+            {clearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className={cn("h-3.5 w-3.5", !armedClear && "text-accent/80")} />}
             <span className="hidden lg:inline">{clearing ? "Clearing…" : armedClear ? "Click again" : "Clear all"}</span>
           </Button>
         </div>
@@ -403,17 +368,17 @@ function ProbeReview({ probe, onConfirm, onCancel }: { probe: ProbeResult; onCon
 function VideoRow({
   video,
   health,
-  playlists,
+  collections,
   onUpdate,
   onRemove,
-  onAddToPlaylist,
+  onAddToCollection,
 }: {
   video: Video;
   health: VideoHealth | undefined;
-  playlists: Playlist[];
+  collections: Collection[];
   onUpdate: (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
-  onAddToPlaylist: (playlistId: string) => Promise<void>;
+  onAddToCollection: (collectionId: string) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -442,9 +407,13 @@ function VideoRow({
     }
   };
 
+  // A "gone" health status means the URL is unreachable — dim the whole
+  // row and block adding a dead entry to a collection.
+  const gone = health?.video === "gone";
+
   return (
     <li className="border-b border-border last:border-b-0">
-      <div className="flex flex-col gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.02] sm:flex-row sm:items-center">
+      <div className={cn("flex flex-col gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.02] sm:flex-row sm:items-center", gone && "opacity-55")}>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <HealthDot status={health?.video} />
@@ -457,46 +426,45 @@ function VideoRow({
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <PlayButton video={video} health={health} />
-          {playlists.length > 0 && (
+          {collections.length > 0 && (
             <div className="relative">
               <Button
                 size="icon"
                 variant="ghost"
+                disabled={gone}
                 onClick={() => setMenuOpen((v) => !v)}
                 onBlur={() => {
-                  // Close on blur but with a small delay so a click inside the
-                  // menu still registers before the popover unmounts.
+                  // Delay so a click inside the menu still registers
+                  // before the popover unmounts.
                   setTimeout(() => setMenuOpen(false), 150);
                 }}
-                aria-label="Add to playlist"
-                title="Add to playlist"
+                aria-label="Add to collection"
+                title={gone ? "Unavailable — URL is unreachable" : "Add to collection"}
               >
                 <Plus className="h-4 w-4" />
               </Button>
               {menuOpen && (
-                <div className="absolute right-0 top-9 z-30 min-w-[12rem] border border-border bg-bg-elevated/95 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl">
-                  <div className="border-b border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-text-dim">
-                    Add to…
-                  </div>
+                <div className="absolute right-0 top-9 z-30 min-w-[13rem] border border-border bg-bg-elevated/95 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl">
+                  <div className="border-b border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-text-dim">Add to collection</div>
                   <ul className="max-h-60 overflow-y-auto">
-                    {playlists.map((p) => {
-                      const already = p.videoIds.includes(video.id);
+                    {collections.map((c) => {
+                      const already = c.items.some((it) => it.url === video.url);
                       return (
-                        <li key={p.id}>
+                        <li key={c.id}>
                           <button
                             type="button"
                             disabled={already}
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={async () => {
                               setMenuOpen(false);
-                              await onAddToPlaylist(p.id);
+                              await onAddToCollection(c.id);
                             }}
                             className={cn(
                               "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition",
                               already ? "text-text-dim" : "text-foreground hover:bg-white/[0.04]",
                             )}
                           >
-                            <span className="truncate">{p.title}</span>
+                            <span className="truncate">{c.title}</span>
                             {already && <span className="font-mono text-[10px] text-text-dim">✓</span>}
                           </button>
                         </li>
@@ -532,7 +500,7 @@ function VideoRow({
 function EmptyState() {
   return (
     <div className="border border-border bg-bg-elevated/40 p-10 text-center">
-      <div className="text-sm font-medium text-foreground">No videos saved yet</div>
+      <div className="text-sm font-medium text-foreground">No media saved yet</div>
       <p className="mt-1.5 text-xs text-muted-foreground">Paste a URL into a room or use the form above. New URLs auto-save here.</p>
       <Link to="/help" className="mt-4 inline-flex items-center gap-1.5 text-xs text-accent transition hover:text-accent-bright">
         <HelpCircle className="h-3 w-3" />

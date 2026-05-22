@@ -1,7 +1,9 @@
-// Shared HEAD-probe helper used by both /api/library/health and
-// /api/library/probe. Different consumers care about different aspects of
-// the result (reachability vs content-type), so this returns a structured
-// outcome and the consumers map it to their own verdict types.
+// Shared HEAD-probe helper used by /api/library/health, /api/library/probe
+// and /api/collections/:id/health. Different consumers care about different
+// aspects of the result (reachability vs content-type), so this returns a
+// structured outcome and the consumers map it to their own verdict types.
+
+import type { HealthStatus } from "@/protocol.ts";
 
 const PROBE_TIMEOUT_MS = 5_000;
 
@@ -83,4 +85,33 @@ export function urlLooksLikeMedia(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+// Maps a FetchProbe to the coarse HealthStatus the UI surfaces — used by
+// both the library- and collection-health checks.
+export async function probeHealth(url: string): Promise<HealthStatus> {
+  const probe = await fetchProbe(url);
+  switch (probe.kind) {
+    case "ok":
+      return "ok";
+    case "head-disallowed":
+      return "unverified";
+    case "http-error":
+    case "network-error":
+      return "gone";
+  }
+}
+
+// Runs `fn` over `items` with at most `limit` promises in flight.
+export async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const i = cursor++;
+      results[i] = await fn(items[i]!);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
 }

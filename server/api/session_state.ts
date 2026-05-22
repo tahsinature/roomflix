@@ -25,7 +25,7 @@ export function buildSessionStateRouter(storage: Storage) {
       videoTitle: session.state.videoTitle,
       playing: session.state.playing,
       viewers: viewersOf(session),
-      playlistId: session.state.playlistId,
+      collectionId: session.state.collectionId,
     };
     return c.json(snapshot);
   });

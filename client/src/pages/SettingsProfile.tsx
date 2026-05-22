@@ -11,7 +11,7 @@ import { useAuth } from "@/auth/AuthContext";
 // defensive.
 export default function SettingsProfile() {
   const { user, guest, isGuest, updateProfile } = useAuth();
-  const initial = isGuest ? guest?.displayName ?? "" : user?.displayName ?? "";
+  const initial = isGuest ? (guest?.displayName ?? "") : (user?.displayName ?? "");
   const [displayName, setDisplayName] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -59,9 +59,7 @@ export default function SettingsProfile() {
       <section>
         <header className="mb-3">
           <span className="section-label muted">Identity</span>
-          <p className="mt-1 font-mono text-[11px] text-text-dim">
-            How you appear to other members of your spaces.
-          </p>
+          <p className="mt-1 font-mono text-[11px] text-text-dim">How you appear to other members of your spaces.</p>
         </header>
 
         <form onSubmit={submit} className="flex flex-col gap-4 border border-border bg-bg-elevated/40 p-5">
@@ -90,11 +88,7 @@ export default function SettingsProfile() {
             />
           </Field>
 
-          {error && (
-            <div className="border border-accent/40 bg-accent/10 px-3 py-2 font-mono text-[12px] text-foreground">
-              {error}
-            </div>
-          )}
+          {error && <div className="border border-accent/40 bg-accent/10 px-3 py-2 font-mono text-[12px] text-foreground">{error}</div>}
 
           <div className="flex items-center justify-end gap-3 border-t border-border pt-3">
             {savedAt && (

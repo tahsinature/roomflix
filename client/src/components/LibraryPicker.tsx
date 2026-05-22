@@ -11,15 +11,25 @@ import { cn, urlFilename } from "@/lib/utils";
 
 type Props = {
   onPick: (url: string) => void;
+  // Notified whenever the dropdown opens/closes — lets a host (the theater
+  // chrome) hold itself open while the popover is up.
+  onOpenChange?: (open: boolean) => void;
 };
 
-export function LibraryPicker({ onPick }: Props) {
+export function LibraryPicker({ onPick, onOpenChange }: Props) {
   const [open, setOpen] = useState(false);
   const [videos, setVideos] = useState<Video[]>([]);
   const [health, setHealth] = useState<LibraryHealth | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+
+  // Report open/close to the host without re-subscribing on every render.
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+  useEffect(() => {
+    onOpenChangeRef.current?.(open);
+  }, [open]);
 
   // Refetch every time the menu opens — picks up videos auto-saved on
   // setUrl by other clients in the room without needing a WS broadcast.

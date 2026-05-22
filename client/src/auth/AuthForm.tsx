@@ -88,11 +88,7 @@ export function AuthForm({
             />
           </label>
 
-          {error && (
-            <div className="border border-accent/40 bg-accent/10 px-3 py-2 font-mono text-[12px] text-foreground">
-              {error}
-            </div>
-          )}
+          {error && <div className="border border-accent/40 bg-accent/10 px-3 py-2 font-mono text-[12px] text-foreground">{error}</div>}
 
           <Button type="submit" variant="accent" size="lg" className="w-full text-base" disabled={pending}>
             {pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-4 w-4" />}

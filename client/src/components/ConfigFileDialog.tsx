@@ -102,7 +102,7 @@ export function ConfigFileDialog({
             Cancel
           </Button>
           <Button variant="accent" onClick={submit} disabled={!canSubmit} className="h-10">
-            {busy ? `${submitLabel ?? "Import"}…` : submitLabel ?? "Import"}
+            {busy ? `${submitLabel ?? "Import"}…` : (submitLabel ?? "Import")}
           </Button>
         </div>
       </div>

@@ -20,13 +20,7 @@ export type MemberDetailKey = {
   memberJoinedAt?: number;
 };
 
-export function MemberDetailModal({
-  detail,
-  onClose,
-}: {
-  detail: MemberDetailKey | null;
-  onClose: () => void;
-}) {
+export function MemberDetailModal({ detail, onClose }: { detail: MemberDetailKey | null; onClose: () => void }) {
   return (
     <Modal open={!!detail} title="In this space" onClose={onClose} className="max-w-lg">
       {detail && <Body keyData={detail} />}
@@ -51,9 +45,7 @@ function Body({ keyData }: { keyData: MemberDetailKey }) {
         <span
           className={cn(
             "inline-flex h-12 w-12 shrink-0 items-center justify-center border",
-            isGuest
-              ? "border-amber-300/30 bg-amber-300/10 text-amber-200"
-              : "border-accent/30 bg-accent/10 text-accent",
+            isGuest ? "border-amber-300/30 bg-amber-300/10 text-amber-200" : "border-accent/30 bg-accent/10 text-accent",
           )}
         >
           {keyData.role === "owner" ? <Crown className="h-5 w-5" /> : <User className="h-5 w-5" />}
@@ -75,24 +67,12 @@ function Body({ keyData }: { keyData: MemberDetailKey }) {
       </Row>
 
       {status === "watching" && (
-        <Row label="Volume">
-          {participant?.volume ? (
-            <VolumeRow volume={participant.volume} />
-          ) : (
-            <span className="font-mono text-[12px] text-text-dim">—</span>
-          )}
-        </Row>
+        <Row label="Volume">{participant?.volume ? <VolumeRow volume={participant.volume} /> : <span className="font-mono text-[12px] text-text-dim">—</span>}</Row>
       )}
 
       <Row label={isGuest ? "Paired" : "Joined space"}>
         <span className="font-mono text-[12px] text-foreground/85">
-          {isGuest
-            ? participant?.guestJoinedAt
-              ? formatRelative(participant.guestJoinedAt)
-              : "—"
-            : keyData.memberJoinedAt
-              ? formatRelative(keyData.memberJoinedAt)
-              : "—"}
+          {isGuest ? (participant?.guestJoinedAt ? formatRelative(participant.guestJoinedAt) : "—") : keyData.memberJoinedAt ? formatRelative(keyData.memberJoinedAt) : "—"}
         </span>
       </Row>
 
@@ -102,11 +82,7 @@ function Body({ keyData }: { keyData: MemberDetailKey }) {
         </Row>
       )}
 
-      <StorageAccessRow
-        identityId={keyData.identityId}
-        isGuest={isGuest}
-        currentSpaceId={currentSpace?.id ?? null}
-      />
+      <StorageAccessRow identityId={keyData.identityId} isGuest={isGuest} currentSpaceId={currentSpace?.id ?? null} />
     </div>
   );
 }
@@ -120,14 +96,7 @@ function Body({ keyData }: { keyData: MemberDetailKey }) {
 //   - guest:  activation in their current space with openToGuests=true
 //   - member: any activation in any space they're a member of (we only
 //             know the current space context here, so list those)
-function StorageAccessRow({
-  isGuest,
-  currentSpaceId,
-}: {
-  identityId: string;
-  isGuest: boolean;
-  currentSpaceId: string | null;
-}) {
+function StorageAccessRow({ isGuest, currentSpaceId }: { identityId: string; isGuest: boolean; currentSpaceId: string | null }) {
   const [details, setDetails] = useState<StorageConnectionDetail[] | null>(null);
   const [error, setError] = useState("");
 
@@ -187,10 +156,7 @@ function StorageAccessRow({
     <Row label="Storage access">
       <ul className="inline-flex flex-col items-end gap-1">
         {accessible.map((d) => (
-          <li
-            key={d.connection.id}
-            className="inline-flex items-center gap-1.5 font-mono text-[11px] text-foreground/85"
-          >
+          <li key={d.connection.id} className="inline-flex items-center gap-1.5 font-mono text-[11px] text-foreground/85">
             <Database className="h-3 w-3 text-text-dim" />
             <span className="truncate">{d.connection.label}</span>
             <span className="text-text-dim">· {d.connection.bucket}</span>
@@ -215,9 +181,7 @@ function PresenceLine({ status, playing }: { status: "online" | "watching" | "of
     return (
       <span className="inline-flex items-center gap-2 text-emerald-300">
         {playing ? <Play className="h-3 w-3 fill-current" /> : <Pause className="h-3 w-3 fill-current" />}
-        <span className="font-mono text-[12px] uppercase tracking-[0.14em]">
-          {playing ? "Watching" : "Joined (paused)"}
-        </span>
+        <span className="font-mono text-[12px] uppercase tracking-[0.14em]">{playing ? "Watching" : "Joined (paused)"}</span>
       </span>
     );
   }
@@ -261,8 +225,7 @@ function TabsLine({ tabs }: { tabs: { total: number; watching: number; online: n
   if (tabs.total === 1) {
     return (
       <span className="inline-flex items-center gap-2 font-mono text-[12px] text-foreground/85">
-        <Users className="h-3 w-3 text-text-dim" />
-        1 tab {tabs.watching > 0 ? "(watching)" : "(elsewhere)"}
+        <Users className="h-3 w-3 text-text-dim" />1 tab {tabs.watching > 0 ? "(watching)" : "(elsewhere)"}
       </span>
     );
   }

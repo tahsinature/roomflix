@@ -57,10 +57,7 @@ export function AccountMenu({ className }: { className?: string }) {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={cn(
-          "inline-flex max-w-[12rem] items-center gap-1.5 truncate font-mono text-[12px] transition",
-          isActive ? "text-accent" : "text-text-dim hover:text-foreground",
-        )}
+        className={cn("inline-flex max-w-[12rem] items-center gap-1.5 truncate font-mono text-[12px] transition", isActive ? "text-accent" : "text-text-dim hover:text-foreground")}
         title={isGuest ? `Guest — ${triggerLabel}` : `Signed in as ${triggerLabel}`}
       >
         <span className={cn("truncate", isGuest && "italic")}>{triggerLabel}</span>
@@ -68,17 +65,12 @@ export function AccountMenu({ className }: { className?: string }) {
       </button>
 
       {open && (
-        <div
-          className="absolute right-0 top-8 z-40 min-w-[16rem] border border-border bg-bg-elevated/95 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl"
-          role="menu"
-        >
+        <div className="absolute right-0 top-8 z-40 min-w-[16rem] border border-border bg-bg-elevated/95 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl" role="menu">
           {/* Identity card. Larger name + role tag so the menu opens
               with a clear "you are here" anchor before action rows. */}
           <div className="border-b border-border px-3 py-2.5">
             <div className={cn("truncate text-sm font-medium text-foreground", isGuest && "italic")}>{triggerLabel}</div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-dim">
-              {isGuest ? "guest" : username ? `@${username}` : "member"}
-            </div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-dim">{isGuest ? "guest" : username ? `@${username}` : "member"}</div>
           </div>
 
           {!isGuest && (
@@ -99,7 +91,9 @@ export function AccountMenu({ className }: { className?: string }) {
             <div className="border-y border-border bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground">
               <div className="flex items-center gap-2">
                 <Users2 className="h-3.5 w-3.5 text-text-dim" />
-                <span className="truncate">In <span className="text-foreground">{currentSpace.name}</span></span>
+                <span className="truncate">
+                  In <span className="text-foreground">{currentSpace.name}</span>
+                </span>
               </div>
             </div>
           )}

@@ -9,11 +9,7 @@ import { cn } from "@/lib/utils";
 
 // className helper for desktop top-level nav links. Active = accent
 // color so the user sees at a glance which page they're on.
-const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  cn(
-    "text-[13px] transition hover:text-foreground",
-    isActive ? "text-accent" : "text-muted-foreground",
-  );
+const navLinkClass = ({ isActive }: { isActive: boolean }) => cn("text-[13px] transition hover:text-foreground", isActive ? "text-accent" : "text-muted-foreground");
 
 // Single, app-wide top nav. Mounted once via AuthedLayout above the
 // router outlet so it doesn't re-mount during navigation — width and
@@ -41,10 +37,7 @@ export function AppNav() {
           <div className="flex min-w-0 items-center gap-2.5">
             <Link
               to="/"
-              className={cn(
-                "flex items-center gap-2.5 transition hover:opacity-80",
-                onHome ? "text-accent" : "text-foreground",
-              )}
+              className={cn("flex items-center gap-2.5 transition hover:opacity-80", onHome ? "text-accent" : "text-foreground")}
               aria-current={onHome ? "page" : undefined}
             >
               <BrandMark />
@@ -138,12 +131,7 @@ function MobileNavLink({ to, onClick, children }: { to: string; onClick: () => v
     <NavLink
       to={to}
       onClick={onClick}
-      className={({ isActive }) =>
-        cn(
-          "flex items-center gap-2 border-b border-border py-3 text-sm transition",
-          isActive ? "text-accent" : "text-foreground hover:text-accent",
-        )
-      }
+      className={({ isActive }) => cn("flex items-center gap-2 border-b border-border py-3 text-sm transition", isActive ? "text-accent" : "text-foreground hover:text-accent")}
     >
       {children}
     </NavLink>
@@ -153,11 +141,7 @@ function MobileNavLink({ to, onClick, children }: { to: string; onClick: () => v
 function BrandMark() {
   return (
     <span className="relative inline-flex h-7 w-7 items-center justify-center border border-accent/40 bg-accent/10 shadow-[0_0_18px_hsl(0_100%_65%/0.25)]">
-      <span
-        className="block h-0 w-0 border-y-[5px] border-l-[7px] border-y-transparent border-l-accent"
-        style={{ marginLeft: "1.5px" }}
-        aria-hidden
-      />
+      <span className="block h-0 w-0 border-y-[5px] border-l-[7px] border-y-transparent border-l-accent" style={{ marginLeft: "1.5px" }} aria-hidden />
     </span>
   );
 }

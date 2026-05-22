@@ -101,15 +101,9 @@ export default function JoinWaiting() {
             <p className="mt-4 font-mono text-[12px] uppercase tracking-[0.22em] text-muted-foreground">Signing you in…</p>
           </div>
         )}
-        {request?.status === "denied" && (
-          <Terminal kind="denied" message="Your host declined the request." />
-        )}
-        {request?.status === "expired" && (
-          <Terminal kind="expired" message="The request timed out before anyone admitted you." />
-        )}
-        {request?.status === "cancelled" && (
-          <Terminal kind="denied" message="Request was cancelled." />
-        )}
+        {request?.status === "denied" && <Terminal kind="denied" message="Your host declined the request." />}
+        {request?.status === "expired" && <Terminal kind="expired" message="The request timed out before anyone admitted you." />}
+        {request?.status === "cancelled" && <Terminal kind="denied" message="Request was cancelled." />}
       </div>
     </main>
   );
@@ -118,9 +112,7 @@ export default function JoinWaiting() {
 function PendingBody({ onCancel }: { onCancel: () => void }) {
   return (
     <>
-      <h1 className="text-balance text-center text-[28px] font-bold leading-[1.1] tracking-tightest sm:text-[32px]">
-        Waiting for approval…
-      </h1>
+      <h1 className="text-balance text-center text-[28px] font-bold leading-[1.1] tracking-tightest sm:text-[32px]">Waiting for approval…</h1>
       <p className="mt-3 text-center text-[14px] leading-[1.6] text-muted-foreground">
         Your host needs to admit you before you can join. We'll sign you in automatically as soon as they do.
       </p>
@@ -142,14 +134,8 @@ function PendingBody({ onCancel }: { onCancel: () => void }) {
 function Terminal({ kind, message }: { kind: "denied" | "expired"; message: string }) {
   return (
     <div className="text-center">
-      {kind === "expired" ? (
-        <Loader2 className="mx-auto h-7 w-7 text-text-dim" />
-      ) : (
-        <XCircle className="mx-auto h-7 w-7 text-accent" />
-      )}
-      <h1 className="mt-4 text-balance text-[24px] font-bold leading-[1.1] tracking-tightest text-foreground">
-        {kind === "expired" ? "Request expired." : "Request declined."}
-      </h1>
+      {kind === "expired" ? <Loader2 className="mx-auto h-7 w-7 text-text-dim" /> : <XCircle className="mx-auto h-7 w-7 text-accent" />}
+      <h1 className="mt-4 text-balance text-[24px] font-bold leading-[1.1] tracking-tightest text-foreground">{kind === "expired" ? "Request expired." : "Request declined."}</h1>
       <p className="mt-3 text-[14px] text-muted-foreground">{message}</p>
       <Button asChild variant="accent" size="lg" className="mt-6 w-full text-base">
         <Link to="/welcome">

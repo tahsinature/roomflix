@@ -58,15 +58,7 @@ export function UploadQueuePanel({
   );
 }
 
-function SinglePanel({
-  item,
-  onRemove,
-  onRetry,
-}: {
-  item: UploadQueueItem;
-  onRemove: (id: string) => void;
-  onRetry: (id: string) => void;
-}) {
+function SinglePanel({ item, onRemove, onRetry }: { item: UploadQueueItem; onRemove: (id: string) => void; onRetry: (id: string) => void }) {
   const verb = statusVerb(item);
   return (
     <div className="flex items-center gap-3 px-4 py-3">
@@ -99,9 +91,7 @@ function MultiPanel({
 }) {
   const [collapsed, setCollapsed] = useState(false);
 
-  const active = queue.filter(
-    (q) => q.status === "pending" || q.status === "uploading" || q.status === "retrying",
-  ).length;
+  const active = queue.filter((q) => q.status === "pending" || q.status === "uploading" || q.status === "retrying").length;
   const done = queue.filter((q) => q.status === "done").length;
   const failed = queue.filter((q) => q.status === "error").length;
   const total = queue.length;
@@ -164,15 +154,7 @@ function headerLabel(active: number, done: number, failed: number, total: number
   return `${done} uploaded`;
 }
 
-function QueueRow({
-  item,
-  onRemove,
-  onRetry,
-}: {
-  item: UploadQueueItem;
-  onRemove: () => void;
-  onRetry: () => void;
-}) {
+function QueueRow({ item, onRemove, onRetry }: { item: UploadQueueItem; onRemove: () => void; onRetry: () => void }) {
   return (
     <li className="flex items-center gap-3 border-b border-border px-3 py-2 text-xs last:border-b-0">
       <RowIcon status={item.status} />
@@ -216,12 +198,7 @@ function RetryButton({ onClick }: { onClick: () => void }) {
 
 function DismissButton({ onClick }: { onClick: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label="Remove from queue"
-      className="shrink-0 p-1 text-muted-foreground transition hover:text-foreground"
-    >
+    <button type="button" onClick={onClick} aria-label="Remove from queue" className="shrink-0 p-1 text-muted-foreground transition hover:text-foreground">
       <X className="h-3 w-3" />
     </button>
   );

@@ -25,9 +25,7 @@ export default function SettingsSpace() {
   const { spaces, refresh, currentSpace, switchSpace } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [creating, setCreating] = useState(searchParams.get("new") === "1");
-  const [selectedId, setSelectedId] = useState<string | null>(
-    currentSpace?.id ?? spaces[0]?.id ?? null,
-  );
+  const [selectedId, setSelectedId] = useState<string | null>(currentSpace?.id ?? spaces[0]?.id ?? null);
   // Transient "Switched to <name>" confirmation. Set right after a
   // successful switch, cleared 2.4s later so the banner returns to
   // its no-banner resting state.
@@ -95,10 +93,7 @@ export default function SettingsSpace() {
       {justSwitchedTo ? (
         <SwitchedBanner name={justSwitchedTo} />
       ) : selectedId && selectedId !== currentSpace?.id ? (
-        <SwitchPrompt
-          targetName={spaces.find((s) => s.id === selectedId)?.name ?? "this space"}
-          onSwitch={handleSwitchToSelected}
-        />
+        <SwitchPrompt targetName={spaces.find((s) => s.id === selectedId)?.name ?? "this space"} onSwitch={handleSwitchToSelected} />
       ) : null}
 
       <div>
@@ -121,9 +116,7 @@ export default function SettingsSpace() {
             }}
           />
         ) : (
-          <div className="border border-border bg-bg-elevated/40 p-10 text-center text-sm text-muted-foreground">
-            Pick a space, or create a new one.
-          </div>
+          <div className="border border-border bg-bg-elevated/40 p-10 text-center text-sm text-muted-foreground">Pick a space, or create a new one.</div>
         )}
       </div>
     </div>
@@ -181,12 +174,7 @@ function SpaceStrip({
         ) : (
           spaces.map((s) => (
             <li key={s.id}>
-              <SpacePill
-                space={s}
-                selected={s.id === selectedId}
-                active={s.id === currentId}
-                onClick={() => onSelect(s.id)}
-              />
+              <SpacePill space={s} selected={s.id === selectedId} active={s.id === currentId} onClick={() => onSelect(s.id)} />
             </li>
           ))
         )}
@@ -202,17 +190,7 @@ function SpaceStrip({
   );
 }
 
-function SpacePill({
-  space,
-  selected,
-  active,
-  onClick,
-}: {
-  space: SpaceSummary;
-  selected: boolean;
-  active: boolean;
-  onClick: () => void;
-}) {
+function SpacePill({ space, selected, active, onClick }: { space: SpaceSummary; selected: boolean; active: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -227,14 +205,8 @@ function SpacePill({
       )}
     >
       <span className="text-sm">{space.name}</span>
-      <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-text-dim">
-        {space.role}
-      </span>
-      {active && (
-        <span className="border border-accent/40 bg-accent/15 px-1 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-accent">
-          active
-        </span>
-      )}
+      <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-text-dim">{space.role}</span>
+      {active && <span className="border border-accent/40 bg-accent/15 px-1 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-accent">active</span>}
     </button>
   );
 }

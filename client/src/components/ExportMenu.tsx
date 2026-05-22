@@ -54,14 +54,7 @@ export function ExportMenu({
 
   return (
     <div ref={ref} className="relative">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setOpen((o) => !o)}
-        disabled={disabled}
-        aria-label="Export"
-        title={title ?? (disabled ? "Nothing to export" : "Export")}
-      >
+      <Button variant="outline" size="sm" onClick={() => setOpen((o) => !o)} disabled={disabled} aria-label="Export" title={title ?? (disabled ? "Nothing to export" : "Export")}>
         <Download className="h-3.5 w-3.5" />
         <span className="hidden lg:inline">Export</span>
         <ChevronDown className="h-3 w-3 opacity-60" />

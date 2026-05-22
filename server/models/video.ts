@@ -36,4 +36,4 @@ const videoSchema = new Schema(
 videoSchema.index({ spaceId: 1, url: 1 }, { unique: true, sparse: true });
 
 export const VideoModel = model("Video", videoSchema, "videos");
-export type VideoDoc = ReturnType<typeof VideoModel["hydrate"]>;
+export type VideoDoc = ReturnType<(typeof VideoModel)["hydrate"]>;

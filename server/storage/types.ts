@@ -4,10 +4,11 @@
 // — no changes elsewhere.
 import type {
   AuthUser,
+  Collection,
+  CollectionItem,
   InviteCode,
   JoinRequest,
   JoinRequester,
-  Playlist,
   Space,
   SpaceJoinPolicy,
   SpaceMember,
@@ -155,21 +156,19 @@ export interface StorageActivationRepo {
   removeAllForSpace(spaceId: string): Promise<number>;
 }
 
-
-// Per-space ordered playlists of library video IDs. Membership is stored
-// as ids rather than embedded videos so the playlist stays in sync with
-// library edits — the API hydrates ids to full Video records at read time.
-export interface PlaylistRepo {
-  list(spaceId: string): Promise<Playlist[]>;
-  get(spaceId: string, id: string): Promise<Playlist | null>;
-  // Used by the room handler — the room is loaded by an authenticated
-  // user, but the lookup must work for any space member who hits
-  // next/prev/jumpTo regardless of who originally loaded the playlist.
-  getById(id: string): Promise<Playlist | null>;
-  create(input: { spaceId: string; createdBy: string; title: string; videoIds: string[] }): Promise<Playlist>;
-  update(spaceId: string, id: string, patch: { title?: string; videoIds?: string[] }): Promise<Playlist | null>;
+// Per-space collections — ordered mixed-media lists. Items are stored
+// inline (not Library refs), so a collection is self-contained: no
+// hydration step at read time, and importing a folder of hundreds of
+// files never floods the video library.
+export interface CollectionRepo {
+  list(spaceId: string): Promise<Collection[]>;
+  get(spaceId: string, id: string): Promise<Collection | null>;
+  // Used by the WS handler — the lookup must work for any space member
+  // navigating a loaded collection, not just whoever loaded it.
+  getById(id: string): Promise<Collection | null>;
+  create(input: { spaceId: string; createdBy: string; title: string; items: CollectionItem[] }): Promise<Collection>;
+  update(spaceId: string, id: string, patch: { title?: string; items?: CollectionItem[] }): Promise<Collection | null>;
   remove(spaceId: string, id: string): Promise<boolean>;
-  reparent(oldOwnerId: string, spaceId: string): Promise<number>;
 }
 
 // Spaces themselves: name + owner + joinPolicy. Membership lives in
@@ -214,12 +213,7 @@ export interface InviteRepo {
 // Created at request time; the admin approves/denies from the space
 // settings UI; the joiner waits on a poll for status to flip.
 export interface JoinRequestRepo {
-  create(input: {
-    spaceId: string;
-    code: string;
-    requester: JoinRequester;
-    ttlMs: number;
-  }): Promise<JoinRequest>;
+  create(input: { spaceId: string; code: string; requester: JoinRequester; ttlMs: number }): Promise<JoinRequest>;
   get(id: string): Promise<JoinRequest | null>;
   listPendingForSpace(spaceId: string): Promise<JoinRequest[]>;
   // Mark a request approved + stash the session token (when guest) so
@@ -228,10 +222,7 @@ export interface JoinRequestRepo {
   approve(id: string, approvedSessionToken: string | null): Promise<JoinRequest | null>;
   // Terminal status update. `denied` for admin reject; `cancelled` for
   // the joiner backing out of the waiting room.
-  setTerminalStatus(
-    id: string,
-    status: "denied" | "cancelled",
-  ): Promise<JoinRequest | null>;
+  setTerminalStatus(id: string, status: "denied" | "cancelled"): Promise<JoinRequest | null>;
   removeAllForSpace(spaceId: string): Promise<number>;
 }
 
@@ -244,7 +235,7 @@ export type Storage = {
   storageConfigs: StorageConfigRepo;
   storageConnections: StorageConnectionRepo;
   storageActivations: StorageActivationRepo;
-  playlists: PlaylistRepo;
+  collections: CollectionRepo;
   spaces: SpaceRepo;
   memberships: MembershipRepo;
   invites: InviteRepo;

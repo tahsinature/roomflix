@@ -60,9 +60,7 @@ export type Space = {
 // corresponding membership or guest session; denial just drops it.
 export type JoinRequestStatus = "pending" | "approved" | "denied" | "expired" | "cancelled";
 
-export type JoinRequester =
-  | { kind: "user"; userId: string; username: string; displayName: string | null }
-  | { kind: "guest"; displayName: string };
+export type JoinRequester = { kind: "user"; userId: string; username: string; displayName: string | null } | { kind: "guest"; displayName: string };
 
 export type JoinRequest = {
   id: string;
@@ -177,7 +175,8 @@ export type SessionStateSnapshot = {
   videoTitle: string | null;
   playing: boolean;
   viewers: Viewer[];
-  playlistId: string | null;
+  // Set when a collection (an ordered mixed-media list) is loaded.
+  collectionId: string | null;
 };
 
 // Lightweight "what space am I in right now" hint shipped with /api/auth/session.
@@ -287,8 +286,8 @@ export type SecretExchangeRequest = {
 };
 
 export type SecretExchangeResponse = {
-  iv: string;          // base64
-  ciphertext: string;  // base64
+  iv: string; // base64
+  ciphertext: string; // base64
   serverPub: EcdhPublicJwk;
 };
 
@@ -340,65 +339,75 @@ export type SessionState = {
   // currentTime is the playback position at `updatedAt`.
   // If playing, effective time is currentTime + (now - updatedAt) / 1000.
   currentTime: number;
-  // Playlist context. Null `playlistId` means the room is on a standalone
-  // URL (the videoUrl above) — playlistIndex is meaningless in that case
-  // but kept at 0 for serialization simplicity.
-  playlistId: string | null;
-  playlistIndex: number;
-  playlistLoop: boolean;
+  // Collection context. Null `collectionId` means the room is on a
+  // standalone URL (the videoUrl above) — collectionIndex is meaningless
+  // then but kept at 0 for serialization simplicity. A collection is an
+  // ordered mixed-media list; videoUrl carries the current item's URL.
+  collectionId: string | null;
+  collectionIndex: number;
+  collectionLoop: boolean;
   updatedAt: number; // server epoch ms
   updatedBy: string | null; // clientId
 };
 
-// Ordered playlist of library video IDs, owned by a space. Hydration to
-// full Video records happens at the API boundary (see PlaylistDetail).
-export type Playlist = {
+// One item in a Collection — a single piece of media. `url` is a direct
+// public URL; `name` is a human-readable label, usually the original
+// filename. The media kind (video / audio / image) is derived from the
+// URL extension at render time, so one collection can interleave all three.
+export type CollectionItem = {
+  url: string;
+  name: string;
+};
+
+// A Collection — an ordered, mixed-media list owned by a space. Replaces
+// the older split between playlists (video) and albums (photo): a single
+// collection can interleave videos, audio, and photos. Items are stored
+// inline (not Library refs), so a folder of hundreds of files is one
+// document. Built from storage folders and editable (reorder / add /
+// remove). Edit & delete are allowed for the creator and the space owner.
+export type Collection = {
   id: string;
   spaceId: string;
-  // Member who created this playlist. Edit/delete is allowed for the
-  // creator and for the space owner — anyone else is read-only.
   createdBy: string;
   title: string;
-  videoIds: string[];
+  items: CollectionItem[];
   createdAt: number;
   updatedAt: number;
 };
 
-// API GET /api/playlists/:id shape. The full Video record is inlined for
-// each playlist entry so the client doesn't N+1 the library on render.
-// Missing entries (deleted from library since being added) show up as
-// `null` so the UI can render a "removed" placeholder without losing the
-// position. The original videoIds list is preserved for round-tripping.
-export type PlaylistDetail = Playlist & {
-  videos: Array<Video | null>;
+// Per-URL availability snapshot for a collection's items — keyed by item
+// URL, since collection items have no IDs. Same HEAD-probe basis as
+// LibraryHealth; surfaced in the theater filmstrip + player.
+export type CollectionHealth = {
+  checkedAt: number;
+  items: Record<string, HealthStatus>;
 };
 
 // Messages sent by the client to the server.
 //
-// Playlist messages:
-//   loadPlaylist     — switch the room onto a playlist; server seeds
-//                      videoUrl from index 0 (or null for empty playlists).
-//   playlistNext /
-//     playlistPrev   — manual nav. Server clamps at the ends unless loop=on,
-//                      in which case it wraps.
-//   playlistJumpTo   — set a specific index (e.g. clicking a queue item).
-//   videoEnded       — fired by the client when `<video>` finishes. The
-//                      `endedUrl` field lets the server ignore stale signals
-//                      (e.g. a client that just rejoined and missed a prior
-//                      advance).
-//   setPlaylistLoop  — toggle wrap-at-end behavior.
+// Collection messages:
+//   loadCollection     — switch the room onto a collection; server seeds
+//                        videoUrl from index 0 (null for empty ones).
+//   collectionNext /
+//     collectionPrev   — manual nav. Server clamps at the ends unless
+//                        loop=on, in which case it wraps.
+//   collectionJumpTo   — set a specific index (e.g. clicking a strip item).
+//   setCollectionLoop  — toggle wrap-at-end behavior.
+//   videoEnded         — fired by the client when a video/audio item
+//                        finishes. The `endedUrl` field lets the server
+//                        ignore stale signals (e.g. a rejoined client).
 export type ClientMessage =
   | { type: "hello"; clientId: string }
   | { type: "play"; currentTime: number }
   | { type: "pause"; currentTime: number }
   | { type: "seek"; currentTime: number }
   | { type: "setUrl"; videoUrl: string }
-  | { type: "loadPlaylist"; playlistId: string }
-  | { type: "playlistNext" }
-  | { type: "playlistPrev" }
-  | { type: "playlistJumpTo"; index: number }
+  | { type: "loadCollection"; collectionId: string }
+  | { type: "collectionNext" }
+  | { type: "collectionPrev" }
+  | { type: "collectionJumpTo"; index: number }
+  | { type: "setCollectionLoop"; loop: boolean }
   | { type: "videoEnded"; endedUrl: string }
-  | { type: "setPlaylistLoop"; loop: boolean }
   // Sent when the client transitions in/out of /watch within the SPA.
   // Server updates ws.data.status and rebroadcasts presence + viewers.
   | { type: "setStatus"; status: PresenceStatus }
@@ -434,9 +443,9 @@ export function emptySessionState(): SessionState {
     subtitles: [],
     playing: false,
     currentTime: 0,
-    playlistId: null,
-    playlistIndex: 0,
-    playlistLoop: false,
+    collectionId: null,
+    collectionIndex: 0,
+    collectionLoop: false,
     updatedAt: Date.now(),
     updatedBy: null,
   };

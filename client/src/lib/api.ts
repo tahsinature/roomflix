@@ -1,11 +1,12 @@
 import type {
   AuthUser,
+  Collection,
+  CollectionHealth,
+  CollectionItem,
   GuestIdentity,
   InviteCode,
   JoinRequest,
   LibraryHealth,
-  Playlist,
-  PlaylistDetail,
   ProbeResult,
   Space,
   SpaceJoinPolicy,
@@ -24,14 +25,10 @@ import type {
 // joinPolicy is "approval", the redeem creates a pending JoinRequest
 // instead of joining immediately — the caller (the /join page) routes
 // to the waiting room.
-export type RedeemInviteResult =
-  | { pending: true; requestId: string; spaceName: string }
-  | { space: Space; alreadyMember: boolean; pending?: undefined };
+export type RedeemInviteResult = { pending: true; requestId: string; spaceName: string } | { space: Space; alreadyMember: boolean; pending?: undefined };
 
 // Same shape, guest path.
-export type RedeemInviteGuestResult =
-  | { pending: true; requestId: string; spaceName: string }
-  | { space: Space; displayName: string; pending?: undefined };
+export type RedeemInviteGuestResult = { pending: true; requestId: string; spaceName: string } | { space: Space; displayName: string; pending?: undefined };
 
 // Thrown by `request` when the server responds 401. The auth provider
 // listens for these and clears the cached user — also useful at call sites
@@ -171,8 +168,7 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(patch),
     }),
-  deleteStorageConnection: (id: string) =>
-    request<void>(`/api/account/storage/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  deleteStorageConnection: (id: string) => request<void>(`/api/account/storage/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   activateStorageConnection: (id: string, spaceId: string, opts: { openToGuests?: boolean } = {}) =>
     request<StorageActivation>(`/api/account/storage/${encodeURIComponent(id)}/activations`, {
@@ -186,23 +182,25 @@ export const api = {
 
   // Per-space derived view — list of connections active in this space
   // that the caller can use. No secrets in the payload.
-  listSpaceStorage: (spaceId: string) =>
-    request<StorageConnection[]>(`/api/spaces/${encodeURIComponent(spaceId)}/storage`),
+  listSpaceStorage: (spaceId: string) => request<StorageConnection[]>(`/api/spaces/${encodeURIComponent(spaceId)}/storage`),
 
-  // Playlists.
-  listPlaylists: () => request<Playlist[]>("/api/playlists"),
-  getPlaylist: (id: string) => request<PlaylistDetail>(`/api/playlists/${encodeURIComponent(id)}`),
-  createPlaylist: (input: { title: string; videoIds?: string[] }) =>
-    request<Playlist>("/api/playlists", {
+  // Collections — ordered mixed-media lists. Items are stored inline, so
+  // getCollection returns everything the player + editor need in one trip.
+  listCollections: () => request<Collection[]>("/api/collections"),
+  getCollection: (id: string) => request<Collection>(`/api/collections/${encodeURIComponent(id)}`),
+  getCollectionHealth: (id: string, opts: { refresh?: boolean } = {}) =>
+    request<CollectionHealth>(`/api/collections/${encodeURIComponent(id)}/health${opts.refresh ? "?refresh=true" : ""}`),
+  createCollection: (input: { title: string; items?: CollectionItem[] }) =>
+    request<Collection>("/api/collections", {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  updatePlaylist: (id: string, patch: { title?: string; videoIds?: string[] }) =>
-    request<Playlist>(`/api/playlists/${encodeURIComponent(id)}`, {
+  updateCollection: (id: string, patch: { title?: string; items?: CollectionItem[] }) =>
+    request<Collection>(`/api/collections/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify(patch),
     }),
-  deletePlaylist: (id: string) => request<void>(`/api/playlists/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  deleteCollection: (id: string) => request<void>(`/api/collections/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   // Spaces.
   listSpaces: () => request<SpaceSummary[]>("/api/spaces"),
@@ -211,8 +209,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  getSpace: (id: string) =>
-    request<{ space: Space; members: SpaceMember[]; invites: InviteCode[]; role: SpaceRole }>(`/api/spaces/${encodeURIComponent(id)}`),
+  getSpace: (id: string) => request<{ space: Space; members: SpaceMember[]; invites: InviteCode[]; role: SpaceRole }>(`/api/spaces/${encodeURIComponent(id)}`),
   renameSpace: (id: string, name: string) =>
     request<Space>(`/api/spaces/${encodeURIComponent(id)}`, {
       method: "PATCH",
@@ -224,20 +221,14 @@ export const api = {
       body: JSON.stringify({ joinPolicy }),
     }),
   deleteSpace: (id: string) => request<void>(`/api/spaces/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  leaveSpace: (id: string) =>
-    request<void>(`/api/spaces/${encodeURIComponent(id)}/leave`, { method: "POST" }),
-  removeMember: (spaceId: string, userId: string) =>
-    request<void>(`/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(userId)}`, { method: "DELETE" }),
-  createInvite: (
-    spaceId: string,
-    opts: { usesRemaining?: number | null; expiresInHours?: number | null } = {},
-  ) =>
+  leaveSpace: (id: string) => request<void>(`/api/spaces/${encodeURIComponent(id)}/leave`, { method: "POST" }),
+  removeMember: (spaceId: string, userId: string) => request<void>(`/api/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(userId)}`, { method: "DELETE" }),
+  createInvite: (spaceId: string, opts: { usesRemaining?: number | null; expiresInHours?: number | null } = {}) =>
     request<InviteCode>(`/api/spaces/${encodeURIComponent(spaceId)}/invites`, {
       method: "POST",
       body: JSON.stringify(opts),
     }),
-  revokeInvite: (spaceId: string, code: string) =>
-    request<void>(`/api/spaces/${encodeURIComponent(spaceId)}/invites/${encodeURIComponent(code)}`, { method: "DELETE" }),
+  revokeInvite: (spaceId: string, code: string) => request<void>(`/api/spaces/${encodeURIComponent(spaceId)}/invites/${encodeURIComponent(code)}`, { method: "DELETE" }),
   redeemInvite: (code: string) =>
     request<RedeemInviteResult>("/api/invites/redeem", {
       method: "POST",
@@ -250,23 +241,15 @@ export const api = {
     }),
   // Admin-side queue management (joinPolicy: approval). The owner is
   // the only principal allowed to call these per server-side checks.
-  listJoinRequests: (spaceId: string) =>
-    request<JoinRequest[]>(`/api/spaces/${encodeURIComponent(spaceId)}/join-requests`),
+  listJoinRequests: (spaceId: string) => request<JoinRequest[]>(`/api/spaces/${encodeURIComponent(spaceId)}/join-requests`),
   approveJoinRequest: (spaceId: string, requestId: string) =>
-    request<JoinRequest>(
-      `/api/spaces/${encodeURIComponent(spaceId)}/join-requests/${encodeURIComponent(requestId)}/approve`,
-      { method: "POST" },
-    ),
+    request<JoinRequest>(`/api/spaces/${encodeURIComponent(spaceId)}/join-requests/${encodeURIComponent(requestId)}/approve`, { method: "POST" }),
   denyJoinRequest: (spaceId: string, requestId: string) =>
-    request<JoinRequest>(
-      `/api/spaces/${encodeURIComponent(spaceId)}/join-requests/${encodeURIComponent(requestId)}/deny`,
-      { method: "POST" },
-    ),
+    request<JoinRequest>(`/api/spaces/${encodeURIComponent(spaceId)}/join-requests/${encodeURIComponent(requestId)}/deny`, { method: "POST" }),
   // Joiner-side. The request id is itself the bearer credential — if
   // you have it, you're the one who submitted it.
   getJoinRequest: (id: string) => request<JoinRequest>(`/api/join-requests/${encodeURIComponent(id)}`),
-  cancelJoinRequest: (id: string) =>
-    request<JoinRequest>(`/api/join-requests/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
+  cancelJoinRequest: (id: string) => request<JoinRequest>(`/api/join-requests/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
   lookupInvite: (code: string) =>
     request<{ spaceName: string }>("/api/invites/lookup", {
       method: "POST",

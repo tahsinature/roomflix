@@ -21,12 +21,7 @@ export function PlayButton({ video, health, size = "sm" }: Props) {
 
   if (isGone || notMedia) {
     return (
-      <Button
-        variant="outline"
-        size={size}
-        disabled
-        title={isGone ? "URL is unreachable. Verify it on the library page." : "This URL doesn't look like a media file."}
-      >
+      <Button variant="outline" size={size} disabled title={isGone ? "URL is unreachable. Verify it on the library page." : "This URL doesn't look like a media file."}>
         <Ban className="h-3.5 w-3.5" />
         {isGone ? "Unavailable" : "Not media"}
       </Button>

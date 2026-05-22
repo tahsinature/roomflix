@@ -22,8 +22,4 @@ const storageConnectionSchema = new Schema(
   { _id: false, versionKey: false, strict: true, minimize: false },
 );
 
-export const StorageConnectionModel = model(
-  "StorageConnection",
-  storageConnectionSchema,
-  "storage_connections",
-);
+export const StorageConnectionModel = model("StorageConnection", storageConnectionSchema, "storage_connections");

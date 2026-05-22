@@ -91,29 +91,11 @@ export async function encryptForClient(plaintext: string, clientPubJwk: EcdhPubl
     false,
     [],
   );
-  const serverKeys = await subtle.generateKey(
-    { name: "ECDH", namedCurve: "P-256" },
-    true,
-    ["deriveBits"],
-  );
-  const sharedBits = await subtle.deriveBits(
-    { name: "ECDH", public: clientPub },
-    serverKeys.privateKey,
-    256,
-  );
-  const aesKey = await subtle.importKey(
-    "raw",
-    sharedBits,
-    { name: "AES-GCM" },
-    false,
-    ["encrypt"],
-  );
+  const serverKeys = await subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const sharedBits = await subtle.deriveBits({ name: "ECDH", public: clientPub }, serverKeys.privateKey, 256);
+  const aesKey = await subtle.importKey("raw", sharedBits, { name: "AES-GCM" }, false, ["encrypt"]);
   const iv = randomBytes(IV_LENGTH);
-  const ciphertext = await subtle.encrypt(
-    { name: "AES-GCM", iv },
-    aesKey,
-    new TextEncoder().encode(plaintext),
-  );
+  const ciphertext = await subtle.encrypt({ name: "AES-GCM", iv }, aesKey, new TextEncoder().encode(plaintext));
   // exportKey("jwk", ...) returns a JsonWebKey (DOM type) — same scope
   // issue as the import cast above. Shape matches EcdhPublicJwk for our
   // P-256 keypair so this is structurally safe.

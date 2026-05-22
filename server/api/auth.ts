@@ -171,9 +171,7 @@ export function buildAuthRouter(storage: Storage) {
   return app;
 }
 
-type DisplayNameParse =
-  | { ok: true; value: string | null | undefined }
-  | { ok: false; error: string };
+type DisplayNameParse = { ok: true; value: string | null | undefined } | { ok: false; error: string };
 
 function parseDisplayName(body: { displayName?: unknown } | null): DisplayNameParse {
   if (!body || !("displayName" in body)) return { ok: true, value: undefined };

@@ -134,38 +134,43 @@ export function ViewerPill({
 
   return (
     <div ref={rootRef} className={cn("relative inline-flex", className)}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        disabled={empty}
-        aria-haspopup="menu"
-        aria-expanded={open}
+      {/* Split chip: the count area is a shortcut into the theater; the
+          chevron toggles the member-status dropdown. */}
+      <div
         className={cn(
-          "inline-flex h-9 items-center gap-1.5 border px-3 font-mono text-xs transition",
+          "inline-flex h-9 items-center border font-mono text-xs transition",
           empty
-            ? "cursor-default border-border/60 bg-transparent text-text-dim/70"
+            ? "border-border/60 bg-transparent text-text-dim/70"
             : hasVideo
-              ? "cursor-pointer border-accent/40 bg-accent/10 text-foreground hover:bg-accent/15"
-              : "cursor-pointer border-border bg-bg-elevated/50 text-foreground hover:bg-bg-elevated/70",
+              ? "border-accent/40 bg-accent/10 text-foreground"
+              : "border-border bg-bg-elevated/50 text-foreground",
         )}
-        title={
-          empty
-            ? "Nobody is in this space right now"
-            : `${onlineCount} in space${watchingCount > 0 ? ` · ${watchingCount} watching` : ""}`
-        }
       >
-        <Users className={cn("h-3 w-3", onlineCount === 0 ? "text-text-dim/70" : "text-accent")} />
-        <span className={cn("tabular-nums", onlineCount === 0 ? "text-text-dim/80" : "text-foreground")}>{onlineCount}</span>
-        {hasVideo && (
-          // Tiny pip in the closed chip. Animated bars when playing —
-          // unambiguous "this is happening now"; pause icon when paused.
-          <span className="flex h-3 w-3 items-center justify-center text-accent" aria-label={playing ? "playing" : "paused"}>
-            {playing ? <PlayingBars className="h-2.5 w-2.5" /> : <Pause className="h-2.5 w-2.5 fill-current" />}
-          </span>
+        <Link to="/watch" className="flex h-full items-center gap-1.5 px-3 transition hover:bg-white/[0.06]" title="Open the theater">
+          <Users className={cn("h-3 w-3", onlineCount === 0 ? "text-text-dim/70" : "text-accent")} />
+          <span className={cn("tabular-nums", onlineCount === 0 ? "text-text-dim/80" : "text-foreground")}>{onlineCount}</span>
+          {hasVideo && (
+            // Tiny pip — animated bars when playing, pause icon when paused.
+            <span className="flex h-3 w-3 items-center justify-center text-accent" aria-label={playing ? "playing" : "paused"}>
+              {playing ? <PlayingBars className="h-2.5 w-2.5" /> : <Pause className="h-2.5 w-2.5 fill-current" />}
+            </span>
+          )}
+          {empty && <span className="hidden sm:inline">online</span>}
+        </Link>
+        {!empty && (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            aria-label="Member status"
+            title={`Who's here — ${onlineCount} in space${watchingCount > 0 ? ` · ${watchingCount} watching` : ""}`}
+            className="flex h-full cursor-pointer items-center border-l border-white/10 px-2 transition hover:bg-white/[0.06]"
+          >
+            <ChevronDown className={cn("h-3 w-3 text-text-dim transition", open && "rotate-180")} />
+          </button>
         )}
-        {!empty && <ChevronDown className={cn("h-3 w-3 text-text-dim transition", open && "rotate-180")} />}
-        {empty && <span className="hidden sm:inline">online</span>}
-      </button>
+      </div>
 
       {open && !empty && (
         <div
@@ -221,17 +226,7 @@ function rank(s: PresenceStatus | "offline"): number {
   return 2;
 }
 
-function NowPlayingHeader({
-  title,
-  playing,
-  imHere,
-  onClose,
-}: {
-  title: string;
-  playing: boolean;
-  imHere: boolean;
-  onClose: () => void;
-}) {
+function NowPlayingHeader({ title, playing, imHere, onClose }: { title: string; playing: boolean; imHere: boolean; onClose: () => void }) {
   const stateLabel = playing ? "Playing now" : "Paused";
   const sublabel = imHere ? `${stateLabel} · you're watching` : `${stateLabel} · tap to join`;
 
@@ -301,9 +296,7 @@ function MemberRow({
         <span
           className={cn(
             "inline-flex h-7 w-7 shrink-0 items-center justify-center border",
-            tone === "guest"
-              ? "border-amber-300/30 bg-amber-300/10 text-amber-200"
-              : "border-accent/30 bg-accent/10 text-accent",
+            tone === "guest" ? "border-amber-300/30 bg-amber-300/10 text-amber-200" : "border-accent/30 bg-accent/10 text-accent",
           )}
         >
           {isOwner ? <Crown className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
@@ -328,10 +321,7 @@ function MemberRow({
 // via standard width/height utility classes.
 function PlayingBars({ className }: { className?: string }) {
   return (
-    <span
-      className={cn("inline-flex h-full w-full items-end justify-center gap-[1.5px]", className)}
-      aria-hidden
-    >
+    <span className={cn("inline-flex h-full w-full items-end justify-center gap-[1.5px]", className)} aria-hidden>
       <span className="eq-bar h-full w-[2px]" />
       <span className="eq-bar h-full w-[2px]" />
       <span className="eq-bar h-full w-[2px]" />

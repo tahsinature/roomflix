@@ -91,13 +91,8 @@ export function SpaceChip() {
       </button>
 
       {open && (
-        <div
-          role="menu"
-          className="absolute left-0 top-8 z-40 min-w-[14rem] border border-border bg-bg-elevated/95 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl"
-        >
-          <div className="border-b border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-text-dim">
-            Spaces
-          </div>
+        <div role="menu" className="absolute left-0 top-8 z-40 min-w-[14rem] border border-border bg-bg-elevated/95 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl">
+          <div className="border-b border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-text-dim">Spaces</div>
           <ul className="max-h-60 overflow-y-auto">
             {spaces.map((s) => {
               const active = s.id === currentSpace.id;
@@ -109,12 +104,8 @@ export function SpaceChip() {
                     onClick={() => void handleSwitch(s.id)}
                     className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition hover:bg-white/[0.04]"
                   >
-                    <span className={cn("min-w-0 flex-1 truncate", active ? "text-foreground" : "text-muted-foreground")}>
-                      {s.name}
-                    </span>
-                    {s.role === "owner" && (
-                      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-dim">owner</span>
-                    )}
+                    <span className={cn("min-w-0 flex-1 truncate", active ? "text-foreground" : "text-muted-foreground")}>{s.name}</span>
+                    {s.role === "owner" && <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-dim">owner</span>}
                     {active && <Check className="h-3.5 w-3.5 text-accent" />}
                   </button>
                 </li>

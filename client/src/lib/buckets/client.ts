@@ -1,12 +1,6 @@
 // Thin wrapper around the S3 SDK so the UI never imports SDK commands
 // directly. Covers browse + usage + upload + delete + create-folder.
-import {
-  CopyObjectCommand,
-  DeleteObjectCommand,
-  ListObjectsV2Command,
-  PutObjectCommand,
-  type S3Client,
-} from "@aws-sdk/client-s3";
+import { CopyObjectCommand, DeleteObjectCommand, ListObjectsV2Command, PutObjectCommand, type S3Client } from "@aws-sdk/client-s3";
 import { createR2Client } from "@/lib/buckets/providers/r2";
 import type { BrowseResult, Connection, FileEntry, Usage } from "@/lib/buckets/types";
 
@@ -30,9 +24,7 @@ export async function browse(client: S3Client, bucket: string, prefix: string): 
     }),
   );
 
-  const folders = (res.CommonPrefixes ?? [])
-    .map((cp) => cp.Prefix)
-    .filter((p): p is string => typeof p === "string");
+  const folders = (res.CommonPrefixes ?? []).map((cp) => cp.Prefix).filter((p): p is string => typeof p === "string");
 
   const files = (res.Contents ?? [])
     // S3 returns the prefix itself as a 0-byte "folder marker" object; hide it
@@ -165,12 +157,7 @@ export async function renameObject(client: S3Client, bucket: string, oldKey: str
 // Folder rename: enumerate every object under the prefix, copy each to the
 // new prefix, then delete the originals. Caller passes prefixes WITH trailing
 // "/" (the folder-marker convention used elsewhere in this module).
-export async function renamePrefix(
-  client: S3Client,
-  bucket: string,
-  oldPrefix: string,
-  newPrefix: string,
-): Promise<{ oldKeys: string[]; newKeys: string[] }> {
+export async function renamePrefix(client: S3Client, bucket: string, oldPrefix: string, newPrefix: string): Promise<{ oldKeys: string[]; newKeys: string[] }> {
   if (oldPrefix === newPrefix) return { oldKeys: [], newKeys: [] };
   const items = await listAllUnderPrefix(client, bucket, oldPrefix);
   const oldKeys = items.map((it) => it.key);
@@ -218,12 +205,7 @@ export async function deleteMany(client: S3Client, bucket: string, keys: string[
 export function looksLikeCorsError(err: unknown): boolean {
   if (!err) return false;
   const msg = String((err as Error)?.message ?? err).toLowerCase();
-  return (
-    msg.includes("failed to fetch") ||
-    msg.includes("networkerror") ||
-    msg.includes("cors") ||
-    msg.includes("network error")
-  );
+  return msg.includes("failed to fetch") || msg.includes("networkerror") || msg.includes("cors") || msg.includes("network error");
 }
 
 // Classifies an upload failure so the queue can (a) decide whether to
@@ -254,12 +236,7 @@ export function classifyUploadError(err: unknown): { kind: UploadErrorKind; labe
   if (e.name === "TypeError" || /failed to fetch|network|cors/i.test(msg)) {
     return { kind: "network", label: "Network error — connection dropped" };
   }
-  if (
-    code === "AccessDenied" ||
-    code === "InvalidAccessKeyId" ||
-    code === "SignatureDoesNotMatch" ||
-    status === 403
-  ) {
+  if (code === "AccessDenied" || code === "InvalidAccessKeyId" || code === "SignatureDoesNotMatch" || status === 403) {
     return { kind: "config", label: code ? `Permission error (${code})` : "Permission error" };
   }
   if (code === "EntityTooLarge" || status === 413) {

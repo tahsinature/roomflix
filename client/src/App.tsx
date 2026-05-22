@@ -5,6 +5,7 @@ import Home from "@/pages/Home";
 import Welcome from "@/pages/Welcome";
 import Watch from "@/pages/Watch";
 import Library from "@/pages/Library";
+import CollectionEdit from "@/pages/CollectionEdit";
 import Help from "@/pages/Help";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
@@ -15,6 +16,7 @@ import SettingsProfile from "@/pages/SettingsProfile";
 import SettingsSpace from "@/pages/SettingsSpace";
 import SettingsStorage from "@/pages/SettingsStorage";
 import { AuthedLayout } from "@/components/AuthedLayout";
+import { TheaterLayout } from "@/components/TheaterLayout";
 import { RedirectIfAuthenticated, RequireRealUser } from "@/auth/RequireAuth";
 
 // Storage carries the @aws-sdk/client-s3 dep (~250KB gz). Lazy-load so
@@ -65,6 +67,13 @@ export default function App() {
           it has its own SiteNav and lives outside the authed shell. */}
       <Route path="/welcome" element={<Welcome />} />
 
+      {/* /watch is the theater — a full-bleed, chrome-free home-theater
+          surface. Its own layout gates auth but renders no AppNav; the
+          page owns the entire viewport. */}
+      <Route element={<TheaterLayout />}>
+        <Route path="/watch" element={<Watch />} />
+      </Route>
+
       {/* Everything authed (including "/") shares the AppNav via
           AuthedLayout. The layout itself gates auth (redirects to
           /welcome if not signed in) and renders the nav once above
@@ -72,11 +81,11 @@ export default function App() {
       <Route element={<AuthedLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/library" element={<Library />} />
+        <Route path="/collections/:id" element={<CollectionEdit />} />
         <Route path="/help" element={<Help />} />
         {/* /spaces → /settings/space. Spaces management is now a
             Settings section; the redirect catches any old links. */}
         <Route path="/spaces" element={<Navigate to="/settings/space" replace />} />
-        <Route path="/watch" element={<Watch />} />
         <Route
           path="/storage"
           element={

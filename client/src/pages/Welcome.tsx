@@ -29,8 +29,7 @@ export default function Welcome() {
         </h1>
 
         <p className="fade-up-d1 mt-5 max-w-xl text-base leading-[1.6] text-muted-foreground sm:text-[16px]">
-          Invite your people to a space, drop a video URL, and watch in perfect sync.{" "}
-          <span className="text-foreground/85">Your library follows you, no app install required.</span>
+          Invite your people to a space, drop a video URL, and watch in perfect sync. <span className="text-foreground/85">Your library follows you, no app install required.</span>
         </p>
 
         <SyncPreview />

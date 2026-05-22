@@ -36,6 +36,9 @@ type Props = {
   // synced state hasn't caught up yet. Avoids flashing the URL-input form
   // when we already know what's about to load.
   loadingIncoming?: boolean;
+  // Theater mode — fill the parent (no card border / aspect box) and let
+  // the surrounding surface own the title bar.
+  fill?: boolean;
 };
 
 const DRIFT_TOLERANCE_S = 1.0;
@@ -49,12 +52,31 @@ const PLAYER_FRAME_CLASS = "relative aspect-video w-full overflow-hidden bg-blac
 // aspect-video gives ~200px which can't fit the URL form, so we drop to a
 // content-sized box with a min-height floor. On sm+ (≥640px) the aspect ratio
 // kicks back in to match the eventual video frame's visual rhythm.
-const STATIC_FRAME_CLASS =
-  "relative min-h-[24rem] w-full overflow-hidden bg-black border border-border shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] sm:aspect-video sm:min-h-0";
+const STATIC_FRAME_CLASS = "relative min-h-[24rem] w-full overflow-hidden bg-black border border-border shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] sm:aspect-video sm:min-h-0";
+
+// Theater mode: drop the card chrome (border / shadow / aspect box) and
+// fill the parent — the theater surface owns the framing.
+const FILL_FRAME_CLASS = "relative h-full w-full overflow-hidden bg-black";
 
 type PlaybackErrorKind = "network" | "format" | "stalled";
 
-export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentTime, updatedAt, serverTime, onPlay, onPause, onSeek, onEnded, onLoadUrl, onVolumeChange, loadingIncoming = false }: Props) {
+export function VideoPlayer({
+  videoUrl,
+  videoTitle,
+  subtitles,
+  playing,
+  currentTime,
+  updatedAt,
+  serverTime,
+  onPlay,
+  onPause,
+  onSeek,
+  onEnded,
+  onLoadUrl,
+  onVolumeChange,
+  loadingIncoming = false,
+  fill = false,
+}: Props) {
   const playerRef = useRef<MediaPlayerInstance>(null);
   // While Date.now() < this timestamp, ignore feedback events from the
   // player — we're applying remote state and don't want it to echo back.
@@ -211,6 +233,10 @@ export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentT
   };
 
   const handlePlay = () => {
+    // The video is playing now — clear any "autoplay blocked" overlay,
+    // even if playback was started elsewhere (space key, Vidstack's own
+    // controls) rather than by one of our play() calls.
+    setAutoplayBlocked(false);
     if (isApplying()) return;
     onPlay(playerRef.current?.currentTime ?? 0);
   };
@@ -257,7 +283,7 @@ export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentT
   }, [activeSubtitleId, subtitles]);
 
   if (!videoUrl) {
-    return <div className={STATIC_FRAME_CLASS}>{loadingIncoming ? <LoadingFrame /> : <EmptyPlayerState onLoadUrl={onLoadUrl} />}</div>;
+    return <div className={fill ? FILL_FRAME_CLASS : STATIC_FRAME_CLASS}>{loadingIncoming ? <LoadingFrame /> : <EmptyPlayerState onLoadUrl={onLoadUrl} />}</div>;
   }
 
   // Format-incompatible: don't even mount Vidstack — saves the bandwidth of
@@ -265,7 +291,7 @@ export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentT
   // visible state.
   if (playbackError === "format") {
     return (
-      <div className={STATIC_FRAME_CLASS}>
+      <div className={fill ? FILL_FRAME_CLASS : STATIC_FRAME_CLASS}>
         <ErrorFrame kind="format" url={videoUrl} />
       </div>
     );
@@ -296,7 +322,7 @@ export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentT
       // Vidstack passes the volume payload directly (volume/muted) —
       // no event-with-detail wrapper at the callback boundary.
       onVolumeChange={(e) => onVolumeChange?.(e.volume, e.muted)}
-      className={PLAYER_FRAME_CLASS}
+      className={fill ? FILL_FRAME_CLASS : PLAYER_FRAME_CLASS}
     >
       <MediaProvider>
         {subtitles.map((s) => (
@@ -318,7 +344,7 @@ export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentT
       <Gesture className="absolute inset-y-0 left-0 z-10 block h-full w-1/2" event="dblpointerup" action="seek:-10" />
       <Gesture className="absolute inset-y-0 right-0 z-10 block h-full w-1/2" event="dblpointerup" action="seek:10" />
 
-      <TitleBar title={videoTitle || urlFilename(videoUrl)} />
+      {!fill && <TitleBar title={videoTitle || urlFilename(videoUrl)} />}
       <Controls subtitles={subtitles} activeSubtitleId={activeSubtitleId} onSelectSubtitle={setActiveSubtitleId} />
 
       <LoadingOverlay hasError={playbackError !== null} />
@@ -330,18 +356,23 @@ export function VideoPlayer({ videoUrl, videoTitle, subtitles, playing, currentT
       )}
 
       {autoplayBlocked && !playbackError && (
-        // Whole overlay is the click target — no button to aim at, no
-        // separate label to read. A single play glyph in the middle is
-        // enough hint, and tapping anywhere on the dimmed area resumes
-        // playback. Matches what users expect from any paused player.
+        // Whole overlay is the click target — tapping anywhere on the
+        // dimmed area resumes playback. The media name is shown below the
+        // play glyph so a paused autoplay still tells you what's queued.
         <button
           type="button"
           onClick={tryResumePlayback}
           aria-label="Resume playback"
-          className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in transition hover:bg-black/50"
+          className="group absolute inset-0 z-30 flex flex-col items-center justify-center gap-5 bg-black/60 px-6 backdrop-blur-sm animate-fade-in transition hover:bg-black/50"
         >
           <span className="flex h-16 w-16 items-center justify-center border border-white/20 bg-black/40 text-white shadow-[0_0_24px_rgba(0,0,0,0.5)] transition group-hover:scale-105">
             <Play className="h-7 w-7 fill-current" />
+          </span>
+          <span className="flex max-w-[42rem] flex-col items-center gap-1.5 text-center">
+            <span className="line-clamp-2 font-mono text-base font-medium text-white/95 sm:text-lg" title={videoTitle || urlFilename(videoUrl)}>
+              {videoTitle || urlFilename(videoUrl)}
+            </span>
+            <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-white/45">Tap to play</span>
           </span>
         </button>
       )}

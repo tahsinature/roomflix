@@ -140,19 +140,12 @@ export function buildSpacesRouter(storage: Storage) {
     // unlimited; missing = sensible default. We default to a CAP
     // (not unlimited) so a leaked code can't be redeemed forever by
     // strangers — admin can override per-invite when they want.
-    const usesRemaining =
-      typeof body?.usesRemaining === "number" && body.usesRemaining > 0
-        ? Math.floor(body.usesRemaining)
-        : body?.usesRemaining === null
-          ? null
-          : 20;
+    const usesRemaining = typeof body?.usesRemaining === "number" && body.usesRemaining > 0 ? Math.floor(body.usesRemaining) : body?.usesRemaining === null ? null : 20;
 
     // expiresInHours: positive number = TTL; null/missing = 7-day default.
     // Bounded by default so a leaked code can't be redeemed forever.
     const expiresAt =
-      typeof body?.expiresInHours === "number" && body.expiresInHours > 0
-        ? Date.now() + Math.floor(body.expiresInHours) * 60 * 60 * 1000
-        : Date.now() + 7 * 24 * 60 * 60 * 1000;
+      typeof body?.expiresInHours === "number" && body.expiresInHours > 0 ? Date.now() + Math.floor(body.expiresInHours) * 60 * 60 * 1000 : Date.now() + 7 * 24 * 60 * 60 * 1000;
 
     const invite = await storage.invites.create({ spaceId, createdBy: user.id, usesRemaining, expiresAt });
     return c.json(invite, 201);
@@ -263,11 +256,7 @@ export function buildJoinRequestsRouter(storage: Storage) {
     // status read — the waiting room is the only entity that hits
     // this and only via its own request id. Setting it once on read
     // is the simplest delivery mechanism.
-    if (
-      request.status === "approved" &&
-      request.requester.kind === "guest" &&
-      request.approvedSessionToken
-    ) {
+    if (request.status === "approved" && request.requester.kind === "guest" && request.approvedSessionToken) {
       const { SESSION_COOKIE, sessionCookieOptions } = await import("@/auth.ts");
       const { setCookie } = await import("hono/cookie");
       setCookie(c, SESSION_COOKIE, request.approvedSessionToken, sessionCookieOptions());
@@ -308,10 +297,7 @@ async function mintGuestSession(storage: Storage, spaceId: string, displayName: 
 // `onJoinRequestCreated` lets the caller (server/index.ts) hook a
 // WebSocket notification when a request lands. Optional — routes work
 // fine without it; the queue just sits there until an admin polls.
-export function buildInvitesRouter(
-  storage: Storage,
-  { onJoinRequestCreated }: { onJoinRequestCreated?: JoinRequestCreatedHook } = {},
-) {
+export function buildInvitesRouter(storage: Storage, { onJoinRequestCreated }: { onJoinRequestCreated?: JoinRequestCreatedHook } = {}) {
   const app = new Hono();
 
   // Lookup is public (no auth required) — the join page calls it to

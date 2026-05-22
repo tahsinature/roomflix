@@ -165,7 +165,15 @@ function SubtitlesPanel({
       )}
 
       <form onSubmit={addSubtitle} className="flex flex-col gap-2 sm:flex-row">
-        <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Subtitle URL (.vtt or .srt)" className="h-10 sm:flex-1" autoCapitalize="off" autoCorrect="off" spellCheck={false} />
+        <Input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="Subtitle URL (.vtt or .srt)"
+          className="h-10 sm:flex-1"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+        />
         <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label (e.g. English)" className="h-10 sm:w-40" />
         <Input value={lang} onChange={(e) => setLang(e.target.value)} placeholder="Lang (e.g. en)" className="h-10 sm:w-28" autoCapitalize="off" />
         <Button type="submit" variant="outline" disabled={!url.trim() || busy} className="h-10 shrink-0">

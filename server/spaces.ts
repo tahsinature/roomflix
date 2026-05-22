@@ -63,8 +63,8 @@ export async function deleteSpaceCascade(storage: Storage, spaceId: string): Pro
   // on whatever else they're a member of next time they log in.
   const videos = await storage.videos.list(spaceId);
   await Promise.all(videos.map((v) => storage.videos.remove(spaceId, v.id)));
-  const playlists = await storage.playlists.list(spaceId);
-  await Promise.all(playlists.map((p) => storage.playlists.remove(spaceId, p.id)));
+  const collections = await storage.collections.list(spaceId);
+  await Promise.all(collections.map((col) => storage.collections.remove(spaceId, col.id)));
   await storage.storageConfigs.remove(spaceId).catch(() => undefined);
   await storage.invites.removeAllForSpace(spaceId);
   await storage.joinRequests.removeAllForSpace(spaceId);

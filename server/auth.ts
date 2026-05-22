@@ -88,9 +88,7 @@ export async function getCurrentUser(c: Context, storage: Storage): Promise<Stor
 
 // Resolve the active principal — either a real user or a guest. Used by
 // requireSpaceMember which lets guests in too.
-export type Principal =
-  | { kind: "user"; user: StoredUser; session: Session }
-  | { kind: "guest"; session: Session };
+export type Principal = { kind: "user"; user: StoredUser; session: Session } | { kind: "guest"; session: Session };
 
 export async function getCurrentPrincipal(c: Context, storage: Storage): Promise<Principal | null> {
   const token = getCookie(c, SESSION_COOKIE);

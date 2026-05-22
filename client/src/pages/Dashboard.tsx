@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, Library as LibraryIcon, Link2, ListMusic, Play, Users2 } from "lucide-react";
-import type { LibraryHealth, Playlist, Video } from "@shared/protocol";
+import { ArrowRight, Layers, Library as LibraryIcon, Link2, Play, Users2 } from "lucide-react";
+import type { Collection, LibraryHealth, Video } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PlayButton } from "@/components/PlayButton";
@@ -10,7 +10,7 @@ import { api } from "@/lib/api";
 import { canonicalUrl, urlFilename } from "@/lib/utils";
 
 const RECENT_LIMIT = 4;
-const PLAYLIST_LIMIT = 4;
+const COLLECTION_LIMIT = 4;
 
 // Logged-in landing — tight, scrollless on a typical desktop. Two
 // things you can do here: paste a URL to play, or jump straight to a
@@ -22,24 +22,22 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   const [videos, setVideos] = useState<Video[]>([]);
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
   const [health, setHealth] = useState<LibraryHealth | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (!currentSpace) return;
     let cancelled = false;
-    Promise.all([
-      api.listVideos().catch(() => [] as Video[]),
-      api.listPlaylists().catch(() => [] as Playlist[]),
-      api.libraryHealth().catch(() => null),
-    ]).then(([list, pls, h]) => {
-      if (cancelled) return;
-      setVideos(list);
-      setPlaylists(pls);
-      setHealth(h);
-      setLoaded(true);
-    });
+    Promise.all([api.listVideos().catch(() => [] as Video[]), api.listCollections().catch(() => [] as Collection[]), api.libraryHealth().catch(() => null)]).then(
+      ([list, cols, h]) => {
+        if (cancelled) return;
+        setVideos(list);
+        setCollections(cols);
+        setHealth(h);
+        setLoaded(true);
+      },
+    );
     return () => {
       cancelled = true;
     };
@@ -73,7 +71,7 @@ export default function Dashboard() {
         {loaded && (
           <div className="grid gap-4 md:grid-cols-2">
             <RecentLibrarySection videos={videos} health={health} />
-            <PlaylistsCard playlists={playlists} />
+            <CollectionsCard collections={collections} />
           </div>
         )}
       </div>
@@ -142,10 +140,7 @@ function RecentLibrarySection({ videos, health }: { videos: Video[]; health: Lib
       </header>
       <ul className="border-y border-border">
         {recent.map((v) => (
-          <li
-            key={v.id}
-            className="flex items-center gap-3 border-b border-border px-3 py-2.5 transition-colors last:border-b-0 hover:bg-white/[0.02]"
-          >
+          <li key={v.id} className="flex items-center gap-3 border-b border-border px-3 py-2.5 transition-colors last:border-b-0 hover:bg-white/[0.02]">
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium text-foreground">{v.title}</div>
               <div className="truncate font-mono text-[11px] text-text-dim" title={v.url}>
@@ -160,13 +155,13 @@ function RecentLibrarySection({ videos, health }: { videos: Video[]; health: Lib
   );
 }
 
-function PlaylistsCard({ playlists }: { playlists: Playlist[] }) {
+function CollectionsCard({ collections }: { collections: Collection[] }) {
   const navigate = useNavigate();
-  if (playlists.length === 0) {
+  if (collections.length === 0) {
     return (
       <section className="border border-border bg-bg-elevated/40 px-4 py-6 text-center">
-        <ListMusic className="mx-auto h-5 w-5 text-text-dim" />
-        <p className="mt-2 text-sm text-muted-foreground">No playlists yet.</p>
+        <Layers className="mx-auto h-5 w-5 text-text-dim" />
+        <p className="mt-2 text-sm text-muted-foreground">No collections yet.</p>
         <Button asChild variant="ghost" size="sm" className="mt-2">
           <Link to="/library">
             Create one <ArrowRight className="h-3 w-3" />
@@ -176,29 +171,26 @@ function PlaylistsCard({ playlists }: { playlists: Playlist[] }) {
     );
   }
 
-  const recent = playlists.slice(0, PLAYLIST_LIMIT);
+  const recent = collections.slice(0, COLLECTION_LIMIT);
   return (
     <section>
       <header className="mb-2">
-        <span className="section-label muted">Playlists</span>
+        <span className="section-label muted">Collections</span>
       </header>
       <ul className="border-y border-border">
-        {recent.map((p) => (
-          <li
-            key={p.id}
-            className="flex items-center gap-3 border-b border-border px-3 py-2.5 transition-colors last:border-b-0 hover:bg-white/[0.02]"
-          >
+        {recent.map((c) => (
+          <li key={c.id} className="flex items-center gap-3 border-b border-border px-3 py-2.5 transition-colors last:border-b-0 hover:bg-white/[0.02]">
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-foreground">{p.title}</div>
+              <div className="truncate text-sm font-medium text-foreground">{c.title}</div>
               <div className="font-mono text-[11px] text-text-dim">
-                {p.videoIds.length} {p.videoIds.length === 1 ? "track" : "tracks"}
+                {c.items.length} {c.items.length === 1 ? "item" : "items"}
               </div>
             </div>
             <button
               type="button"
-              aria-label={`Play ${p.title}`}
-              onClick={() => navigate(`/watch?playlist=${encodeURIComponent(p.id)}`)}
-              disabled={p.videoIds.length === 0}
+              aria-label={`Play ${c.title}`}
+              onClick={() => navigate(`/watch?collection=${encodeURIComponent(c.id)}`)}
+              disabled={c.items.length === 0}
               className="flex h-8 w-8 items-center justify-center text-foreground transition hover:text-accent disabled:opacity-30"
             >
               <Play className="h-4 w-4" />

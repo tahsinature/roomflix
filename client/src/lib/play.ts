@@ -10,9 +10,26 @@ export function pathForWatchWithUrl(url: string): string {
 // unknown and not blocked.
 const MEDIA_EXTS = new Set([
   // Video
-  "mp4", "webm", "mkv", "mov", "m4v", "ogv", "ogg", "avi", "3gp", "mpeg", "mpg",
+  "mp4",
+  "webm",
+  "mkv",
+  "mov",
+  "m4v",
+  "ogv",
+  "ogg",
+  "avi",
+  "3gp",
+  "mpeg",
+  "mpg",
   // Audio
-  "mp3", "m4a", "aac", "flac", "wav", "opus", "oga", "weba",
+  "mp3",
+  "m4a",
+  "aac",
+  "flac",
+  "wav",
+  "opus",
+  "oga",
+  "weba",
 ]);
 
 // Returns true when the URL has an extension that's *clearly not* a playable

@@ -189,11 +189,7 @@ function validatePatch(body: Record<string, unknown> | null): ValidateResult<Pat
   return { ok: true, value: patch };
 }
 
-async function loadOwnedConnection(
-  storage: Storage,
-  ownerId: string,
-  cid: string,
-): Promise<{ value: StorageConnection } | { error: string; status: 403 | 404 }> {
+async function loadOwnedConnection(storage: Storage, ownerId: string, cid: string): Promise<{ value: StorageConnection } | { error: string; status: 403 | 404 }> {
   const conn = await storage.storageConnections.get(cid);
   if (!conn) return { error: "not found", status: 404 };
   if (conn.ownerId !== ownerId) return { error: "not yours", status: 403 };
@@ -203,4 +199,3 @@ async function loadOwnedConnection(
 function detailFor(connection: StorageConnection, activations: import("@/protocol.ts").StorageActivation[]): StorageConnectionDetail {
   return { connection, activations };
 }
-

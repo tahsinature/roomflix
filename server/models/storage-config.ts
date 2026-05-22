@@ -23,8 +23,4 @@ const storageConfigSchema = new Schema(
   { _id: false, versionKey: false, strict: true, minimize: false },
 );
 
-export const StorageConfigModel = model(
-  "StorageConfig",
-  storageConfigSchema,
-  "storage_configs",
-);
+export const StorageConfigModel = model("StorageConfig", storageConfigSchema, "storage_configs");

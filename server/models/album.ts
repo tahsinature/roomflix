@@ -1,20 +1,28 @@
 import { Schema, model } from "mongoose";
 
-// LEGACY — playlists were merged into the unified Collection model. This
+// LEGACY — albums were merged into the unified Collection model. This
 // schema is kept alive only so the boot migration (migrate-collections.ts)
 // can read pre-existing rows and convert them. No new code should touch it.
-const playlistSchema = new Schema(
+
+const albumItemSchema = new Schema(
+  {
+    url: { type: String, required: true, trim: true },
+    name: { type: String, default: "" },
+  },
+  { _id: false },
+);
+
+const albumSchema = new Schema(
   {
     _id: { type: String, required: true },
     spaceId: { type: String, required: true },
     createdBy: { type: String, required: true },
     title: { type: String, required: true },
-    videoIds: { type: [String], default: [] },
+    items: { type: [albumItemSchema], default: [] },
+    sourceConnectionId: { type: String },
+    sourceFolderPrefix: { type: String },
     createdAt: { type: Number, required: true },
     updatedAt: { type: Number, required: true },
-    // Legacy from pre-spaces schema (see VideoModel for the same
-    // pattern); only the boot reparent migration touches it.
-    ownerId: { type: String },
     // Stamped by the Collection migration once this row has been
     // converted, so a re-run skips it.
     migratedAt: { type: Number },
@@ -22,6 +30,6 @@ const playlistSchema = new Schema(
   { _id: false, versionKey: false, strict: true, minimize: false },
 );
 
-playlistSchema.index({ spaceId: 1, createdAt: -1 });
+albumSchema.index({ spaceId: 1, createdAt: -1 });
 
-export const PlaylistModel = model("Playlist", playlistSchema, "playlists");
+export const AlbumModel = model("Album", albumSchema, "albums");

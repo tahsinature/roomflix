@@ -1,113 +1,258 @@
-import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { WifiOff } from "lucide-react";
-import type { PlaylistDetail } from "@shared/protocol";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import type { Collection, CollectionHealth } from "@shared/protocol";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { AudioPlayer } from "@/components/player/AudioPlayer";
-import { LibraryPicker } from "@/components/LibraryPicker";
-import { PlaylistQueue } from "@/components/PlaylistQueue";
+import { PhotoPlayer } from "@/components/player/PhotoPlayer";
+import { CollectionStrip } from "@/components/CollectionStrip";
+import { TheaterTopBar } from "@/components/theater/TheaterTopBar";
+import { IdleScreen } from "@/components/theater/IdleScreen";
+import { UnavailableScreen } from "@/components/theater/UnavailableScreen";
 import { useSessionSync } from "@/hooks/useSessionSync";
 import { useAuth } from "@/auth/AuthContext";
 import { api } from "@/lib/api";
-import { cn, mediaKind } from "@/lib/utils";
+import { cn, mediaKind, urlFilename } from "@/lib/utils";
 
-// Single-page watch surface. Body only — AppNav lives in AuthedLayout.
-// The thin context strip below shows which space the playback is in,
-// the connection state, and the URL-picker for swapping videos.
+// Idle delay before the auto-hiding chrome fades out.
+const CHROME_HIDE_MS = 3200;
+
+// The theater — a full-bleed, chrome-free home-theater display. One
+// surface for every media kind: video, audio, and photos, played from
+// a standalone URL or a synced mixed-media collection. The single
+// per-space session decides what's on screen; this page renders it and
+// surfaces auto-hiding controls.
 export default function Watch() {
   const { currentSpace } = useAuth();
-  const { state, serverTime, connected, stateLoaded, actions } = useSessionSync();
+  const { state, viewers, serverTime, connected, stateLoaded, actions } = useSessionSync();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [playlistDetail, setPlaylistDetail] = useState<PlaylistDetail | null>(null);
+  const navigate = useNavigate();
+  const [collection, setCollection] = useState<Collection | null>(null);
+  const [collectionHealth, setCollectionHealth] = useState<CollectionHealth | null>(null);
 
-  // Apply a deep-linked ?video= once the WS is connected and we've seen
-  // the server's first state snapshot. We deliberately replace any
-  // currently-loaded URL when it differs from the incoming one — clicking
-  // Play on a library entry is explicit user intent, and the session
-  // keeps state in memory for ~5min after the last watcher leaves, which
-  // would otherwise cause a stale URL to "win" over the user's selection.
+  // ── Deep links — ?video= / ?collection= ───────────────────────────
+  // Each replaces whatever's loaded when it differs: clicking Play on a
+  // library entry or a collection is explicit intent.
   useEffect(() => {
     if (!connected || !stateLoaded) return;
     const incoming = searchParams.get("video");
-    if (!incoming) return;
-    if (state.videoUrl !== incoming) {
-      actions.setUrl(incoming);
-    }
+    if (incoming && state.videoUrl !== incoming) actions.setUrl(incoming);
   }, [connected, stateLoaded, state.videoUrl, searchParams, actions]);
 
-  // Symmetric handling for playlists — replace whatever's loaded when
-  // the user explicitly picks a different playlist.
   useEffect(() => {
     if (!connected || !stateLoaded) return;
-    const incoming = searchParams.get("playlist");
-    if (!incoming) return;
-    if (state.playlistId !== incoming) {
-      actions.loadPlaylist(incoming);
-    }
-  }, [connected, stateLoaded, state.playlistId, searchParams, actions]);
+    const incoming = searchParams.get("collection");
+    if (incoming && state.collectionId !== incoming) actions.loadCollection(incoming);
+  }, [connected, stateLoaded, state.collectionId, searchParams, actions]);
 
-  // Clear deep-link params once they've been applied so a reload doesn't
-  // re-fire them.
+  // Clear deep-link params once applied so a reload doesn't re-fire them.
   useEffect(() => {
-    if (state.videoUrl === null && state.playlistId === null) return;
-    if (!searchParams.has("video") && !searchParams.has("playlist")) return;
+    if (state.videoUrl === null && state.collectionId === null) return;
+    if (!searchParams.has("video") && !searchParams.has("collection")) return;
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
         next.delete("video");
-        next.delete("playlist");
+        next.delete("collection");
         return next;
       },
       { replace: true },
     );
-  }, [state.videoUrl, state.playlistId, searchParams, setSearchParams]);
+  }, [state.videoUrl, state.collectionId, searchParams, setSearchParams]);
 
+  // Fetch the loaded collection's items for the filmstrip.
   useEffect(() => {
-    if (!state.playlistId) {
-      setPlaylistDetail(null);
+    if (!state.collectionId) {
+      setCollection(null);
       return;
     }
     let cancelled = false;
     api
-      .getPlaylist(state.playlistId)
-      .then((detail) => {
-        if (!cancelled) setPlaylistDetail(detail);
+      .getCollection(state.collectionId)
+      .then((c) => {
+        if (!cancelled) setCollection(c);
       })
       .catch(() => {
-        if (!cancelled) setPlaylistDetail(null);
+        if (!cancelled) setCollection(null);
       });
     return () => {
       cancelled = true;
     };
-  }, [state.playlistId]);
+  }, [state.collectionId]);
 
-  const incomingPending = (searchParams.has("video") || searchParams.has("playlist")) && state.videoUrl === null;
+  // Probe the collection's item URLs — drives the "unavailable" indicators
+  // in the filmstrip and the player.
+  useEffect(() => {
+    if (!state.collectionId) {
+      setCollectionHealth(null);
+      return;
+    }
+    let cancelled = false;
+    api
+      .getCollectionHealth(state.collectionId)
+      .then((h) => {
+        if (!cancelled) setCollectionHealth(h);
+      })
+      .catch(() => {
+        if (!cancelled) setCollectionHealth(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [state.collectionId]);
+
+  // ── Auto-hiding chrome ─────────────────────────────────────────────
+  const [chromeVisible, setChromeVisible] = useState(true);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set only while the library dropdown is open — the chrome must not fade
+  // out from under an open popover. Hovering the bar otherwise does NOT
+  // hold it open: like any video player, it fades on plain inactivity.
+  const chromeLocked = useRef(false);
+
+  const scheduleHide = useCallback(() => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => {
+      // Re-check rather than hide while a popover is open.
+      if (chromeLocked.current) scheduleHide();
+      else setChromeVisible(false);
+    }, CHROME_HIDE_MS);
+  }, []);
+
+  const bumpChrome = useCallback(() => {
+    setChromeVisible(true);
+    scheduleHide();
+  }, [scheduleHide]);
+
+  useEffect(() => {
+    bumpChrome();
+    return () => {
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+    };
+  }, [bumpChrome]);
+
+  // Only treat a mouse event as activity when the cursor actually moved.
+  // Hiding the chrome flips pointer-events / cursor under a stationary
+  // cursor, which makes the browser emit a zero-distance mousemove — that
+  // would otherwise re-show the chrome at once and it could never stay
+  // hidden. The first event is recorded but ignored (can't tell real from
+  // synthetic yet); movement generates a stream, so the next one bumps.
+  const lastPointer = useRef<{ x: number; y: number } | null>(null);
+  const onPointerActivity = useCallback(
+    (e: React.MouseEvent) => {
+      const prev = lastPointer.current;
+      lastPointer.current = { x: e.clientX, y: e.clientY };
+      if (prev && (prev.x !== e.clientX || prev.y !== e.clientY)) bumpChrome();
+    },
+    [bumpChrome],
+  );
+
+  const kind = mediaKind(state.videoUrl);
+
+  // Fresh current-URL for the keydown handler without re-registering it
+  // every time the synced item changes.
+  const videoUrlRef = useRef(state.videoUrl);
+  videoUrlRef.current = state.videoUrl;
+
+  // ←/→ navigate the loaded collection — for video, audio, and photos
+  // alike. The one exception: a video in fullscreen, where the arrows
+  // should seek instead; there we bow out and let the video player's own
+  // shortcuts run. Capture phase + stopImmediatePropagation so a
+  // non-fullscreen video doesn't ALSO seek. The listener registers once
+  // when a collection loads — before any video player mounts — so it
+  // reliably wins over the player's document-level shortcuts.
+  useEffect(() => {
+    if (!state.collectionId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      // A fullscreen video keeps the arrows for seeking.
+      if (mediaKind(videoUrlRef.current) === "video" && document.fullscreenElement) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (e.key === "ArrowRight") actions.collectionNext();
+      else actions.collectionPrev();
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [state.collectionId, actions]);
+
+  // Escape leaves the theater for the library. A video in fullscreen is
+  // the exception — there Escape belongs to exiting fullscreen, so we let
+  // the first press do that and a second one (no longer fullscreen) exits.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (document.fullscreenElement) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      navigate("/library");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [navigate]);
+
+  // A deep link is mid-apply when the param is present but the session
+  // hasn't loaded anything yet — used to suppress the idle flash.
+  const incomingPending = (searchParams.has("video") || searchParams.has("collection")) && state.videoUrl === null;
+
+  // Idle = nothing loaded and nothing about to load.
+  const idle = !state.videoUrl && !state.collectionId && !incomingPending;
+  // Chrome is always shown on the idle screen — its controls are the only
+  // way to start something.
+  const chromeShown = chromeVisible || idle;
+
+  const title = state.videoTitle || (state.videoUrl ? urlFilename(state.videoUrl) : "Nothing playing");
+  const contextLabel = state.collectionId
+    ? `Collection · item ${state.collectionIndex + 1}${collection ? ` / ${collection.items.length}` : ""}`
+    : idle
+      ? "Standby"
+      : kind === "audio"
+        ? "Audio"
+        : kind === "image"
+          ? "Photo"
+          : "Video";
+  // When a collection is loaded but not yet fetched, fall back to a count
+  // > 1 so the photo nav arrows still appear.
+  const photoTotal = state.collectionId ? (collection?.items.length ?? 2) : 1;
+
+  // The current item is known-broken when its URL probed as "gone".
+  const currentBroken = !idle && state.videoUrl !== null && collectionHealth?.items[state.videoUrl] === "gone";
 
   return (
-    // min-h-full fills the AuthedLayout's scroll container so the
-    // flex-1 player wrapper below has room to vertically center the
-    // video. Without it the page sized to content and `justify-center`
-    // had no slack to work with.
-    <main className="mx-auto flex min-h-full max-w-6xl flex-col px-4 py-6 sm:px-6 sm:py-8">
-      <WatchContextStrip spaceName={currentSpace?.name ?? "—"} connected={connected} onChangeUrl={actions.setUrl} />
-
-      <div className="flex flex-1 flex-col justify-center gap-4 py-6">
-        {state.videoUrl && mediaKind(state.videoUrl) === "audio" ? (
-          <AudioPlayer
+    <div className={cn("flex h-[100dvh] w-full flex-col overflow-hidden bg-black", !chromeShown && "cursor-none")} onMouseMove={onPointerActivity} onTouchStart={bumpChrome}>
+      <div className="relative min-h-0 flex-1">
+        {idle ? (
+          <IdleScreen spaceName={currentSpace?.name ?? "Roomflix"} onLoadUrl={actions.setUrl} />
+        ) : currentBroken ? (
+          <UnavailableScreen title={title} />
+        ) : kind === "image" ? (
+          <PhotoPlayer
             url={state.videoUrl}
             title={state.videoTitle}
-            playing={state.playing}
-            currentTime={state.currentTime}
-            updatedAt={state.updatedAt}
-            serverTime={serverTime}
-            onPlay={actions.play}
-            onPause={actions.pause}
-            onSeek={actions.seek}
-            onEnded={actions.videoEnded}
-            onVolumeChange={actions.setVolume}
+            index={state.collectionIndex}
+            total={photoTotal}
+            onNext={actions.collectionNext}
+            onPrev={actions.collectionPrev}
           />
+        ) : kind === "audio" ? (
+          <div className="flex h-full w-full items-center justify-center p-4 sm:p-8">
+            <div className="w-full max-w-3xl">
+              <AudioPlayer
+                url={state.videoUrl!}
+                title={state.videoTitle}
+                playing={state.playing}
+                currentTime={state.currentTime}
+                updatedAt={state.updatedAt}
+                serverTime={serverTime}
+                onPlay={actions.play}
+                onPause={actions.pause}
+                onSeek={actions.seek}
+                onEnded={actions.videoEnded}
+                onVolumeChange={actions.setVolume}
+              />
+            </div>
+          </div>
         ) : (
           <VideoPlayer
+            fill
             videoUrl={state.videoUrl}
             videoTitle={state.videoTitle}
             subtitles={state.subtitles}
@@ -125,65 +270,39 @@ export default function Watch() {
           />
         )}
 
-        {state.playlistId && (
-          <PlaylistQueue
-            detail={playlistDetail}
-            currentIndex={state.playlistIndex}
-            loop={state.playlistLoop}
-            onNext={actions.playlistNext}
-            onPrev={actions.playlistPrev}
-            onJumpTo={actions.playlistJumpTo}
-            onToggleLoop={actions.setPlaylistLoop}
+        {/* Auto-hiding top chrome — exit, now-playing, watchers, library. */}
+        <div className={cn("absolute inset-x-0 top-0 z-30 transition-opacity duration-300", chromeShown ? "opacity-100" : "pointer-events-none opacity-0")}>
+          <TheaterTopBar
+            title={title}
+            contextLabel={contextLabel}
+            viewers={viewers}
+            connected={connected}
+            onLoadUrl={actions.setUrl}
+            onLibraryOpenChange={(open) => {
+              chromeLocked.current = open;
+              bumpChrome();
+            }}
           />
-        )}
+        </div>
       </div>
 
-      <footer className="flex flex-col items-center gap-2 pt-6 text-center text-xs text-text-dim">
-        <span>Anyone in this space can control playback.</span>
-      </footer>
-    </main>
-  );
-}
-
-// Page-local secondary strip. Identity / leave / brand all live in the
-// global AppNav now; this just carries "Watching in <space>", the
-// connection indicator, and the URL-swap picker — Watch-specific stuff
-// that wouldn't make sense on other pages.
-function WatchContextStrip({
-  spaceName,
-  connected,
-  onChangeUrl,
-}: {
-  spaceName: string;
-  connected: boolean;
-  onChangeUrl: (url: string) => void;
-}) {
-  return (
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
-      <div className="flex flex-col leading-tight">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Watching in</span>
-        <span className="text-sm font-medium text-foreground">{spaceName}</span>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <span
-          className={cn(
-            "inline-flex h-9 items-center gap-1.5 border px-3 font-mono text-xs",
-            connected
-              ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300"
-              : "border-amber-300/30 bg-amber-300/10 text-amber-200",
-          )}
-          aria-label={connected ? "Connected" : "Reconnecting"}
-          title={connected ? "Live — playback is synced" : "Reconnecting to playback"}
-        >
-          {connected ? (
-            <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgb(52_211_153/0.7)]" />
-          ) : (
-            <WifiOff className="h-3.5 w-3.5 animate-pulse-soft" />
-          )}
-          <span className="hidden lg:inline">{connected ? "Live" : "Reconnecting…"}</span>
-        </span>
-        <LibraryPicker onPick={onChangeUrl} />
-      </div>
-    </header>
+      {/* Collection filmstrip — in-flow and collapsible, so it never
+          overlaps the player's own controls. Collapse it for full-bleed. */}
+      {!idle && state.collectionId && (
+        <div className="max-h-[42vh] shrink-0 overflow-hidden">
+          <CollectionStrip
+            collection={collection}
+            health={collectionHealth}
+            currentIndex={state.collectionIndex}
+            loop={state.collectionLoop}
+            onNext={actions.collectionNext}
+            onPrev={actions.collectionPrev}
+            onJumpTo={actions.collectionJumpTo}
+            onToggleLoop={actions.setCollectionLoop}
+            onEdit={() => navigate(`/collections/${state.collectionId}`)}
+          />
+        </div>
+      )}
+    </div>
   );
 }
