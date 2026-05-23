@@ -9,6 +9,7 @@ import { useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { HealthDot } from "@/components/HealthDot";
+import { Modal } from "@/components/Modal";
 import { EditVideoDialog } from "@/components/EditVideoDialog";
 import { PlayButton } from "@/components/PlayButton";
 import { ShareDialog } from "@/components/ShareDialog";
@@ -24,6 +25,9 @@ export default function Library() {
   const [error, setError] = useState("");
 
   const [collections, setCollections] = useState<Collection[]>([]);
+  // The add form lives in a modal so the page stays a clean list at rest;
+  // opens on the "+ Add" button in the header.
+  const [addOpen, setAddOpen] = useState(false);
 
   // Initial load: fetch list + collections, then auto-fire the health check
   // (no refresh — uses cache).
@@ -145,11 +149,7 @@ export default function Library() {
 
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-7 px-4 py-6 sm:px-6 sm:py-8">
-      <LibraryHeader count={videos.length} verifying={verifying} onReverify={reverify} onClearAll={handleClearAll} />
-
-      <section className="border border-border bg-bg-elevated/40 p-6">
-        <AddVideoForm onAdd={handleAdd} />
-      </section>
+      <LibraryHeader count={videos.length} verifying={verifying} onReverify={reverify} onClearAll={handleClearAll} onAdd={() => setAddOpen(true)} />
 
       {error && <div className="border border-accent/30 bg-accent/10 p-3 text-sm text-accent">{error}</div>}
 
@@ -182,11 +182,27 @@ export default function Library() {
           </ul>
         </section>
       )}
+
+      <Modal open={addOpen} title="Add media to your library" onClose={() => setAddOpen(false)} className="max-w-lg">
+        <AddVideoForm onAdd={handleAdd} onSuccess={() => setAddOpen(false)} />
+      </Modal>
     </main>
   );
 }
 
-function LibraryHeader({ count, verifying, onReverify, onClearAll }: { count: number; verifying: boolean; onReverify: () => void; onClearAll: () => Promise<void> }) {
+function LibraryHeader({
+  count,
+  verifying,
+  onReverify,
+  onClearAll,
+  onAdd,
+}: {
+  count: number;
+  verifying: boolean;
+  onReverify: () => void;
+  onClearAll: () => Promise<void>;
+  onAdd: () => void;
+}) {
   const { currentSpace } = useAuth();
   const [armedClear, setArmedClear] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -224,6 +240,10 @@ function LibraryHeader({ count, verifying, onReverify, onClearAll }: { count: nu
           </h1>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button variant="accent" size="sm" onClick={onAdd} aria-label="Add media">
+            <Plus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Add</span>
+          </Button>
           <Button variant="outline" size="sm" onClick={onReverify} disabled={verifying} aria-label="Re-verify library">
             <RefreshCw className={cn("h-3.5 w-3.5", verifying && "animate-spin")} />
             <span className="hidden lg:inline">{verifying ? "Verifying…" : "Verify"}</span>
@@ -248,22 +268,24 @@ function LibraryHeader({ count, verifying, onReverify, onClearAll }: { count: nu
 
 type AddPhase = { kind: "idle" } | { kind: "probing" } | { kind: "review"; probe: ProbeResult } | { kind: "error"; message: string };
 
-function AddVideoForm({ onAdd }: { onAdd: (input: { url: string; title?: string }) => Promise<void> }) {
+// Lives inside the "Add" modal — title is derived from the URL on the
+// server side and renamable via the per-row pencil, so a single input is
+// all the form needs. Calls onSuccess after a clean add so the host can
+// close the modal.
+function AddVideoForm({ onAdd, onSuccess }: { onAdd: (input: { url: string; title?: string }) => Promise<void>; onSuccess?: () => void }) {
   const [url, setUrl] = useState("");
-  const [title, setTitle] = useState("");
   const [phase, setPhase] = useState<AddPhase>({ kind: "idle" });
 
   const reset = () => {
     setUrl("");
-    setTitle("");
     setPhase({ kind: "idle" });
   };
 
-  const create = async (skipProbeReset = false) => {
+  const create = async () => {
     try {
-      await onAdd({ url: url.trim(), title: title.trim() || undefined });
-      if (!skipProbeReset) reset();
-      else reset();
+      await onAdd({ url: url.trim() });
+      reset();
+      onSuccess?.();
     } catch (err) {
       setPhase({ kind: "error", message: (err as Error).message });
     }
@@ -293,26 +315,19 @@ function AddVideoForm({ onAdd }: { onAdd: (input: { url: string; title?: string 
   const probing = phase.kind === "probing";
 
   return (
-    <form onSubmit={submit} className="space-y-3.5">
-      <div className="flex items-center justify-between gap-2">
-        <span className="section-label muted">Add a video</span>
-        <Link to="/help" className="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition hover:text-foreground" title="How to host your video">
-          <HelpCircle className="h-3 w-3" />
-          Need a URL?
-        </Link>
-      </div>
+    <form onSubmit={submit} className="space-y-2">
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input
+          autoFocus
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="Public video URL (.mp4, .webm, …)"
+          placeholder="Paste a public media URL…"
           className="sm:flex-1"
           autoCapitalize="off"
           autoCorrect="off"
           spellCheck={false}
           disabled={probing}
         />
-        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title (optional)" className="sm:w-56" disabled={probing} />
         <Button type="submit" variant="accent" disabled={!url.trim() || probing} className="h-11">
           {probing ? (
             <>
@@ -328,7 +343,7 @@ function AddVideoForm({ onAdd }: { onAdd: (input: { url: string; title?: string 
         </Button>
       </div>
 
-      {phase.kind === "review" && <ProbeReview probe={phase.probe} onConfirm={() => create(true)} onCancel={() => setPhase({ kind: "idle" })} />}
+      {phase.kind === "review" && <ProbeReview probe={phase.probe} onConfirm={create} onCancel={() => setPhase({ kind: "idle" })} />}
 
       {phase.kind === "error" && <p className="text-xs text-accent">{phase.message}</p>}
     </form>
@@ -415,85 +430,93 @@ function VideoRow({
 
   return (
     <li className="border-b border-border last:border-b-0">
-      <div className={cn("flex flex-col gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.02] sm:flex-row sm:items-center", gone && "opacity-55")}>
+      <div className={cn("group flex flex-col gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.02] sm:flex-row sm:items-center", gone && "opacity-55")}>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <HealthDot status={health?.video} />
             <span className="truncate text-sm font-medium text-foreground">{video.title}</span>
             <SubtitleBadge subtitles={video.subtitles} health={health} />
           </div>
-          <p className="mt-1 truncate font-mono text-xs text-text-dim" title={video.url}>
-            {urlFilename(video.url)}
-          </p>
+          {/* Subtitle URL — hide when it just repeats the title, which is
+              the case for most freshly-added entries and reads as noise. */}
+          {urlFilename(video.url) !== video.title && (
+            <p className="mt-1 truncate font-mono text-xs text-text-dim" title={video.url}>
+              {urlFilename(video.url)}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <PlayButton video={video} health={health} />
-          {collections.length > 0 && (
-            <div className="relative">
-              <Button
-                size="icon"
-                variant="ghost"
-                disabled={gone}
-                onClick={() => setMenuOpen((v) => !v)}
-                onBlur={() => {
-                  // Delay so a click inside the menu still registers
-                  // before the popover unmounts.
-                  setTimeout(() => setMenuOpen(false), 150);
-                }}
-                aria-label="Add to collection"
-                title={gone ? "Unavailable — URL is unreachable" : "Add to collection"}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-              {menuOpen && (
-                <div className="absolute right-0 top-9 z-30 min-w-[13rem] border border-border bg-bg-elevated/95 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl">
-                  <div className="border-b border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-text-dim">Add to collection</div>
-                  <ul className="max-h-60 overflow-y-auto">
-                    {collections.map((c) => {
-                      const already = c.items.some((it) => it.url === video.url);
-                      return (
-                        <li key={c.id}>
-                          <button
-                            type="button"
-                            disabled={already}
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={async () => {
-                              setMenuOpen(false);
-                              await onAddToCollection(c.id);
-                            }}
-                            className={cn(
-                              "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition",
-                              already ? "text-text-dim" : "text-foreground hover:bg-white/[0.04]",
-                            )}
-                          >
-                            <span className="truncate">{c.title}</span>
-                            {already && <span className="font-mono text-[10px] text-text-dim">✓</span>}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-          <Button size="icon" variant="ghost" onClick={() => setShareOpen(true)} aria-label="Share video" title="Create a share link">
-            <Share2 className="h-4 w-4" />
-          </Button>
-          <Button size="icon" variant="ghost" onClick={() => setEditOpen(true)} aria-label="Edit video" title="Edit video">
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant={armedDelete ? "destructive" : "ghost"}
-            onClick={remove}
-            aria-label={armedDelete ? "Click again to confirm delete" : "Delete"}
-            title={armedDelete ? "Click again to confirm" : "Delete"}
-            disabled={busy}
-            className={cn(armedDelete && "animate-pulse-soft")}
-          >
-            <Trash2 className={cn("h-4 w-4", armedDelete ? "text-white" : "text-accent/80")} />
-          </Button>
+          {/* Secondary actions fade in on row hover so the list reads as
+              "names + Play" at rest, with management within reach. */}
+          <div className="flex items-center gap-2 opacity-50 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+            {collections.length > 0 && (
+              <div className="relative">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  disabled={gone}
+                  onClick={() => setMenuOpen((v) => !v)}
+                  onBlur={() => {
+                    // Delay so a click inside the menu still registers
+                    // before the popover unmounts.
+                    setTimeout(() => setMenuOpen(false), 150);
+                  }}
+                  aria-label="Add to collection"
+                  title={gone ? "Unavailable — URL is unreachable" : "Add to collection"}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+                {menuOpen && (
+                  <div className="absolute right-0 top-9 z-30 min-w-[13rem] border border-border bg-bg-elevated/95 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl">
+                    <div className="border-b border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-text-dim">Add to collection</div>
+                    <ul className="max-h-60 overflow-y-auto">
+                      {collections.map((c) => {
+                        const already = c.items.some((it) => it.url === video.url);
+                        return (
+                          <li key={c.id}>
+                            <button
+                              type="button"
+                              disabled={already}
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={async () => {
+                                setMenuOpen(false);
+                                await onAddToCollection(c.id);
+                              }}
+                              className={cn(
+                                "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition",
+                                already ? "text-text-dim" : "text-foreground hover:bg-white/[0.04]",
+                              )}
+                            >
+                              <span className="truncate">{c.title}</span>
+                              {already && <span className="font-mono text-[10px] text-text-dim">✓</span>}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+            <Button size="icon" variant="ghost" onClick={() => setShareOpen(true)} aria-label="Share video" title="Create a share link">
+              <Share2 className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={() => setEditOpen(true)} aria-label="Edit video" title="Edit video">
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant={armedDelete ? "destructive" : "ghost"}
+              onClick={remove}
+              aria-label={armedDelete ? "Click again to confirm delete" : "Delete"}
+              title={armedDelete ? "Click again to confirm" : "Delete"}
+              disabled={busy}
+              className={cn(armedDelete && "animate-pulse-soft")}
+            >
+              <Trash2 className={cn("h-4 w-4", armedDelete ? "text-white" : "text-accent/80")} />
+            </Button>
+          </div>
         </div>
       </div>
 

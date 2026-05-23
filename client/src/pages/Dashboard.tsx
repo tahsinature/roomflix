@@ -1,204 +1,267 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, Layers, Library as LibraryIcon, Link2, Play, Users2 } from "lucide-react";
-import type { Collection, LibraryHealth, Video } from "@shared/protocol";
+import { ArrowRight, Film, Music, Play, Users2 } from "lucide-react";
+import type { SessionState, Viewer } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { PlayButton } from "@/components/PlayButton";
 import { useAuth } from "@/auth/AuthContext";
-import { api } from "@/lib/api";
-import { canonicalUrl, urlFilename } from "@/lib/utils";
+import { useSessionPresence } from "@/auth/SessionPresence";
+import { cn, mediaKind, urlFilename } from "@/lib/utils";
 
-const RECENT_LIMIT = 4;
-const COLLECTION_LIMIT = 4;
-
-// Logged-in landing — tight, scrollless on a typical desktop. Two
-// things you can do here: paste a URL to play, or jump straight to a
-// recent video / playlist. Everything else (library mgmt, storage,
-// admit guests, etc.) is reachable from the AppNav / ViewerPill /
-// AccountMenu, so we don't restate it here.
+// Logged-in landing — deliberately quiet. One job: be a soft front door
+// into the theater. Catalog surfaces (Library / Storage / Shares) own
+// everything list-y, so this page does NOT restate any of that. Just a
+// greeting, the current space, a single CTA, and a small "now playing"
+// peek when the space's synced session has something loaded.
 export default function Dashboard() {
   const { user, currentSpace } = useAuth();
+  const { state, viewers, serverTime } = useSessionPresence();
   const navigate = useNavigate();
 
-  const [videos, setVideos] = useState<Video[]>([]);
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [health, setHealth] = useState<LibraryHealth | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  if (!currentSpace) return <NoSpaceState />;
 
-  useEffect(() => {
-    if (!currentSpace) return;
-    let cancelled = false;
-    Promise.all([api.listVideos().catch(() => [] as Video[]), api.listCollections().catch(() => [] as Collection[]), api.libraryHealth().catch(() => null)]).then(
-      ([list, cols, h]) => {
-        if (cancelled) return;
-        setVideos(list);
-        setCollections(cols);
-        setHealth(h);
-        setLoaded(true);
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [currentSpace?.id]);
-
-  const greetingName = user?.displayName?.trim() || (user ? `@${user.username}` : "");
-
-  if (!currentSpace) {
-    return <NoSpaceState />;
-  }
+  const greeting = user?.displayName?.trim() || (user ? `@${user.username}` : "");
+  const playingTitle = state?.videoUrl ? state.videoTitle || urlFilename(state.videoUrl) : null;
 
   return (
     <main className="relative">
       <BackgroundOrbs />
-      <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 pt-6 sm:px-6 sm:pt-8">
-        {/* Compact welcome — one line. Space name is in the AppNav
-            switcher; we don't restate "you own this space" here since
-            the AccountMenu already shows the role. */}
-        <header>
-          <h1 className="text-balance text-2xl font-medium tracking-tight text-foreground sm:text-3xl">
-            Welcome back, <span className="text-accent">{greetingName}</span>.
-          </h1>
-        </header>
-
-        <QuickPlayCard
-          onSubmit={(url) => {
-            navigate(`/watch?video=${encodeURIComponent(url)}`);
-          }}
-        />
-
-        {loaded && (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <RecentLibrarySection videos={videos} health={health} />
-            <CollectionsCard collections={collections} />
+      <div className="mx-auto flex min-h-[calc(100dvh-7rem)] max-w-5xl items-center px-6 py-10 sm:px-8">
+        {/* Welcome on the left, monitor on the right, side-by-side on
+            desktop; stacked on phone with the welcome on top. */}
+        <div className="grid w-full grid-cols-1 items-center gap-10 md:grid-cols-2 md:gap-12 lg:gap-16">
+          <div className="flex flex-col items-center gap-6 text-center md:items-start md:gap-8 md:text-left">
+            <BrandGlow />
+            <div className="flex flex-col gap-3">
+              {greeting && <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Hi, {greeting}</p>}
+              <h1 className="text-balance text-3xl font-medium tracking-tight text-foreground sm:text-4xl">
+                You're in <span className="text-accent">{currentSpace.name}</span>
+              </h1>
+            </div>
           </div>
-        )}
+
+          <div className="flex items-center justify-center md:justify-end">
+            <TheaterMonitor state={state} viewers={viewers} serverTime={serverTime} playingTitle={playingTitle} onOpen={() => navigate("/watch")} />
+          </div>
+        </div>
       </div>
     </main>
   );
 }
 
-// Paste-a-URL surface. Skips the empty-player friction — adding a URL
-// via /watch?video= triggers a setUrl on the server, which idempotently
-// saves to the library and broadcasts to the session. So one input is
-// enough.
-function QuickPlayCard({ onSubmit }: { onSubmit: (url: string) => void }) {
-  const [url, setUrl] = useState("");
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    const trimmed = url.trim();
-    if (!trimmed) return;
-    onSubmit(canonicalUrl(trimmed));
-  };
+// One tile, two faces. Playing → live mini-preview of what the room is
+// watching. Idle → a "standby" monitor with a play glyph. Same shape
+// either way so the page composition (welcome | theater) doesn't shift
+// when the session starts or stops.
+function TheaterMonitor({
+  state,
+  viewers,
+  serverTime,
+  playingTitle,
+  onOpen,
+}: {
+  state: SessionState | null;
+  viewers: Viewer[];
+  serverTime: number;
+  playingTitle: string | null;
+  onOpen: () => void;
+}) {
+  const playing = Boolean(state?.videoUrl);
+  const kind = playing ? mediaKind(state!.videoUrl) : null;
+  const headline = playing ? (playingTitle ?? "") : "Step into the theater";
   return (
-    <section className="border border-border bg-bg-elevated/40 p-4 sm:p-5">
-      <span className="section-label muted">Quick play</span>
-      <form onSubmit={submit} className="mt-3 flex flex-col gap-2 sm:flex-row">
-        <div className="relative flex-1">
-          <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-dim" />
-          <Input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="Paste a public video URL"
-            className="pl-9"
-            autoCapitalize="off"
-            autoCorrect="off"
-            spellCheck={false}
-          />
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={playing ? `Now playing: ${playingTitle}. Open the theater.` : "Open the theater."}
+      className={cn(
+        "group relative flex w-full max-w-lg flex-col overflow-hidden border text-left transition",
+        playing
+          ? "border-accent/30 bg-bg-elevated/30 shadow-[0_24px_60px_-24px_hsl(0_100%_65%/0.35)] hover:border-accent/60 hover:bg-bg-elevated/50"
+          : "border-border bg-bg-elevated/20 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.55)] hover:border-accent/40 hover:bg-bg-elevated/40",
+      )}
+    >
+      {/* Top bezel — small status strip. Accent caption when live, muted when idle. */}
+      <div className={cn("flex items-center justify-between gap-3 border-b px-4 py-2", playing ? "border-white/[0.06] bg-black/40" : "border-white/[0.04] bg-black/25")}>
+        <span className={cn("flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em]", playing ? "text-accent" : "text-muted-foreground")}>
+          {playing && <span className="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-accent" aria-hidden />}
+          {playing ? (viewers.length > 0 ? `${viewers.length} watching` : "Now playing") : "Theater"}
+        </span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+          {playing ? (kind === "image" ? "Photo" : kind === "audio" ? "Audio" : "Video") : "Standby"}
+        </span>
+      </div>
+
+      <div className="relative aspect-video w-full overflow-hidden bg-black">
+        {playing ? (
+          <MonitorContent state={state!} serverTime={serverTime} kind={kind!} title={headline} />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-bg-elevated/40 via-black to-black">
+            <span className="flex h-14 w-14 items-center justify-center border border-white/15 bg-black/45 text-white/65 shadow-[0_0_32px_rgba(0,0,0,0.6)] transition group-hover:text-accent group-hover:border-accent/40">
+              <Play className="h-6 w-6 fill-current" />
+            </span>
+          </div>
+        )}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 px-4 pb-3 pt-8">
+          <span className="line-clamp-2 text-sm font-medium text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] sm:text-base">{headline}</span>
+          <span className="flex shrink-0 items-center gap-1 font-mono text-[11px] uppercase tracking-[0.16em] text-accent transition group-hover:text-accent-bright">
+            Open
+            <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
+          </span>
         </div>
-        <Button type="submit" variant="accent" size="lg" disabled={!url.trim()} className="h-11">
-          <Play className="h-4 w-4 fill-current" />
-          Play
-          <ArrowRight className="h-4 w-4" />
-        </Button>
-      </form>
-    </section>
+      </div>
+    </button>
   );
 }
 
-function RecentLibrarySection({ videos, health }: { videos: Video[]; health: LibraryHealth | null }) {
-  if (videos.length === 0) {
+// Per-kind screen content. Image plays itself; video gets a muted,
+// uncontrollable live mini-player synced to the room state; audio keeps
+// the styled card (a silent audio element on the home page would be
+// useless).
+function MonitorContent({ state, serverTime, kind, title }: { state: SessionState; serverTime: number; kind: "image" | "audio" | "video"; title: string }) {
+  if (kind === "image" && state.videoUrl) {
+    return <img src={state.videoUrl} alt={title} className="h-full w-full object-cover" loading="lazy" />;
+  }
+  if (kind === "audio") {
     return (
-      <section className="border border-border bg-bg-elevated/40 px-4 py-6 text-center">
-        <LibraryIcon className="mx-auto h-5 w-5 text-text-dim" />
-        <p className="mt-2 text-sm text-muted-foreground">Library is empty.</p>
-        <Button asChild variant="ghost" size="sm" className="mt-2">
-          <Link to="/library">
-            Add a video <ArrowRight className="h-3 w-3" />
-          </Link>
-        </Button>
-      </section>
+      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-900/40 via-purple-900/20 to-black">
+        <span className="flex h-16 w-16 items-center justify-center border border-white/15 bg-black/45 text-white/80 shadow-[0_0_32px_rgba(0,0,0,0.6)] animate-pulse-soft">
+          <Music className="h-7 w-7" />
+        </span>
+      </div>
     );
   }
-
-  const recent = videos.slice(0, RECENT_LIMIT);
+  if (state.videoUrl) {
+    return <MiniVideoPreview state={state} serverTime={serverTime} />;
+  }
   return (
-    <section>
-      <header className="mb-2">
-        <span className="section-label muted">Recent</span>
-      </header>
-      <ul className="border-y border-border">
-        {recent.map((v) => (
-          <li key={v.id} className="flex items-center gap-3 border-b border-border px-3 py-2.5 transition-colors last:border-b-0 hover:bg-white/[0.02]">
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-foreground">{v.title}</div>
-              <div className="truncate font-mono text-[11px] text-text-dim" title={v.url}>
-                {urlFilename(v.url)}
-              </div>
-            </div>
-            <PlayButton video={v} health={health?.videos[v.id]} />
-          </li>
-        ))}
-      </ul>
-    </section>
+    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-rose-950/40 via-black to-black">
+      <span className="flex h-16 w-16 items-center justify-center border border-white/15 bg-black/45 text-white/75 shadow-[0_0_32px_rgba(0,0,0,0.6)]">
+        <Film className="h-7 w-7" />
+      </span>
+    </div>
   );
 }
 
-function CollectionsCard({ collections }: { collections: Collection[] }) {
-  const navigate = useNavigate();
-  if (collections.length === 0) {
+// Tiny synced <video> for the home monitor — always muted, no controls,
+// and the home page doesn't flip presence status to "watching" so it
+// doesn't count as a viewer. Sync mirrors VideoPlayer's logic in a much
+// smaller surface: track server-clock skew, compute expected time, drift
+// past 1s triggers a reseek, play/pause follows the room. If the source
+// errors, fall back to the styled video card so the monitor stays
+// presentable.
+function MiniVideoPreview({ state, serverTime }: { state: SessionState; serverTime: number }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const skewRef = useRef(0);
+  const [errored, setErrored] = useState(false);
+
+  useEffect(() => {
+    skewRef.current = Date.now() - serverTime;
+  }, [serverTime]);
+
+  useEffect(() => {
+    // Reset the error flag when the source URL changes — a fresh item
+    // gets its own chance to load.
+    setErrored(false);
+  }, [state.videoUrl]);
+
+  // Play/pause enforcement — fires the moment state.playing flips so the
+  // mini-player follows the room instantly, independent of seek-time
+  // changes.
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || !state.videoUrl) return;
+    if (state.playing) {
+      if (v.paused) v.play().catch(() => {});
+    } else if (!v.paused) {
+      v.pause();
+    }
+  }, [state.playing, state.videoUrl]);
+
+  // Drift correction — seek the home preview to the room's expected time
+  // whenever the room seeks or updates its anchor. Decoupled from the
+  // play/pause effect so the two never get in each other's way.
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || !state.videoUrl) return;
+    const expected = state.playing ? state.currentTime + Math.max(0, (Date.now() - skewRef.current - state.updatedAt) / 1000) : state.currentTime;
+    const drift = Math.abs(v.currentTime - expected);
+    if (Number.isFinite(expected) && drift > 1.0) {
+      try {
+        v.currentTime = expected;
+      } catch {
+        /* readyState too low; loadedmetadata handler will retry */
+      }
+    }
+  }, [state.playing, state.currentTime, state.updatedAt, state.videoUrl]);
+
+  // Backstop: if the <video> fires a "play" event while the room says
+  // we should be paused (browser auto-resume on tab focus, an in-flight
+  // play() winning a race, etc.), force it back to paused. A ref keeps
+  // the current state.playing reachable from the event handler without
+  // re-binding the listener on every change.
+  const playingRef = useRef(state.playing);
+  playingRef.current = state.playing;
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    const onPlay = () => {
+      if (!playingRef.current) v.pause();
+    };
+    v.addEventListener("play", onPlay);
+    return () => v.removeEventListener("play", onPlay);
+  }, []);
+
+  const onLoadedMetadata = () => {
+    const v = ref.current;
+    if (!v) return;
+    const expected = state.playing ? state.currentTime + Math.max(0, (Date.now() - skewRef.current - state.updatedAt) / 1000) : state.currentTime;
+    if (Number.isFinite(expected)) {
+      try {
+        v.currentTime = expected;
+      } catch {
+        /* ignore */
+      }
+    }
+    if (state.playing) v.play().catch(() => {});
+  };
+
+  if (errored) {
     return (
-      <section className="border border-border bg-bg-elevated/40 px-4 py-6 text-center">
-        <Layers className="mx-auto h-5 w-5 text-text-dim" />
-        <p className="mt-2 text-sm text-muted-foreground">No collections yet.</p>
-        <Button asChild variant="ghost" size="sm" className="mt-2">
-          <Link to="/library">
-            Create one <ArrowRight className="h-3 w-3" />
-          </Link>
-        </Button>
-      </section>
+      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-rose-950/40 via-black to-black">
+        <span className="flex h-16 w-16 items-center justify-center border border-white/15 bg-black/45 text-white/75 shadow-[0_0_32px_rgba(0,0,0,0.6)]">
+          <Film className="h-7 w-7" />
+        </span>
+      </div>
     );
   }
 
-  const recent = collections.slice(0, COLLECTION_LIMIT);
   return (
-    <section>
-      <header className="mb-2">
-        <span className="section-label muted">Collections</span>
-      </header>
-      <ul className="border-y border-border">
-        {recent.map((c) => (
-          <li key={c.id} className="flex items-center gap-3 border-b border-border px-3 py-2.5 transition-colors last:border-b-0 hover:bg-white/[0.02]">
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-foreground">{c.title}</div>
-              <div className="font-mono text-[11px] text-text-dim">
-                {c.items.length} {c.items.length === 1 ? "item" : "items"}
-              </div>
-            </div>
-            <button
-              type="button"
-              aria-label={`Play ${c.title}`}
-              onClick={() => navigate(`/watch?collection=${encodeURIComponent(c.id)}`)}
-              disabled={c.items.length === 0}
-              className="flex h-8 w-8 items-center justify-center text-foreground transition hover:text-accent disabled:opacity-30"
-            >
-              <Play className="h-4 w-4" />
-            </button>
-          </li>
-        ))}
-      </ul>
-    </section>
+    // eslint-disable-next-line jsx-a11y/media-has-caption
+    <video
+      ref={ref}
+      key={state.videoUrl ?? ""}
+      src={state.videoUrl ?? undefined}
+      muted
+      playsInline
+      preload="auto"
+      onLoadedMetadata={onLoadedMetadata}
+      onError={() => setErrored(true)}
+      className="h-full w-full object-cover"
+    />
+  );
+}
+
+// The brand mark, larger and softly glowing. Anchors the page without
+// shouting.
+function BrandGlow() {
+  return (
+    <span
+      className="relative inline-flex h-24 w-24 items-center justify-center border border-accent/30 bg-accent/[0.06] shadow-[0_0_60px_hsl(0_100%_65%/0.18)] sm:h-28 sm:w-28"
+      aria-hidden
+    >
+      <span className="block h-0 w-0 border-y-[14px] border-l-[20px] border-y-transparent border-l-accent" style={{ marginLeft: "3px" }} />
+    </span>
   );
 }
 

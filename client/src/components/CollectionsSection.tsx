@@ -138,34 +138,38 @@ function CollectionCard({ collection, onDelete }: { collection: Collection; onDe
         <div className="min-w-0 flex-1 truncate text-sm font-medium text-foreground" title={collection.title}>
           {collection.title}
         </div>
-        <button
-          type="button"
-          aria-label="Share collection"
-          title="Create a share link"
-          onClick={() => setShareOpen(true)}
-          className="flex h-8 w-8 items-center justify-center text-text-dim transition hover:text-foreground"
-        >
-          <Share2 className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          aria-label="Edit collection"
-          title="Edit collection"
-          onClick={() => navigate(`/collections/${collection.id}`)}
-          className="flex h-8 w-8 items-center justify-center text-text-dim transition hover:text-foreground"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          aria-label={armed ? "Click again to confirm delete" : "Delete collection"}
-          title={armed ? "Click again to confirm" : "Delete"}
-          onClick={() => void triggerDelete()}
-          disabled={busy}
-          className={cn("flex h-8 w-8 items-center justify-center transition", armed ? "animate-pulse-soft bg-accent text-white" : "text-text-dim hover:text-accent")}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+        {/* Footer actions fade in on hover so the card reads as a cover +
+            title at rest; management surfaces only when you reach for it. */}
+        <div className="flex items-center gap-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+          <button
+            type="button"
+            aria-label="Share collection"
+            title="Create a share link"
+            onClick={() => setShareOpen(true)}
+            className="flex h-8 w-8 items-center justify-center text-text-dim transition hover:text-foreground"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            aria-label="Edit collection"
+            title="Edit collection"
+            onClick={() => navigate(`/collections/${collection.id}`)}
+            className="flex h-8 w-8 items-center justify-center text-text-dim transition hover:text-foreground"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            aria-label={armed ? "Click again to confirm delete" : "Delete collection"}
+            title={armed ? "Click again to confirm" : "Delete"}
+            onClick={() => void triggerDelete()}
+            disabled={busy}
+            className={cn("flex h-8 w-8 items-center justify-center transition", armed ? "animate-pulse-soft bg-accent text-white" : "text-text-dim hover:text-accent")}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
       {shareOpen && <ShareDialog target={{ kind: "collection", collectionId: collection.id, title: collection.title }} onClose={() => setShareOpen(false)} />}
     </li>
