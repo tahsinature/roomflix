@@ -25,24 +25,18 @@ export default function Dashboard() {
   return (
     <main className="relative">
       <BackgroundOrbs />
-      <div className="mx-auto flex min-h-[calc(100dvh-7rem)] max-w-5xl items-center px-6 py-10 sm:px-8">
-        {/* Welcome on the left, monitor on the right, side-by-side on
-            desktop; stacked on phone with the welcome on top. */}
-        <div className="grid w-full grid-cols-1 items-center gap-10 md:grid-cols-2 md:gap-12 lg:gap-16">
-          <div className="flex flex-col items-center gap-6 text-center md:items-start md:gap-8 md:text-left">
-            <BrandGlow />
-            <div className="flex flex-col gap-3">
-              {greeting && <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Hi, {greeting}</p>}
-              <h1 className="text-balance text-3xl font-medium tracking-tight text-foreground sm:text-4xl">
-                You're in <span className="text-accent">{currentSpace.name}</span>
-              </h1>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-center md:justify-end">
-            <TheaterMonitor state={state} viewers={viewers} serverTime={serverTime} playingTitle={playingTitle} onOpen={() => navigate("/watch")} />
-          </div>
+      {/* One vertical column, centered. Monitor is the hero; the
+          greeting + space name sit above it as a quiet supporting line.
+          Same composition on phone and desktop — just sizes scale. */}
+      <div className="mx-auto flex min-h-[calc(100dvh-7rem)] max-w-2xl flex-col items-center justify-center gap-8 px-6 py-10 text-center sm:gap-10">
+        <div className="flex flex-col gap-2">
+          {greeting && <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Hi, {greeting}</p>}
+          <h1 className="text-balance text-2xl font-medium tracking-tight text-foreground sm:text-3xl">
+            You're in <span className="text-accent">{currentSpace.name}</span>
+          </h1>
         </div>
+
+        <TheaterMonitor state={state} viewers={viewers} serverTime={serverTime} playingTitle={playingTitle} onOpen={() => navigate("/watch")} />
       </div>
     </main>
   );
@@ -74,10 +68,10 @@ function TheaterMonitor({
       onClick={onOpen}
       aria-label={playing ? `Now playing: ${playingTitle}. Open the theater.` : "Open the theater."}
       className={cn(
-        "group relative flex w-full max-w-lg flex-col overflow-hidden border text-left transition",
+        "group relative flex w-full max-w-xl flex-col overflow-hidden border text-left transition",
         playing
-          ? "border-accent/30 bg-bg-elevated/30 shadow-[0_24px_60px_-24px_hsl(0_100%_65%/0.35)] hover:border-accent/60 hover:bg-bg-elevated/50"
-          : "border-border bg-bg-elevated/20 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.55)] hover:border-accent/40 hover:bg-bg-elevated/40",
+          ? "border-accent/30 bg-bg-elevated/30 shadow-[0_30px_80px_-24px_hsl(0_100%_65%/0.35)] hover:border-accent/60 hover:bg-bg-elevated/50"
+          : "border-border bg-bg-elevated/20 shadow-[0_30px_80px_-24px_rgba(0,0,0,0.55)] hover:border-accent/40 hover:bg-bg-elevated/40",
       )}
     >
       {/* Top bezel — small status strip. Accent caption when live, muted when idle. */}
@@ -249,19 +243,6 @@ function MiniVideoPreview({ state, serverTime }: { state: SessionState; serverTi
       onError={() => setErrored(true)}
       className="h-full w-full object-cover"
     />
-  );
-}
-
-// The brand mark, larger and softly glowing. Anchors the page without
-// shouting.
-function BrandGlow() {
-  return (
-    <span
-      className="relative inline-flex h-24 w-24 items-center justify-center border border-accent/30 bg-accent/[0.06] shadow-[0_0_60px_hsl(0_100%_65%/0.18)] sm:h-28 sm:w-28"
-      aria-hidden
-    >
-      <span className="block h-0 w-0 border-y-[14px] border-l-[20px] border-y-transparent border-l-accent" style={{ marginLeft: "3px" }} />
-    </span>
   );
 }
 
