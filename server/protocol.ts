@@ -365,12 +365,20 @@ export type CollectionItem = {
 // inline (not Library refs), so a folder of hundreds of files is one
 // document. Built from storage folders and editable (reorder / add /
 // remove). Edit & delete are allowed for the creator and the space owner.
+// `source`, when set, makes the collection a LIVE projection of a
+// storage folder. Items are computed server-side on read (fresh from the
+// bucket, cached briefly) and the collection is read-only; the title
+// also tracks the folder name. A null source means a manual collection
+// — items are stored inline and the user can edit / reorder them.
+export type CollectionSource = { connectionId: string; folderPrefix: string };
+
 export type Collection = {
   id: string;
   spaceId: string;
   createdBy: string;
   title: string;
   items: CollectionItem[];
+  source: CollectionSource | null;
   createdAt: number;
   updatedAt: number;
 };

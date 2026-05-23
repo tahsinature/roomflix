@@ -2,6 +2,7 @@ import { Hono } from "hono";
 
 import type { StorageConnection, StorageConnectionDetail } from "@/protocol.ts";
 import type { Storage } from "@/storage/index.ts";
+import { invalidateCollectionItems } from "@/storage/collection-resolver.ts";
 import { requireUser } from "@/auth.ts";
 
 // Account-level storage management. All routes scoped to the caller's
@@ -69,6 +70,9 @@ export function buildAccountStorageRouter(storage: Storage) {
 
     const updated = await storage.storageConnections.update(cid, validated.value);
     if (!updated) return c.json({ error: "not found" }, 404);
+    // The connection's publicBaseUrl / creds may have changed — synced
+    // collections built atop it could now resolve to different URLs.
+    invalidateCollectionItems();
     const activations = await storage.storageActivations.listForConnection(cid);
     return c.json(detailFor(updated, activations));
   });
@@ -80,6 +84,7 @@ export function buildAccountStorageRouter(storage: Storage) {
     if ("error" in owned) return c.json({ error: owned.error }, owned.status);
     await storage.storageActivations.removeAllForConnection(cid);
     await storage.storageConnections.remove(cid);
+    invalidateCollectionItems();
     return c.body(null, 204);
   });
 

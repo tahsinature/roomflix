@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import type {
   Collection,
   CollectionItem,
+  CollectionSource,
   InviteCode,
   JoinRequest,
   JoinRequester,
@@ -464,14 +465,17 @@ class MongoCollectionRepo implements CollectionRepo {
     return doc ? toCollection(doc) : null;
   }
 
-  async create(input: { spaceId: string; createdBy: string; title: string; items: CollectionItem[] }): Promise<Collection> {
+  async create(input: { spaceId: string; createdBy: string; title: string; items: CollectionItem[]; source: CollectionSource | null }): Promise<Collection> {
     const now = Date.now();
     const doc = {
       _id: randomId(),
       spaceId: input.spaceId,
       createdBy: input.createdBy,
       title: input.title.trim() || "Untitled collection",
-      items: normalizeCollectionItems(input.items),
+      // Synced collections compute items live on read — don't store any.
+      items: input.source ? [] : normalizeCollectionItems(input.items),
+      sourceConnectionId: input.source?.connectionId ?? null,
+      sourceFolderPrefix: input.source?.folderPrefix ?? null,
       createdAt: now,
       updatedAt: now,
     };
@@ -959,6 +963,8 @@ type CollectionLean = {
   createdBy: string;
   title: string;
   items?: Array<{ url: string; name?: string | null }>;
+  sourceConnectionId?: string | null;
+  sourceFolderPrefix?: string | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -969,6 +975,7 @@ function toCollection(doc: CollectionLean): Collection {
     createdBy: doc.createdBy,
     title: doc.title,
     items: (doc.items ?? []).map((it) => ({ url: it.url, name: it.name ?? "" })),
+    source: doc.sourceConnectionId && doc.sourceFolderPrefix ? { connectionId: doc.sourceConnectionId, folderPrefix: doc.sourceFolderPrefix } : null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };

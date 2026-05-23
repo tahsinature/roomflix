@@ -127,6 +127,11 @@ function CollectionCard({ collection, onDelete }: { collection: Collection; onDe
         <span className="absolute bottom-1.5 right-1.5 border border-white/15 bg-black/65 px-1.5 py-0.5 font-mono text-[10px] text-white/85 backdrop-blur">
           {collection.items.length} item{collection.items.length === 1 ? "" : "s"}
         </span>
+        {collection.source && (
+          <span className="absolute left-1.5 top-1.5 border border-cyan/40 bg-cyan/15 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-cyan backdrop-blur">
+            Synced
+          </span>
+        )}
       </button>
 
       <div className="flex items-center gap-2 px-3 py-2.5">

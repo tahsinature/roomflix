@@ -400,34 +400,38 @@ function CollectionTargetModal({
           <div>
             <div className="section-label muted mb-1.5">Or add into an existing collection</div>
             <ul className="max-h-60 overflow-y-auto border border-border">
-              {collections.map((c) => {
-                const already = targetUrl !== null && c.items.some((it) => it.url === targetUrl);
-                return (
-                  <li key={c.id}>
-                    <button
-                      type="button"
-                      disabled={busy || already}
-                      onClick={() => run(() => onAddToCollection(target, c.id))}
-                      title={already ? "Already in this collection" : undefined}
-                      className={cn(
-                        "flex w-full items-center justify-between gap-3 border-b border-border px-3 py-2 text-left text-sm transition last:border-b-0",
-                        already ? "cursor-default text-text-dim" : "text-foreground hover:bg-white/[0.04]",
-                        "disabled:opacity-60",
-                      )}
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        {already && <Check className="h-3.5 w-3.5 shrink-0 text-live" />}
-                        <span className="truncate">{c.title}</span>
-                      </span>
-                      {already ? (
-                        <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-live">Added</span>
-                      ) : (
-                        <span className="shrink-0 font-mono text-[10px] text-text-dim">{c.items.length}</span>
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
+              {collections
+                // Synced collections track a storage folder; they're
+                // read-only, so adding into them isn't allowed.
+                .filter((c) => !c.source)
+                .map((c) => {
+                  const already = targetUrl !== null && c.items.some((it) => it.url === targetUrl);
+                  return (
+                    <li key={c.id}>
+                      <button
+                        type="button"
+                        disabled={busy || already}
+                        onClick={() => run(() => onAddToCollection(target, c.id))}
+                        title={already ? "Already in this collection" : undefined}
+                        className={cn(
+                          "flex w-full items-center justify-between gap-3 border-b border-border px-3 py-2 text-left text-sm transition last:border-b-0",
+                          already ? "cursor-default text-text-dim" : "text-foreground hover:bg-white/[0.04]",
+                          "disabled:opacity-60",
+                        )}
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          {already && <Check className="h-3.5 w-3.5 shrink-0 text-live" />}
+                          <span className="truncate">{c.title}</span>
+                        </span>
+                        {already ? (
+                          <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-live">Added</span>
+                        ) : (
+                          <span className="shrink-0 font-mono text-[10px] text-text-dim">{c.items.length}</span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
             </ul>
           </div>
         )}

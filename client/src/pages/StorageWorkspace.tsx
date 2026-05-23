@@ -35,7 +35,7 @@ type ConnectError = { kind: "auth" | "cors" | "other"; message: string };
 //
 // Loading/restoring/reconnecting is the caller's concern; this
 // component renders the workspace UI given a working connection.
-export function StorageWorkspace({ connection }: { connection: Connection }) {
+export function StorageWorkspace({ connection, connectionId }: { connection: Connection; connectionId: string }) {
   const toast = useToast();
   const clientRef = useRef<S3Client | null>(null);
   const [busy, setBusy] = useState(true);
@@ -463,14 +463,29 @@ export function StorageWorkspace({ connection }: { connection: Connection }) {
 
   const handleNewCollection = useCallback(
     async (target: CollectionTarget) => {
+      if (target.kind === "folder") {
+        // Synced — server enumerates the folder live, so the collection
+        // always mirrors whatever's currently in it. No client-side scan.
+        if (!connection.publicBaseUrl) {
+          throw new Error("Set a public base URL on this connection first.");
+        }
+        const title = target.prefix.split("/").filter(Boolean).pop() || "Collection";
+        const created = await api.createCollection({
+          title,
+          source: { connectionId, folderPrefix: target.prefix },
+        });
+        setCollections((prev) => [created, ...prev]);
+        toast.success(`Collection "${created.title}" created — synced with this folder.`);
+        return;
+      }
+      // Single-file targets stay as a one-item manual collection.
       const items = await collectTargetItems(target);
-      const title =
-        target.kind === "folder" ? target.prefix.split("/").filter(Boolean).pop() || "Collection" : (target.key.split("/").pop() || "Collection").replace(/\.[^.]+$/, "");
+      const title = (target.key.split("/").pop() || "Collection").replace(/\.[^.]+$/, "");
       const created = await api.createCollection({ title, items });
       setCollections((prev) => [created, ...prev]);
       toast.success(`Collection "${created.title}" created — ${items.length} item${items.length === 1 ? "" : "s"}.`);
     },
-    [collectTargetItems, toast],
+    [collectTargetItems, connectionId, connection.publicBaseUrl, toast],
   );
 
   const handleAddToCollection = useCallback(

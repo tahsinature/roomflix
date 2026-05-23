@@ -18,6 +18,7 @@ import {
   type WsData,
 } from "@/sessions.ts";
 import { createStorage } from "@/storage/index.ts";
+import { resolveCollection } from "@/storage/collection-resolver.ts";
 import { buildVideosRouter } from "@/api/videos.ts";
 import { buildHealthRouter } from "@/api/health.ts";
 import { buildProbeRouter } from "@/api/probe.ts";
@@ -319,8 +320,9 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
       }
       break;
     case "loadCollection": {
-      const collection = await storage.collections.get(session.spaceId, message.collectionId);
-      if (!collection) return;
+      const raw = await storage.collections.get(session.spaceId, message.collectionId);
+      if (!raw) return;
+      const collection = await resolveCollection(raw, storage);
       session.state.collectionId = collection.id;
       await applyCollectionItem(session, collection, 0);
       break;
@@ -328,8 +330,9 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
     case "collectionNext":
     case "collectionPrev": {
       if (!session.state.collectionId) return;
-      const collection = await storage.collections.getById(session.state.collectionId);
-      if (!collection || collection.spaceId !== session.spaceId) return;
+      const raw = await storage.collections.getById(session.state.collectionId);
+      if (!raw || raw.spaceId !== session.spaceId) return;
+      const collection = await resolveCollection(raw, storage);
       const direction = message.type === "collectionNext" ? 1 : -1;
       const target = stepCollectionIndex(session.state.collectionIndex, direction, collection.items.length, session.state.collectionLoop);
       if (target === null) {
@@ -341,8 +344,9 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
     }
     case "collectionJumpTo": {
       if (!session.state.collectionId) return;
-      const collection = await storage.collections.getById(session.state.collectionId);
-      if (!collection || collection.spaceId !== session.spaceId) return;
+      const raw = await storage.collections.getById(session.state.collectionId);
+      if (!raw || raw.spaceId !== session.spaceId) return;
+      const collection = await resolveCollection(raw, storage);
       const idx = Math.floor(message.index);
       if (idx < 0 || idx >= collection.items.length) return;
       await applyCollectionItem(session, collection, idx);
@@ -357,11 +361,12 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
         session.state.playing = false;
         break;
       }
-      const collection = await storage.collections.getById(session.state.collectionId);
-      if (!collection || collection.spaceId !== session.spaceId) {
+      const raw = await storage.collections.getById(session.state.collectionId);
+      if (!raw || raw.spaceId !== session.spaceId) {
         session.state.playing = false;
         break;
       }
+      const collection = await resolveCollection(raw, storage);
       const target = stepCollectionIndex(session.state.collectionIndex, 1, collection.items.length, session.state.collectionLoop);
       if (target === null) {
         session.state.playing = false;

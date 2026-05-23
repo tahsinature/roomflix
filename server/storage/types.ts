@@ -7,6 +7,7 @@ import type {
   Collection,
   CollectionItem,
   InviteCode,
+  CollectionSource,
   JoinRequest,
   JoinRequester,
   ShareAccess,
@@ -169,7 +170,7 @@ export interface CollectionRepo {
   // Used by the WS handler — the lookup must work for any space member
   // navigating a loaded collection, not just whoever loaded it.
   getById(id: string): Promise<Collection | null>;
-  create(input: { spaceId: string; createdBy: string; title: string; items: CollectionItem[] }): Promise<Collection>;
+  create(input: { spaceId: string; createdBy: string; title: string; items: CollectionItem[]; source: CollectionSource | null }): Promise<Collection>;
   update(spaceId: string, id: string, patch: { title?: string; items?: CollectionItem[] }): Promise<Collection | null>;
   remove(spaceId: string, id: string): Promise<boolean>;
 }

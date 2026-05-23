@@ -48,8 +48,7 @@ export function ReactionsOverlay({
       const sender = event.sender.name;
       // Destructure here — TS narrowing on the discriminant doesn't carry
       // into the nested setState callback below.
-      const item: Item =
-        event.reaction.kind === "emoji" ? { kind: "emoji", id, emoji: event.reaction.emoji, sender } : { kind: "text", id, text: event.reaction.text, sender };
+      const item: Item = event.reaction.kind === "emoji" ? { kind: "emoji", id, emoji: event.reaction.emoji, sender } : { kind: "text", id, text: event.reaction.text, sender };
       setItems((prev) => [...prev, item].slice(-MAX_VISIBLE));
       window.setTimeout(() => setItems((prev) => prev.filter((it) => it.id !== id)), LIFESPAN_MS);
     });

@@ -348,42 +348,36 @@ export default function Watch() {
 
         {/* Live reactions — portals to the fullscreen element when a
             video is fullscreen so emojis ride along with the picture. */}
-        {!idle && (
-        <ReactionsOverlay
-          subscribe={subscribeReactions}
-          container={fsEl ?? mediaArea}
-          bottomOffsetClass={kind === "video" ? "bottom-36" : "bottom-16"}
-        />
-      )}
+        {!idle && <ReactionsOverlay subscribe={subscribeReactions} container={fsEl ?? mediaArea} bottomOffsetClass={kind === "video" ? "bottom-36" : "bottom-16"} />}
 
-      {/* Reactions composer — portaled into the fullscreen element when
+        {/* Reactions composer — portaled into the fullscreen element when
           one is active, otherwise into the theater media area, so it's
           reachable in fullscreen without exiting. Positioned as an
           absolute overlay so toggling it doesn't shift the video. */}
-      {!idle &&
-        (fsEl ?? mediaArea) &&
-        createPortal(
-          <div
-            ref={barWrapperRef}
-            // Pin while focus lives anywhere in the bar (input or
-            // buttons). Catches the case where the user just clicks the
-            // input directly — without that, the chrome's auto-hide
-            // would fade the bar mid-sentence.
-            onFocus={() => setComposerPinned(true)}
-            onBlur={(e) => {
-              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setComposerPinned(false);
-            }}
-            className={cn(
-              "absolute inset-x-0 z-40 transition-opacity duration-300",
-              // Sit above the video's own controls when there are any.
-              kind === "video" ? "bottom-20" : "bottom-0",
-              chromeShown || composerPinned ? "opacity-100" : "pointer-events-none opacity-0",
-            )}
-          >
-            <ReactionBar ref={composerInputRef} onSend={actions.sendReaction} />
-          </div>,
-          (fsEl ?? mediaArea)!,
-        )}
+        {!idle &&
+          (fsEl ?? mediaArea) &&
+          createPortal(
+            <div
+              ref={barWrapperRef}
+              // Pin while focus lives anywhere in the bar (input or
+              // buttons). Catches the case where the user just clicks the
+              // input directly — without that, the chrome's auto-hide
+              // would fade the bar mid-sentence.
+              onFocus={() => setComposerPinned(true)}
+              onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setComposerPinned(false);
+              }}
+              className={cn(
+                "absolute inset-x-0 z-40 transition-opacity duration-300",
+                // Sit above the video's own controls when there are any.
+                kind === "video" ? "bottom-20" : "bottom-0",
+                chromeShown || composerPinned ? "opacity-100" : "pointer-events-none opacity-0",
+              )}
+            >
+              <ReactionBar ref={composerInputRef} onSend={actions.sendReaction} />
+            </div>,
+            (fsEl ?? mediaArea)!,
+          )}
 
         {/* Auto-hiding top chrome — exit, now-playing, watchers, library. */}
         <div className={cn("absolute inset-x-0 top-0 z-30 transition-opacity duration-300", chromeShown ? "opacity-100" : "pointer-events-none opacity-0")}>

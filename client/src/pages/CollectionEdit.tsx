@@ -140,6 +140,62 @@ export default function CollectionEdit() {
     );
   }
 
+  // Synced collections track a storage folder live — the editor becomes
+  // a read-only view (title, item count, items are all derived from the
+  // bucket and managed there).
+  const synced = original.source !== null;
+
+  if (synced) {
+    return (
+      <main className="mx-auto max-w-5xl px-4 pb-10 sm:px-6">
+        <div className="sticky top-0 z-20 -mx-4 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={leave}
+              aria-label="Back to library"
+              title="Back to library"
+              className="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-bg-elevated/50 text-foreground transition hover:bg-bg-elevated/80"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium text-foreground">{original.title}</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-dim">Synced with folder</div>
+            </div>
+            <span className="shrink-0 font-mono text-[11px] text-text-dim">
+              {items.length} {items.length === 1 ? "item" : "items"}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-4 border border-border bg-bg-elevated/40 p-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <Layers className="h-3.5 w-3.5 text-accent" />
+            Synced with a storage folder
+          </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            This collection mirrors <span className="font-mono text-foreground/80">/{original.source!.folderPrefix}</span> live. Add or remove files in that folder to change what
+            plays here — the items here aren't editable.
+          </p>
+        </div>
+
+        <div className="mt-3">
+          <div className="section-label muted mb-2">Items · {items.length}</div>
+          {items.length === 0 ? (
+            <div className="border border-border bg-bg-elevated/40 px-4 py-10 text-center font-mono text-[11px] text-text-dim">No media in the source folder.</div>
+          ) : (
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              {items.map((it, i) => (
+                <ReadOnlyTile key={it.url} item={it} index={i} />
+              ))}
+            </ul>
+          )}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto max-w-5xl px-4 pb-10 sm:px-6">
       {/* Sticky action bar — title + save stay reachable while scrolling. */}
@@ -208,6 +264,28 @@ export default function CollectionEdit() {
         )}
       </div>
     </main>
+  );
+}
+
+// Read-only tile — no rename, no remove, no drag handle. Used by the
+// synced-collection view where the storage folder is the source of truth.
+function ReadOnlyTile({ item, index }: { item: CollectionItem; index: number }) {
+  const kind = mediaKind(item.url);
+  const label = item.name || urlFilename(item.url);
+  return (
+    <li className="border border-border bg-bg-elevated/40">
+      <div className="relative aspect-square w-full overflow-hidden bg-black">
+        {kind === "image" ? (
+          <img src={item.url} alt="" loading="lazy" className="h-full w-full object-cover" />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center text-text-dim">{kind === "audio" ? <Music className="h-7 w-7" /> : <Film className="h-7 w-7" />}</span>
+        )}
+        <span className="absolute left-1 top-1 bg-black/70 px-1 font-mono text-[10px] text-white/80">{index + 1}</span>
+      </div>
+      <div className="block w-full truncate border-t border-border px-2 py-1.5 text-[11px] text-foreground" title={label}>
+        {label}
+      </div>
+    </li>
   );
 }
 

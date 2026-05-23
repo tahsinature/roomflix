@@ -26,6 +26,7 @@ export async function runCollectionMigration(storage: Storage): Promise<void> {
       createdBy: (pl.createdBy as string) || spaceId,
       title: (pl.title as string) || "Untitled collection",
       items,
+      source: null,
     });
     await PlaylistModel.updateOne({ _id: pl._id }, { $set: { migratedAt: Date.now() } });
     migrated++;
@@ -44,6 +45,7 @@ export async function runCollectionMigration(storage: Storage): Promise<void> {
       createdBy: (al.createdBy as string) || spaceId,
       title: (al.title as string) || "Untitled collection",
       items,
+      source: null,
     });
     await AlbumModel.updateOne({ _id: al._id }, { $set: { migratedAt: Date.now() } });
     migrated++;

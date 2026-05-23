@@ -193,7 +193,7 @@ export const api = {
   getCollection: (id: string) => request<Collection>(`/api/collections/${encodeURIComponent(id)}`),
   getCollectionHealth: (id: string, opts: { refresh?: boolean } = {}) =>
     request<CollectionHealth>(`/api/collections/${encodeURIComponent(id)}/health${opts.refresh ? "?refresh=true" : ""}`),
-  createCollection: (input: { title: string; items?: CollectionItem[] }) =>
+  createCollection: (input: { title: string; items?: CollectionItem[]; source?: { connectionId: string; folderPrefix: string } }) =>
     request<Collection>("/api/collections", {
       method: "POST",
       body: JSON.stringify(input),

@@ -21,6 +21,10 @@ const collectionSchema = new Schema(
     createdBy: { type: String, required: true },
     title: { type: String, required: true },
     items: { type: [collectionItemSchema], default: [] },
+    // When set, the collection mirrors a storage folder live — items are
+    // recomputed on read and the row is read-only.
+    sourceConnectionId: { type: String, default: null },
+    sourceFolderPrefix: { type: String, default: null },
     createdAt: { type: Number, required: true },
     updatedAt: { type: Number, required: true },
   },

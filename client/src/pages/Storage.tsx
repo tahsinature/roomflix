@@ -193,7 +193,7 @@ function DrillDown({ connection: summary }: { connection: StorageConnection }) {
       </div>
     );
   }
-  return <StorageWorkspace connection={conn} />;
+  return <StorageWorkspace connection={conn} connectionId={summary.id} />;
 }
 
 function EmptyState({ isOwner }: { isOwner: boolean }) {

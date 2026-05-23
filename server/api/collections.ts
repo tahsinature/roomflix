@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 
-import type { CollectionHealth, CollectionItem, HealthStatus } from "@/protocol.ts";
+import type { Collection, CollectionHealth, CollectionItem, HealthStatus } from "@/protocol.ts";
 import { mapWithConcurrency, probeHealth } from "@/probe.ts";
 import type { Storage } from "@/storage/index.ts";
+import { invalidateCollectionItems, resolveCollection } from "@/storage/collection-resolver.ts";
 import { requireSpaceMember } from "@/auth.ts";
 
 const HEALTH_TTL_MS = 5 * 60 * 1000;
@@ -11,40 +12,64 @@ const HEALTH_CONCURRENCY = 10;
 // (PATCH) or the collection is removed.
 const healthCache = new Map<string, CollectionHealth>();
 
-// REST routes for collections — ordered mixed-media lists. Edit/delete is
-// allowed for the creator and the space owner; any other member is
-// read-only. "Add a folder" is just a PATCH with the merged item list, so
-// no special endpoint is needed.
-//   GET    /api/collections        list (most-recent first)
-//   POST   /api/collections        { title, items? } → create
-//   GET    /api/collections/:id    fetch one (items inline — no hydration)
-//   PATCH  /api/collections/:id    { title?, items? } → patch
-//   DELETE /api/collections/:id    remove
+// REST routes for collections — ordered mixed-media lists. A collection is
+// either MANUAL (items stored inline, editable) or SYNCED to a storage
+// folder (items computed live on read, read-only). Edit/delete on manual
+// collections is allowed for the creator and the space owner.
+//   GET    /api/collections             list (most-recent first)
+//   POST   /api/collections             { title, items?, source? } → create
+//   GET    /api/collections/:id         fetch one
+//   PATCH  /api/collections/:id         { title?, items? } → patch (manual only)
+//   DELETE /api/collections/:id         remove
+//   GET    /api/collections/:id/health  per-item availability
 export function buildCollectionsRouter(storage: Storage) {
   const app = new Hono();
   app.use("*", requireSpaceMember(storage));
 
-  app.get("/", async (c) => c.json(await storage.collections.list(c.get("space").id)));
+  app.get("/", async (c) => {
+    const spaceId = c.get("space").id;
+    const raw = await storage.collections.list(spaceId);
+    // Fan out the live resolves for synced collections in parallel.
+    const resolved = await Promise.all(raw.map((coll) => resolveCollection(coll, storage)));
+    return c.json(resolved);
+  });
 
   app.post("/", async (c) => {
     const spaceId = c.get("space").id;
     const createdBy = c.get("user").id;
-    const body = (await c.req.json().catch(() => null)) as { title?: unknown; items?: unknown } | null;
+    const body = (await c.req.json().catch(() => null)) as { title?: unknown; items?: unknown; source?: unknown } | null;
     const title = typeof body?.title === "string" ? body.title : "";
     if (!title.trim()) return c.json({ error: "title is required" }, 400);
+
+    // Validate the optional source. The folder prefix must belong to a
+    // connection the caller's space has activated; otherwise other
+    // members couldn't read it anyway. We don't enforce ownership here
+    // because the space owner can have shared the connection.
+    const source = parseSource(body?.source);
+    if (source) {
+      const conn = await storage.storageConnections.get(source.connectionId);
+      if (!conn) return c.json({ error: "source connection not found" }, 404);
+      const activations = await storage.storageActivations.listForSpace(spaceId);
+      if (!activations.some((a) => a.connectionId === source.connectionId)) {
+        return c.json({ error: "that connection is not activated in this space" }, 403);
+      }
+    }
 
     const created = await storage.collections.create({
       spaceId,
       createdBy,
       title,
       items: parseItems(body?.items) ?? [],
+      source,
     });
-    return c.json(created, 201);
+    return c.json(await resolveCollection(created, storage), 201);
   });
 
   app.get("/:id", async (c) => {
     const collection = await storage.collections.get(c.get("space").id, c.req.param("id"));
-    return collection ? c.json(collection) : c.json({ error: "not found" }, 404);
+    if (!collection) return c.json({ error: "not found" }, 404);
+    const refresh = c.req.query("refresh") === "true";
+    return c.json(await resolveCollection(collection, storage, { refresh }));
   });
 
   // GET /api/collections/:id/health[?refresh=true] — HEAD-probes every
@@ -52,20 +77,22 @@ export function buildCollectionsRouter(storage: Storage) {
   app.get("/:id/health", async (c) => {
     const collection = await storage.collections.get(c.get("space").id, c.req.param("id"));
     if (!collection) return c.json({ error: "not found" }, 404);
+    // Resolve first so synced collections probe their current items.
+    const resolved = await resolveCollection(collection, storage);
 
-    const cached = healthCache.get(collection.id);
+    const cached = healthCache.get(resolved.id);
     if (c.req.query("refresh") !== "true" && cached && Date.now() - cached.checkedAt < HEALTH_TTL_MS) {
       return c.json(cached);
     }
 
-    const urls = [...new Set(collection.items.map((it) => it.url))];
+    const urls = [...new Set(resolved.items.map((it) => it.url))];
     const statuses = await mapWithConcurrency(urls, HEALTH_CONCURRENCY, probeHealth);
     const items: Record<string, HealthStatus> = {};
     urls.forEach((url, i) => {
       items[url] = statuses[i]!;
     });
     const out: CollectionHealth = { checkedAt: Date.now(), items };
-    healthCache.set(collection.id, out);
+    healthCache.set(resolved.id, out);
     return c.json(out);
   });
 
@@ -83,6 +110,14 @@ export function buildCollectionsRouter(storage: Storage) {
     const body = (await c.req.json().catch(() => null)) as { title?: unknown; items?: unknown } | null;
     if (!body) return c.json({ error: "invalid body" }, 400);
 
+    // Synced collections track a folder — title and items are derived,
+    // so any edit attempt is a conceptual mistake.
+    if (existing.source) {
+      if (typeof body.title === "string" || body.items !== undefined) {
+        return c.json({ error: "this collection is synced to a storage folder; manage it there" }, 409);
+      }
+    }
+
     const patch: { title?: string; items?: CollectionItem[] } = {};
     if (typeof body.title === "string") patch.title = body.title;
     const items = parseItems(body.items);
@@ -90,9 +125,8 @@ export function buildCollectionsRouter(storage: Storage) {
 
     const updated = await storage.collections.update(spaceId, c.req.param("id"), patch);
     if (!updated) return c.json({ error: "not found" }, 404);
-    // Items may have changed — the cached probe snapshot is now stale.
     healthCache.delete(c.req.param("id"));
-    return c.json(updated);
+    return c.json(await resolveCollection(updated, storage));
   });
 
   app.delete("/:id", async (c) => {
@@ -109,6 +143,7 @@ export function buildCollectionsRouter(storage: Storage) {
     const removed = await storage.collections.remove(spaceId, c.req.param("id"));
     if (!removed) return c.json({ error: "not found" }, 404);
     healthCache.delete(c.req.param("id"));
+    invalidateCollectionItems(c.req.param("id"));
     return c.body(null, 204);
   });
 
@@ -128,4 +163,13 @@ function parseItems(raw: unknown): CollectionItem[] | null {
     out.push({ url: r.url.trim(), name: typeof r.name === "string" ? r.name : "" });
   }
   return out;
+}
+
+// Coerces unknown input to a CollectionSource. Anything malformed → null.
+function parseSource(raw: unknown): Collection["source"] {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as { connectionId?: unknown; folderPrefix?: unknown };
+  if (typeof r.connectionId !== "string" || !r.connectionId.trim()) return null;
+  if (typeof r.folderPrefix !== "string") return null;
+  return { connectionId: r.connectionId.trim(), folderPrefix: r.folderPrefix };
 }
