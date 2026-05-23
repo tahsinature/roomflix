@@ -1,5 +1,15 @@
 import type { ServerWebSocket } from "bun";
-import { emptySessionState, type Participant, type PresenceStatus, type ServerMessage, type SessionState, type SpaceMember, type Viewer, type Volume } from "@/protocol.ts";
+import {
+  emptySessionState,
+  type Participant,
+  type PresenceStatus,
+  type ReactionContent,
+  type ServerMessage,
+  type SessionState,
+  type SpaceMember,
+  type Viewer,
+  type Volume,
+} from "@/protocol.ts";
 import type { Storage } from "@/storage/index.ts";
 
 // One playback session per space — replaces the old per-room model.
@@ -209,6 +219,19 @@ export function broadcastPresence(spaceId: string): void {
 // minimal — clients refetch the pending list on receipt. Non-owners
 // in the channel get the message too; their UI just ignores it (the
 // pending-list endpoint is owner-gated).
+// Fan a reaction out to every socket currently "watching" in the space.
+// Skipped for "online" sockets — reactions are a live-theater concern,
+// not a general space chat.
+export function broadcastReaction(spaceId: string, payload: { reaction: ReactionContent; sender: { id: string; name: string }; clientId: string; sentAt: number }): void {
+  const session = getSession(spaceId);
+  if (!session) return;
+  const message: ServerMessage = { type: "reaction", ...payload };
+  const wire = JSON.stringify(message);
+  for (const ws of session.sockets) {
+    if (ws.data.status === "watching") ws.send(wire);
+  }
+}
+
 export function broadcastJoinRequestPending(spaceId: string): void {
   const session = getSession(spaceId);
   if (!session) return;

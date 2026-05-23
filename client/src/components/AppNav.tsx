@@ -81,7 +81,7 @@ export function AppNav() {
         {/* Mobile dropdown panel. Mirrors the AccountMenu's contents
             inline since a nested dropdown at phone widths is awkward. */}
         {mobileOpen && (
-          <div className="flex flex-col border-t border-border bg-background/95 px-5 py-3 sm:hidden">
+          <div className="flex flex-col border-t border-border bg-bg-elevated px-5 py-3 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.85)] sm:hidden">
             <MobileNavLink to="/library" onClick={() => setMobileOpen(false)}>
               <LibraryIcon className="h-4 w-4 text-accent" />
               Library
@@ -129,6 +129,10 @@ export function AppNav() {
           </div>
         )}
       </nav>
+
+      {/* Scrim — dims the page behind the open mobile menu so the panel
+          reads as a distinct layer; tapping it closes the menu. */}
+      {mobileOpen && <div className="fixed inset-0 z-30 bg-black/60 sm:hidden" onClick={() => setMobileOpen(false)} aria-hidden />}
     </>
   );
 }

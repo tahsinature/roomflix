@@ -3,10 +3,11 @@ import { join } from "node:path";
 import type { ServerWebSocket } from "bun";
 import { Hono } from "hono";
 
-import { type Collection, type ClientMessage, type ServerMessage } from "@/protocol.ts";
+import { type Collection, type ClientMessage, type ReactionContent, type ServerMessage } from "@/protocol.ts";
 import {
   broadcastJoinRequestPending,
   broadcastPresence,
+  broadcastReaction,
   broadcastState,
   broadcastViewers,
   getOrCreateSession,
@@ -197,6 +198,44 @@ function stepCollectionIndex(current: number, direction: 1 | -1, count: number, 
   return next;
 }
 
+// Reactions: allowed quick-bar emojis, max text length, and a sliding
+// per-socket rate-limit window (8 / 10s). Validation drops anything off
+// the allow-list silently; rate-limited drops are also silent.
+const ALLOWED_REACTION_EMOJI = new Set(["😂", "❤️", "🔥", "😮", "👏", "😭", "🍿", "👀"]);
+const REACTION_MAX_TEXT_LEN = 140;
+const REACTION_WINDOW_MS = 10_000;
+const REACTION_MAX_IN_WINDOW = 8;
+const reactionWindows = new WeakMap<ServerWebSocket<WsData>, number[]>();
+
+function validateReaction(raw: unknown): ReactionContent | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as { kind?: unknown; emoji?: unknown; text?: unknown };
+  if (r.kind === "emoji" && typeof r.emoji === "string" && ALLOWED_REACTION_EMOJI.has(r.emoji)) {
+    return { kind: "emoji", emoji: r.emoji };
+  }
+  if (r.kind === "text" && typeof r.text === "string") {
+    const trimmed = r.text.trim().slice(0, REACTION_MAX_TEXT_LEN);
+    if (trimmed) return { kind: "text", text: trimmed };
+  }
+  return null;
+}
+
+function handleReaction(ws: ServerWebSocket<WsData>, raw: unknown): void {
+  const reaction = validateReaction(raw);
+  if (!reaction) return;
+  const now = Date.now();
+  const window = (reactionWindows.get(ws) ?? []).filter((t) => now - t < REACTION_WINDOW_MS);
+  if (window.length >= REACTION_MAX_IN_WINDOW) return;
+  window.push(now);
+  reactionWindows.set(ws, window);
+  broadcastReaction(ws.data.spaceId, {
+    reaction,
+    sender: { id: ws.data.identityId, name: ws.data.displayName },
+    clientId: ws.data.clientId,
+    sentAt: now,
+  });
+}
+
 async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientMessage) {
   const session = getSession(ws.data.spaceId);
   if (!session) return;
@@ -220,6 +259,13 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
     broadcastPresence(ws.data.spaceId);
     // Viewers set changes whenever a socket crosses the watching line.
     broadcastViewers(ws.data.spaceId);
+    return;
+  }
+
+  // Reactions are ephemeral fan-out — no playback state change, no
+  // broadcastState. Handled (with rate-limiting + validation) inline.
+  if (message.type === "reaction") {
+    handleReaction(ws, message.reaction);
     return;
   }
 

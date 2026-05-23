@@ -4,11 +4,21 @@ import {
   type ClientMessage,
   type Participant,
   type PresenceStatus,
+  type ReactionContent,
   type ServerMessage,
   type SessionState,
   type SpaceMember,
   type Viewer,
 } from "@shared/protocol";
+
+// One reaction event the way clients consume it — sender info flattened
+// out of the wire message. Used by the ReactionsOverlay subscription.
+export type ReactionEvent = {
+  reaction: ReactionContent;
+  sender: { id: string; name: string };
+  clientId: string;
+  sentAt: number;
+};
 import { api } from "@/lib/api";
 import { useAuth } from "@/auth/AuthContext";
 import { randomClientId } from "@/lib/utils";
@@ -39,6 +49,9 @@ type SessionPresenceValue = {
   // Imperative API for /watch and future event surfaces.
   send: (msg: ClientMessage) => void;
   setStatus: (status: PresenceStatus) => void;
+  // Subscribe to incoming reactions. Returns an unsubscribe. Uses a ref-
+  // based emitter so a stream of reactions doesn't re-render the world.
+  subscribeReactions: (cb: (event: ReactionEvent) => void) => () => void;
 };
 
 const DEFAULT: SessionPresenceValue = {
@@ -53,6 +66,7 @@ const DEFAULT: SessionPresenceValue = {
   joinRequestSignal: 0,
   send: () => {},
   setStatus: () => {},
+  subscribeReactions: () => () => {},
 };
 
 const Ctx = createContext<SessionPresenceValue>(DEFAULT);
@@ -72,6 +86,15 @@ export function SessionPresenceProvider({ children }: { children: ReactNode }) {
   // "updatedBy" attribution and we use it as the WS query param.
   const clientIdRef = useRef<string>(randomClientId());
   const wsRef = useRef<WebSocket | null>(null);
+  // Ref-based pub/sub for reactions — keeps the fan-out off the render
+  // tree so a burst of emojis doesn't trigger context re-renders.
+  const reactionListenersRef = useRef<Set<(event: ReactionEvent) => void>>(new Set());
+  const subscribeReactions = useCallback((cb: (event: ReactionEvent) => void) => {
+    reactionListenersRef.current.add(cb);
+    return () => {
+      reactionListenersRef.current.delete(cb);
+    };
+  }, []);
   // Latest desired status. Watch page flips this on mount/unmount; we
   // resend it after every reconnect so the server's view stays correct.
   const desiredStatusRef = useRef<PresenceStatus>("online");
@@ -179,6 +202,12 @@ export function SessionPresenceProvider({ children }: { children: ReactNode }) {
           // re-fetch via useEffect. Non-owners receive the frame too
           // (it's just a nudge); their API call returns 403 quietly.
           setJoinRequestSignal((n) => n + 1);
+        } else if (msg.type === "reaction") {
+          // Fan out to every subscribed overlay without going through
+          // React state — keeps a flurry of emojis cheap.
+          for (const cb of reactionListenersRef.current) {
+            cb({ reaction: msg.reaction, sender: msg.sender, clientId: msg.clientId, sentAt: msg.sentAt });
+          }
         }
       };
     };
@@ -213,6 +242,7 @@ export function SessionPresenceProvider({ children }: { children: ReactNode }) {
     joinRequestSignal,
     send,
     setStatus,
+    subscribeReactions,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

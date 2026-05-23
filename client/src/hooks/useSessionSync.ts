@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
-import { type SessionState, type Viewer } from "@shared/protocol";
-import { emptyState, useSessionPresence } from "@/auth/SessionPresence";
+import { type ReactionContent, type SessionState, type Viewer } from "@shared/protocol";
+import { emptyState, useSessionPresence, type ReactionEvent } from "@/auth/SessionPresence";
 
 const VOLUME_DEBOUNCE_MS = 200;
 
@@ -34,7 +34,9 @@ export type SessionSync = {
     // Debounced to ~200ms — slider drags fire dozens of events per
     // second and we don't want one per ws.send. The trailing edge wins.
     setVolume: (level: number, muted: boolean) => void;
+    sendReaction: (reaction: ReactionContent) => void;
   };
+  subscribeReactions: (cb: (event: ReactionEvent) => void) => () => void;
 };
 
 export function useSessionSync(): SessionSync {
@@ -82,6 +84,7 @@ export function useSessionSync(): SessionSync {
           presence.send({ type: "setVolume", level: next.level, muted: next.muted });
         }, VOLUME_DEBOUNCE_MS);
       },
+      sendReaction: (reaction: ReactionContent) => presence.send({ type: "reaction", reaction }),
     }),
     [presence.send],
   );
@@ -94,5 +97,6 @@ export function useSessionSync(): SessionSync {
     stateLoaded: presence.stateLoaded,
     clientId: presence.clientId,
     actions,
+    subscribeReactions: presence.subscribeReactions,
   };
 }

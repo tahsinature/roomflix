@@ -83,6 +83,19 @@ export default {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
+        // Emoji reactions float up the side of the player and fade out.
+        "react-float": {
+          "0%": { opacity: "0", transform: "translateY(24px) scale(0.6)" },
+          "10%": { opacity: "1", transform: "translateY(0) scale(1.1)" },
+          "20%": { transform: "translateY(-14px) scale(1)" },
+          "100%": { opacity: "0", transform: "translateY(-260px) scale(0.85)" },
+        },
+        // Short text reactions: slide in, hold, slide out.
+        "react-bubble": {
+          "0%": { opacity: "0", transform: "translateX(-12px) scale(0.96)" },
+          "10%, 85%": { opacity: "1", transform: "translateX(0) scale(1)" },
+          "100%": { opacity: "0", transform: "translateX(-12px) scale(0.96)" },
+        },
       },
       animation: {
         "fade-in": "fade-in 0.4s ease-out",
@@ -90,6 +103,8 @@ export default {
         "pulse-soft": "pulse-soft 2s ease-in-out infinite",
         "caret-blink": "caret-blink 1s steps(1) infinite",
         shimmer: "shimmer 6s linear infinite",
+        "react-float": "react-float 3.2s ease-out forwards",
+        "react-bubble": "react-bubble 6s ease-out forwards",
       },
     },
   },

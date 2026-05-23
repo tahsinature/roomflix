@@ -431,6 +431,11 @@ export type PublicShare = {
 // machine the public page renders directly. A missing code is a 404.
 export type PublicShareGate = { state: "ready"; share: PublicShare } | { state: "passcode"; label: string } | { state: "unavailable"; reason: "disabled" | "expired" | "limit" };
 
+// Lightweight, ephemeral reaction broadcast over the session WS. Doesn't
+// touch playback state and isn't persisted — a moment-in-time event sent
+// to everyone currently watching together.
+export type ReactionContent = { kind: "emoji"; emoji: string } | { kind: "text"; text: string };
+
 // Messages sent by the client to the server.
 //
 // Collection messages:
@@ -456,6 +461,10 @@ export type ClientMessage =
   | { type: "collectionJumpTo"; index: number }
   | { type: "setCollectionLoop"; loop: boolean }
   | { type: "videoEnded"; endedUrl: string }
+  // Quick emoji or short text reaction. Server validates the payload
+  // (allowed emoji set, length cap), rate-limits per sender, then fans
+  // it out to everyone watching. Never affects playback.
+  | { type: "reaction"; reaction: ReactionContent }
   // Sent when the client transitions in/out of /watch within the SPA.
   // Server updates ws.data.status and rebroadcasts presence + viewers.
   | { type: "setStatus"; status: PresenceStatus }
@@ -482,7 +491,11 @@ export type ServerMessage =
   // "approval": a new request just landed in the queue. Clients refetch
   // the pending list on receipt — body is just a nudge, not the full
   // row, so we don't have to worry about ACL.
-  | { type: "joinRequestPending"; spaceId: string };
+  | { type: "joinRequestPending"; spaceId: string }
+  // Broadcast to every "watching" socket in a space. Carries the sender
+  // identity so the receiver can show "alice 🔥" floating up. clientId
+  // lets the sender's own client recognize echoes if it cares.
+  | { type: "reaction"; reaction: ReactionContent; sender: { id: string; name: string }; clientId: string; sentAt: number };
 
 export function emptySessionState(): SessionState {
   return {

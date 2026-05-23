@@ -327,6 +327,7 @@ export function FileBrowser({
         <CollectionTargetModal
           target={collectionTarget}
           parent={result?.prefix ?? ""}
+          publicBaseUrl={publicBaseUrl}
           collections={collections ?? []}
           onNewCollection={onNewCollection}
           onAddToCollection={onAddToCollection}
@@ -343,6 +344,7 @@ export function FileBrowser({
 function CollectionTargetModal({
   target,
   parent,
+  publicBaseUrl,
   collections,
   onNewCollection,
   onAddToCollection,
@@ -350,12 +352,19 @@ function CollectionTargetModal({
 }: {
   target: CollectionTarget;
   parent: string;
+  // Public base URL of the bucket — lets the modal compute the file's
+  // canonical URL and mark collections that already contain it.
+  publicBaseUrl?: string;
   collections: Collection[];
   onNewCollection: (target: CollectionTarget) => Promise<void>;
   onAddToCollection: (target: CollectionTarget, collectionId: string) => Promise<void>;
   onClose: () => void;
 }) {
   const label = target.kind === "folder" ? target.prefix.slice(parent.length, target.prefix.length - 1) || target.prefix : target.key.slice(parent.length) || target.key;
+  // For file targets we can tell at a glance which collections already
+  // contain this exact URL — folder targets are fuzzier (multiple items),
+  // so we skip the marker there.
+  const targetUrl = target.kind === "file" && publicBaseUrl ? publicUrlForKey(publicBaseUrl, target.key) : null;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -391,19 +400,34 @@ function CollectionTargetModal({
           <div>
             <div className="section-label muted mb-1.5">Or add into an existing collection</div>
             <ul className="max-h-60 overflow-y-auto border border-border">
-              {collections.map((c) => (
-                <li key={c.id}>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => run(() => onAddToCollection(target, c.id))}
-                    className="flex w-full items-center justify-between gap-3 border-b border-border px-3 py-2 text-left text-sm text-foreground transition last:border-b-0 hover:bg-white/[0.04] disabled:opacity-50"
-                  >
-                    <span className="truncate">{c.title}</span>
-                    <span className="shrink-0 font-mono text-[10px] text-text-dim">{c.items.length}</span>
-                  </button>
-                </li>
-              ))}
+              {collections.map((c) => {
+                const already = targetUrl !== null && c.items.some((it) => it.url === targetUrl);
+                return (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      disabled={busy || already}
+                      onClick={() => run(() => onAddToCollection(target, c.id))}
+                      title={already ? "Already in this collection" : undefined}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-3 border-b border-border px-3 py-2 text-left text-sm transition last:border-b-0",
+                        already ? "cursor-default text-text-dim" : "text-foreground hover:bg-white/[0.04]",
+                        "disabled:opacity-60",
+                      )}
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        {already && <Check className="h-3.5 w-3.5 shrink-0 text-live" />}
+                        <span className="truncate">{c.title}</span>
+                      </span>
+                      {already ? (
+                        <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-live">Added</span>
+                      ) : (
+                        <span className="shrink-0 font-mono text-[10px] text-text-dim">{c.items.length}</span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}

@@ -1,5 +1,5 @@
 import { Controls as VControls, FullscreenButton, MuteButton, PIPButton, PlayButton, Time, TimeSlider, Tooltip, VolumeSlider, useMediaState } from "@vidstack/react";
-import { Maximize, Minimize, Pause, PictureInPicture, Play, Volume2, VolumeX } from "lucide-react";
+import { Maximize, Minimize, Pause, PictureInPicture, Play, Smile, Volume2, VolumeX } from "lucide-react";
 
 import type { Subtitle } from "@shared/protocol";
 import { SubtitleToggle } from "./SubtitleToggle";
@@ -8,12 +8,17 @@ type Props = {
   subtitles: Subtitle[];
   activeSubtitleId: string | null;
   onSelectSubtitle: (id: string | null) => void;
+  // Hook for the theater's reactions composer. When set, a smile button
+  // appears in the controls; the theater wires it to auto-exit fullscreen
+  // and focus the composer (the chrome's react bar lives OUTSIDE the
+  // fullscreen element, so without this you couldn't reach it from FS).
+  onReact?: () => void;
 };
 
 const ICON_BTN =
   "inline-flex h-9 w-9 items-center justify-center text-white/90 transition hover:bg-white/10 active:scale-95 disabled:opacity-40 outline-none focus:outline-none focus-visible:outline-none [&:focus]:shadow-none [&:focus-visible]:shadow-none";
 
-export function Controls({ subtitles, activeSubtitleId, onSelectSubtitle }: Props) {
+export function Controls({ subtitles, activeSubtitleId, onSelectSubtitle, onReact }: Props) {
   return (
     <VControls.Root className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-end opacity-0 transition-[opacity,transform] duration-200 ease-out data-[visible]:opacity-100">
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
@@ -30,6 +35,19 @@ export function Controls({ subtitles, activeSubtitleId, onSelectSubtitle }: Prop
             <VolumeControl />
 
             <SubtitleToggle subtitles={subtitles} activeId={activeSubtitleId} onSelect={onSelectSubtitle} />
+
+            {onReact && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <button type="button" onClick={onReact} aria-label="Send a reaction" className={ICON_BTN}>
+                    <Smile className="h-5 w-5" />
+                  </button>
+                </Tooltip.Trigger>
+                <Tooltip.Content className={tooltipClass} placement="top">
+                  Send a reaction
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )}
 
             <PiPControl />
             <FullscreenControl />

@@ -39,6 +39,11 @@ type Props = {
   // Theater mode — fill the parent (no card border / aspect box) and let
   // the surrounding surface own the title bar.
   fill?: boolean;
+  // Optional reaction hook — when set, the player's Controls show a smile
+  // button. Clicking it bubbles up so the theater can exit fullscreen and
+  // open the composer (the composer lives in the theater chrome, outside
+  // the fullscreen element).
+  onReact?: () => void;
 };
 
 const DRIFT_TOLERANCE_S = 1.0;
@@ -81,6 +86,7 @@ export function VideoPlayer({
   onVolumeChange,
   loadingIncoming = false,
   fill = false,
+  onReact,
 }: Props) {
   const playerRef = useRef<MediaPlayerInstance>(null);
   // While Date.now() < this timestamp, ignore feedback events from the
@@ -350,7 +356,7 @@ export function VideoPlayer({
       <Gesture className="absolute inset-y-0 right-0 z-10 block h-full w-1/2" event="dblpointerup" action="seek:10" />
 
       {!fill && <TitleBar title={videoTitle || urlFilename(videoUrl)} />}
-      <Controls subtitles={subtitles} activeSubtitleId={activeSubtitleId} onSelectSubtitle={setActiveSubtitleId} />
+      <Controls subtitles={subtitles} activeSubtitleId={activeSubtitleId} onSelectSubtitle={setActiveSubtitleId} onReact={onReact} />
 
       <LoadingOverlay hasError={playbackError !== null} />
 
