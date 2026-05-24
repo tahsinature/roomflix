@@ -181,6 +181,8 @@ async function applyCollectionItem(session: Session, collection: Collection, ind
   const item = collection.items[index];
   session.state.collectionIndex = index;
   session.state.currentTime = 0;
+  // Every item swap invalidates the prior duration.
+  session.state.duration = null;
   if (!item) {
     session.state.videoUrl = null;
     session.state.videoTitle = null;
@@ -366,6 +368,9 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
       session.state.playing = true;
       session.state.collectionId = null;
       session.state.collectionIndex = 0;
+      // New URL → previous duration is stale; the watcher will repost
+      // on loadedmetadata.
+      session.state.duration = null;
       // Auto-save into the space library (idempotent on url) so everyone
       // in the space sees the title + subtitles, not just the setter.
       try {
@@ -414,6 +419,15 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
     case "setCollectionLoop":
       session.state.collectionLoop = !!message.loop;
       break;
+    case "setDuration": {
+      // Only the active watcher really knows the duration. Sanity-check
+      // the number; ignore NaN / Infinity / negatives.
+      const d = message.duration;
+      if (d === null) session.state.duration = null;
+      else if (typeof d === "number" && Number.isFinite(d) && d > 0) session.state.duration = d;
+      else return;
+      break;
+    }
     case "jumpTo": {
       const m = validateMoment(message.moment);
       if (!m) return;
@@ -436,6 +450,7 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
           session.state.videoUrl = m.videoUrl;
           session.state.videoTitle = entry?.title ?? m.mediaTitle ?? null;
           session.state.subtitles = entry?.subtitles ?? [];
+          session.state.duration = null;
         }
         session.state.collectionId = null;
         session.state.collectionIndex = 0;

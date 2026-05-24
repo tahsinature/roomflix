@@ -32,6 +32,11 @@ type Props = {
   // Fired on every local volume / mute change. The hook debounces
   // before sending over WS; this prop is the raw event surface.
   onVolumeChange?: (level: number, muted: boolean) => void;
+  // Fired once the active source's metadata has decoded with a
+  // positive duration. The remote uses this to draw a progress bar.
+  // The player itself doesn't care about its own duration — this is
+  // purely a fan-out to other tabs.
+  onDurationKnown?: (duration: number | null) => void;
   // True when the room is initializing with a URL passed via ?video= but the
   // synced state hasn't caught up yet. Avoids flashing the URL-input form
   // when we already know what's about to load.
@@ -84,6 +89,7 @@ export function VideoPlayer({
   onEnded,
   onLoadUrl,
   onVolumeChange,
+  onDurationKnown,
   loadingIncoming = false,
   fill = false,
   onReact,
@@ -227,6 +233,11 @@ export function VideoPlayer({
     // Without this, peers see no volume info until the user touches
     // the slider.
     onVolumeChange?.(p.volume, p.muted);
+    // Report duration to the room so /remote can render its progress
+    // bar. Vidstack exposes duration on the player ref once metadata
+    // resolves; bail if we got NaN/0 (some live streams).
+    const d = p.duration;
+    if (typeof d === "number" && Number.isFinite(d) && d > 0) onDurationKnown?.(d);
     markApplying(400);
     const target = expectedTime();
     if (Number.isFinite(target)) {

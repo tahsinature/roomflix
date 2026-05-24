@@ -345,6 +345,7 @@ export default function Watch() {
                 onSeek={actions.seek}
                 onEnded={actions.videoEnded}
                 onVolumeChange={actions.setVolume}
+                onDurationKnown={actions.setDuration}
               />
             </div>
           </div>
@@ -364,6 +365,7 @@ export default function Watch() {
             onEnded={actions.videoEnded}
             onLoadUrl={actions.setUrl}
             onVolumeChange={actions.setVolume}
+            onDurationKnown={actions.setDuration}
             loadingIncoming={incomingPending}
             onReact={openComposer}
           />

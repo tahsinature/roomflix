@@ -20,6 +20,10 @@ type Props = {
   // Fired on every local volume / mute change. The hook debounces
   // before sending over WS; this prop is the raw event surface.
   onVolumeChange?: (level: number, muted: boolean) => void;
+  // Fired once wavesurfer has decoded the track and a positive
+  // duration is known. The room's remote uses this to draw a progress
+  // bar without having to load the audio itself.
+  onDurationKnown?: (duration: number | null) => void;
 };
 
 const DRIFT_TOLERANCE_S = 0.6;
@@ -28,7 +32,7 @@ const DRIFT_TOLERANCE_S = 0.6;
 // visual — clicking anywhere on it seeks. Sync (play / pause / seek) goes
 // through the same room-state protocol as VideoPlayer; we just route the
 // effects through the WaveSurfer API instead of an <video> element.
-export function AudioPlayer({ url, title, playing, currentTime, updatedAt, serverTime, onPlay, onPause, onSeek, onEnded }: Props) {
+export function AudioPlayer({ url, title, playing, currentTime, updatedAt, serverTime, onPlay, onPause, onSeek, onEnded, onDurationKnown }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
 
@@ -90,7 +94,9 @@ export function AudioPlayer({ url, title, playing, currentTime, updatedAt, serve
 
     const onReady = () => {
       setIsReady(true);
-      setDuration(ws.getDuration());
+      const d = ws.getDuration();
+      setDuration(d);
+      if (Number.isFinite(d) && d > 0) onDurationKnown?.(d);
       // Once decoded, apply the latest synced state — seek to expected
       // position and play if the room is playing.
       markApplying(400);

@@ -364,6 +364,13 @@ export type SessionState = {
   collectionId: string | null;
   collectionIndex: number;
   collectionLoop: boolean;
+  // Total length of the currently-loaded media in seconds. Null for
+  // photos (no timeline) and while the active player hasn't reported
+  // its metadata yet. Pushed by the watching client on loadedmetadata
+  // — the server itself never inspects media. Lets the remote draw a
+  // progress bar without having to load the media just to read its
+  // duration.
+  duration: number | null;
   updatedAt: number; // server epoch ms
   updatedBy: string | null; // clientId
 };
@@ -543,7 +550,13 @@ export type ClientMessage =
   // changes. Server updates ws.data.volume + rebroadcasts presence so
   // other clients can show "alice is muted" etc. Client should debounce
   // to avoid flooding during slider drags.
-  | { type: "setVolume"; level: number; muted: boolean };
+  | { type: "setVolume"; level: number; muted: boolean }
+  // Reports the playing media's total length once the active player
+  // has decoded its metadata. Stored on session state so the remote
+  // can draw a progress bar without loading the media. The server
+  // clears this whenever the URL changes (it'll come back on the next
+  // loadedmetadata from the watcher).
+  | { type: "setDuration"; duration: number | null };
 
 // Messages sent by the server to clients.
 export type ServerMessage =
@@ -581,6 +594,7 @@ export function emptySessionState(): SessionState {
     collectionId: null,
     collectionIndex: 0,
     collectionLoop: false,
+    duration: null,
     updatedAt: Date.now(),
     updatedBy: null,
   };

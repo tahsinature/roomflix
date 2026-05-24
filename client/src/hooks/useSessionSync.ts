@@ -34,6 +34,10 @@ export type SessionSync = {
     // Debounced to ~200ms — slider drags fire dozens of events per
     // second and we don't want one per ws.send. The trailing edge wins.
     setVolume: (level: number, muted: boolean) => void;
+    // Watcher reports the active media's total length so the remote
+    // can draw a progress bar. Null is a valid clear value (e.g. when
+    // the player resets mid-load).
+    setDuration: (duration: number | null) => void;
     sendReaction: (reaction: ReactionContent) => void;
     sendChat: (text: string, moment?: ChatMoment | null) => void;
     jumpTo: (moment: ChatMoment) => void;
@@ -87,6 +91,7 @@ export function useSessionSync(): SessionSync {
           presence.send({ type: "setVolume", level: next.level, muted: next.muted });
         }, VOLUME_DEBOUNCE_MS);
       },
+      setDuration: (duration: number | null) => presence.send({ type: "setDuration", duration }),
       sendReaction: (reaction: ReactionContent) => presence.send({ type: "reaction", reaction }),
       sendChat: (text: string, moment?: ChatMoment | null) => presence.send(moment ? { type: "chat", text, moment } : { type: "chat", text }),
       jumpTo: (moment: ChatMoment) => presence.send({ type: "jumpTo", moment }),
