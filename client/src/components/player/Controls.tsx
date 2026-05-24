@@ -250,16 +250,17 @@ function RemoteLauncher({ onOpen, sidebarOpen }: { onOpen: (mode: RemoteOpenMode
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
-            aria-label="Open Remote"
+            aria-label="Open chat"
             aria-haspopup="menu"
             aria-expanded={open}
+            title="Open chat (C)"
             className={cn(ICON_BTN, open && "bg-white/10")}
           >
             <Radio className="h-5 w-5" />
           </button>
         </Tooltip.Trigger>
         <Tooltip.Content className={tooltipClass} placement="top">
-          Open Remote
+          Open chat <span className="ml-1 font-mono text-[10px] uppercase tracking-[0.12em] text-white/55">C</span>
         </Tooltip.Content>
       </Tooltip.Root>
 

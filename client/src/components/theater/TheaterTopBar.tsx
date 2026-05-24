@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { LogOut, Radio } from "lucide-react";
+import { ExternalLink, LogOut, PanelRight, Radio, Replace } from "lucide-react";
 import type { Viewer } from "@shared/protocol";
 import { LibraryPicker } from "@/components/LibraryPicker";
 import { MemberRow } from "@/components/MemberRow";
 import { useAuth } from "@/auth/AuthContext";
 import { useSessionPresence } from "@/auth/SessionPresence";
 import { cn } from "@/lib/utils";
+
+export type RemoteOpenMode = "sidebar" | "newWindow" | "sameWindow";
 
 type Props = {
   title: string;
@@ -21,16 +23,26 @@ type Props = {
   // Same idea for the watchers popover — the parent holds the chrome
   // open while the panel is showing names.
   onWatchersOpenChange?: (open: boolean) => void;
-  // Video carries its own in-player Remote launcher (with the side-
-  // panel / new-window / replace options), so the top-chrome Remote
-  // link only renders for non-video kinds as a fallback. False hides
-  // it entirely.
-  showRemoteLink?: boolean;
+  // Video carries its own in-player Remote launcher in the control
+  // bar. For audio/photo there's no player chrome to dock it into,
+  // so the top bar surfaces it here when the handler is provided.
+  onOpenRemote?: (mode: RemoteOpenMode) => void;
+  remoteSidebarOpen?: boolean;
 };
 
 // Auto-hiding top chrome for the theater: an exit affordance, the
 // now-playing summary, the live watcher list, and the library picker.
-export function TheaterTopBar({ title, contextLabel, viewers, connected, onLoadUrl, onLibraryOpenChange, onWatchersOpenChange, showRemoteLink = false }: Props) {
+export function TheaterTopBar({
+  title,
+  contextLabel,
+  viewers,
+  connected,
+  onLoadUrl,
+  onLibraryOpenChange,
+  onWatchersOpenChange,
+  onOpenRemote,
+  remoteSidebarOpen,
+}: Props) {
   return (
     <div className="relative">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/85 via-black/45 to-transparent" />
@@ -54,19 +66,12 @@ export function TheaterTopBar({ title, contextLabel, viewers, connected, onLoadU
 
         <div className="flex shrink-0 items-center gap-2">
           <Watchers viewers={viewers} connected={connected} onOpenChange={onWatchersOpenChange} />
-          {/* Fallback Remote affordance for audio + photo (video has
-              its own in-player launcher). Same chrome treatment as
-              Library so the two read as peer buttons. */}
-          {showRemoteLink && (
-            <Link
-              to="/remote"
-              aria-label="Open the remote / chat companion"
-              title="Open the remote / chat companion on this device"
-              className="inline-flex h-9 w-9 items-center justify-center gap-1.5 border border-white/15 bg-black/50 text-sm font-medium text-white/85 backdrop-blur transition hover:bg-black/70 hover:text-white lg:w-auto lg:px-3"
-            >
-              <Radio className="h-3.5 w-3.5" />
-              <span className="hidden lg:inline">Remote</span>
-            </Link>
+          {/* Remote launcher — popover with three open modes, same as
+              the in-player Radio button on video. Only rendered for
+              audio + photo; video has its own launcher in the player
+              control bar. */}
+          {onOpenRemote && (
+            <RemoteLauncher onOpen={onOpenRemote} sidebarOpen={!!remoteSidebarOpen} />
           )}
           <LibraryPicker onPick={onLoadUrl} onOpenChange={onLibraryOpenChange} />
         </div>
@@ -188,5 +193,80 @@ function Watchers({ viewers, connected, onOpenChange }: { viewers: Viewer[]; con
         </div>
       )}
     </div>
+  );
+}
+
+// Three-mode Remote launcher for the top chrome. Mirrors the in-player
+// version in Controls.tsx — sidebar / new window / replace-this-tab —
+// so audio + photo viewers get the same affordance as video viewers
+// do via the player control bar.
+function RemoteLauncher({ onOpen, sidebarOpen }: { onOpen: (mode: RemoteOpenMode) => void; sidebarOpen: boolean }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node | null)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const pick = (mode: RemoteOpenMode) => {
+    onOpen(mode);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Open chat"
+        title="Open chat (C)"
+        className={cn(
+          "inline-flex h-9 w-9 items-center justify-center gap-1.5 border text-sm font-medium backdrop-blur transition lg:w-auto lg:px-3",
+          open || sidebarOpen ? "border-accent/50 bg-accent/15 text-accent" : "border-white/15 bg-black/50 text-white/85 hover:bg-black/70 hover:text-white",
+        )}
+      >
+        <Radio className="h-3.5 w-3.5" />
+        <span className="hidden lg:inline">Remote</span>
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-56 border border-white/10 bg-black/90 p-1 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl">
+          <div className="border-b border-white/[0.06] px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-white/45">Open remote</div>
+          <RemoteOption icon={<PanelRight className="h-3.5 w-3.5" />} label={sidebarOpen ? "Close side panel" : "Side panel"} hint={sidebarOpen ? "Hide the sidebar" : "Dock beside the player"} onClick={() => pick("sidebar")} />
+          <RemoteOption icon={<ExternalLink className="h-3.5 w-3.5" />} label="New window" hint="Detached popup — keep on a second screen" onClick={() => pick("newWindow")} />
+          <RemoteOption icon={<Replace className="h-3.5 w-3.5" />} label="Replace this tab" hint="Navigate this tab to /remote" onClick={() => pick("sameWindow")} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RemoteOption({ icon, label, hint, onClick }: { icon: React.ReactNode; label: string; hint: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className="flex w-full items-start gap-2.5 px-2.5 py-2 text-left text-sm text-white/90 transition hover:bg-white/[0.06]"
+    >
+      <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center text-accent">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block leading-tight">{label}</span>
+        <span className="mt-0.5 block font-mono text-[10px] text-white/45">{hint}</span>
+      </span>
+    </button>
   );
 }

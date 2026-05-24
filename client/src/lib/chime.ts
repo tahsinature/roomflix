@@ -20,6 +20,17 @@ function getCtx(): AudioContext | null {
 
 export type ChimeKind = "message" | "reaction";
 
+// Resume the AudioContext explicitly. Browsers (notably Chromium on
+// Windows) start the context in "suspended" state and only allow
+// resume from a user gesture handler. Call this once from inside any
+// user-interaction event listener on page load — after that, every
+// playChime() works regardless of who initiated it.
+export function unlockChime(): void {
+  const c = getCtx();
+  if (!c) return;
+  if (c.state === "suspended") c.resume().catch(() => undefined);
+}
+
 // Sine ping with a 120 ms exponential decay envelope. Peak gain is
 // deliberately low (~0.07) so it reads as a notification, not an alarm.
 export function playChime(kind: ChimeKind): void {

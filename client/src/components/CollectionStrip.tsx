@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Ban, ChevronDown, ChevronUp, Film, ListVideo, Music, Pencil, Repeat, SkipBack, SkipForward } from "lucide-react";
+import { Ban, ChevronDown, ChevronUp, Film, ListVideo, Music, PanelLeft, Pencil, Repeat, SkipBack, SkipForward } from "lucide-react";
 import type { Collection, CollectionHealth, CollectionItem } from "@shared/protocol";
 import { cn, mediaKind, urlFilename } from "@/lib/utils";
 
@@ -17,6 +17,7 @@ export function CollectionStrip({
   onJumpTo,
   onToggleLoop,
   onEdit,
+  onMoveToSide,
 }: {
   collection: Collection | null;
   // Per-URL availability — items that probed "gone" are marked unavailable.
@@ -29,6 +30,9 @@ export function CollectionStrip({
   onToggleLoop: (next: boolean) => void;
   // When set, the header shows an "edit collection" button.
   onEdit?: () => void;
+  // When set, the header shows a "move to side" button that pivots the
+  // filmstrip into the vertical CollectionPanel on the left.
+  onMoveToSide?: () => void;
 }) {
   const [open, setOpen] = useState(true);
   const listRef = useRef<HTMLUListElement>(null);
@@ -77,6 +81,11 @@ export function CollectionStrip({
           {onEdit && (
             <StripButton label="Edit collection" onClick={onEdit}>
               <Pencil className="h-3.5 w-3.5" />
+            </StripButton>
+          )}
+          {onMoveToSide && (
+            <StripButton label="Move to left side" onClick={onMoveToSide}>
+              <PanelLeft className="h-3.5 w-3.5" />
             </StripButton>
           )}
           <StripButton label={open ? "Collapse filmstrip" : "Expand filmstrip"} onClick={() => setOpen((v) => !v)}>

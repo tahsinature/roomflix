@@ -430,14 +430,26 @@ export function StorageWorkspace({ connection, connectionId }: { connection: Con
     }
   };
 
-  const handleAddToLibrary = useCallback(async (url: string) => {
-    const created = await api.createVideo({ url });
-    setLibraryByUrl((prev) => {
-      const next = new Map(prev ?? []);
-      next.set(canonicalUrl(created.url), created);
-      return next;
-    });
-  }, []);
+  const handleAddToLibrary = useCallback(
+    async (url: string) => {
+      const created = await api.createVideo({ url });
+      setLibraryByUrl((prev) => {
+        const next = new Map(prev ?? []);
+        next.set(canonicalUrl(created.url), created);
+        return next;
+      });
+      // Quick feedback + a one-click open into the same editor the
+      // green-check icon in the row would open. Lives in the same
+      // toast as the "Added to library" success so the user can
+      // navigate from there without hunting the row down again.
+      const label = created.title || created.url.split("/").pop() || "Item";
+      toast.success(`Added "${label}" to library.`, {
+        label: "Open",
+        onClick: () => setEditingVideo(created),
+      });
+    },
+    [toast],
+  );
 
   // Resolve a collection target to its items: a folder contributes every
   // media file under it; a single file contributes just itself. Public

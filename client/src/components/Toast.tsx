@@ -11,17 +11,24 @@ import { cn } from "@/lib/utils";
 
 export type ToastVariant = "error" | "success" | "info";
 
+// Optional inline action — renders as a small accent-coloured button
+// between the message and the dismiss "×". Used by "added to library"
+// style toasts to give the user a one-click way to view what just
+// happened. Clicking the action also dismisses the toast.
+export type ToastAction = { label: string; onClick: () => void };
+
 type Toast = {
   id: string;
   variant: ToastVariant;
   message: string;
+  action?: ToastAction;
 };
 
 type ToastContextValue = {
-  show: (variant: ToastVariant, message: string) => string;
-  error: (message: string) => string;
-  success: (message: string) => string;
-  info: (message: string) => string;
+  show: (variant: ToastVariant, message: string, action?: ToastAction) => string;
+  error: (message: string, action?: ToastAction) => string;
+  success: (message: string, action?: ToastAction) => string;
+  info: (message: string, action?: ToastAction) => string;
   dismiss: (id: string) => void;
 };
 
@@ -39,15 +46,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const show = useCallback((variant: ToastVariant, message: string) => {
+  const show = useCallback((variant: ToastVariant, message: string, action?: ToastAction) => {
     const id = `t${Date.now()}-${seq.current++}`;
-    setToasts((prev) => [...prev, { id, variant, message }]);
+    setToasts((prev) => [...prev, { id, variant, message, action }]);
     return id;
   }, []);
 
-  const error = useCallback((message: string) => show("error", message), [show]);
-  const success = useCallback((message: string) => show("success", message), [show]);
-  const info = useCallback((message: string) => show("info", message), [show]);
+  const error = useCallback((message: string, action?: ToastAction) => show("error", message, action), [show]);
+  const success = useCallback((message: string, action?: ToastAction) => show("success", message, action), [show]);
+  const info = useCallback((message: string, action?: ToastAction) => show("info", message, action), [show]);
 
   return (
     <ToastContext.Provider value={{ show, error, success, info, dismiss }}>
@@ -103,6 +110,18 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
     >
       <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", iconStyles)} />
       <p className="min-w-0 flex-1 text-sm leading-relaxed">{toast.message}</p>
+      {toast.action && (
+        <button
+          type="button"
+          onClick={() => {
+            toast.action?.onClick();
+            onDismiss();
+          }}
+          className="mt-0.5 shrink-0 border border-accent/40 bg-accent/10 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.16em] text-accent transition hover:border-accent/70 hover:bg-accent/15"
+        >
+          {toast.action.label}
+        </button>
+      )}
       <button type="button" onClick={onDismiss} aria-label="Dismiss" className="flex h-5 w-5 shrink-0 items-center justify-center text-text-dim transition hover:text-foreground">
         <X className="h-3.5 w-3.5" />
       </button>

@@ -5,6 +5,7 @@ import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { AudioPlayer } from "@/components/player/AudioPlayer";
 import { PhotoPlayer } from "@/components/player/PhotoPlayer";
 import { CollectionStrip } from "@/components/CollectionStrip";
+import { CollectionPanel } from "@/components/CollectionPanel";
 import { TheaterTopBar } from "@/components/theater/TheaterTopBar";
 import { IdleScreen } from "@/components/theater/IdleScreen";
 import { UnavailableScreen } from "@/components/theater/UnavailableScreen";
@@ -50,6 +51,25 @@ export default function Watch() {
       /* private mode / disabled storage */
     }
   }, [remoteSidebarOpen]);
+
+  // Collection filmstrip layout — vertical (left side panel) by
+  // default; "bottom" flips back to the horizontal strip. The panel's
+  // header has a "move to bottom" button; the strip's header has the
+  // inverse. Persisted so a viewer's preference survives reloads.
+  const [collectionLayout, setCollectionLayout] = useState<"bottom" | "side">(() => {
+    try {
+      return localStorage.getItem("roomflix:collection-layout") === "bottom" ? "bottom" : "side";
+    } catch {
+      return "side";
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("roomflix:collection-layout", collectionLayout);
+    } catch {
+      /* ignore */
+    }
+  }, [collectionLayout]);
 
   const openRemote = useCallback(
     (mode: "sidebar" | "newWindow" | "sameWindow") => {
@@ -119,12 +139,13 @@ export default function Watch() {
     return () => document.removeEventListener("keydown", onKey, true);
   }, [toggleFullscreen]);
 
-  // "r" toggles the remote sidebar — keyboard parity with the in-player
-  // launcher's "Side panel" option. Same intercept pattern as "f" so the
-  // shortcut doesn't compete with any document-level handler.
+  // "c" toggles the remote sidebar — the panel is primarily for chat
+  // (text + reactions both flow through it), so the mnemonic fits
+  // better than "r". Same intercept pattern as "f" so the shortcut
+  // doesn't compete with any document-level handler.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "r" && e.key !== "R") return;
+      if (e.key !== "c" && e.key !== "C") return;
       if (e.altKey || e.ctrlKey || e.metaKey) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       e.preventDefault();
@@ -144,7 +165,7 @@ export default function Watch() {
       if (e.origin !== window.location.origin) return;
       const data = e.data as { source?: string; key?: string } | null;
       if (!data || data.source !== "roomflix:remote") return;
-      if (data.key === "r") setRemoteSidebarOpen((v) => !v);
+      if (data.key === "c") setRemoteSidebarOpen((v) => !v);
       else if (data.key === "f") toggleFullscreen();
     };
     window.addEventListener("message", onMessage);
@@ -345,8 +366,25 @@ export default function Watch() {
       onMouseMove={onPointerActivity}
       onTouchStart={bumpChrome}
     >
-      {/* Content column — media + collection strip. The sidebar (when
-          open) sits beside this whole column so the strip also shrinks
+      {/* Vertical filmstrip — only renders when a collection is loaded
+          AND the user has flipped the layout to "side". */}
+      {!idle && state.collectionId && collectionLayout === "side" && (
+        <CollectionPanel
+          collection={collection}
+          health={collectionHealth}
+          currentIndex={state.collectionIndex}
+          loop={state.collectionLoop}
+          onNext={actions.collectionNext}
+          onPrev={actions.collectionPrev}
+          onJumpTo={actions.collectionJumpTo}
+          onToggleLoop={actions.setCollectionLoop}
+          onEdit={state.collectionId ? () => navigate(`/collections/${state.collectionId}`) : undefined}
+          onMoveToBottom={() => setCollectionLayout("bottom")}
+        />
+      )}
+
+      {/* Content column — media + collection strip. The sidebars (when
+          open) sit beside this whole column so the strip also shrinks
           to leave room. */}
       <div className="flex min-w-0 flex-1 flex-col">
       <div ref={setMediaArea} className="relative min-h-0 flex-1">
@@ -432,10 +470,12 @@ export default function Watch() {
             contextLabel={contextLabel}
             viewers={viewers}
             connected={connected}
-            // Video carries its own in-player Remote launcher; the
-            // top-chrome fallback only renders for non-video kinds.
-            showRemoteLink={kind !== "video"}
             onLoadUrl={actions.setUrl}
+            // Video has its own in-player Remote launcher in the
+            // control bar. Audio + photo have no player chrome to
+            // dock it into, so the top bar surfaces a launcher there.
+            onOpenRemote={kind !== "video" ? openRemote : undefined}
+            remoteSidebarOpen={remoteSidebarOpen}
             onLibraryOpenChange={(open) => {
               chromeLocked.current.library = open;
               bumpChrome();
@@ -448,9 +488,9 @@ export default function Watch() {
         </div>
       </div>
 
-      {/* Collection filmstrip — in-flow and collapsible, so it never
-          overlaps the player's own controls. Collapse it for full-bleed. */}
-      {!idle && state.collectionId && (
+      {/* Collection filmstrip — bottom horizontal layout. Hidden when
+          the user has pivoted the filmstrip to the left side panel. */}
+      {!idle && state.collectionId && collectionLayout === "bottom" && (
         <div className="max-h-[42vh] shrink-0 overflow-hidden">
           <CollectionStrip
             collection={collection}
@@ -462,6 +502,7 @@ export default function Watch() {
             onJumpTo={actions.collectionJumpTo}
             onToggleLoop={actions.setCollectionLoop}
             onEdit={() => navigate(`/collections/${state.collectionId}`)}
+            onMoveToSide={() => setCollectionLayout("side")}
           />
         </div>
       )}
@@ -477,7 +518,7 @@ export default function Watch() {
 // embedded layout in Remote.tsx (and AuthedLayout) is iframe-aware and
 // drops the AppNav + "Open here" link automatically. Hidden on
 // narrow widths — the player already fights for room there. Closing
-// the panel happens via the in-player Remote launcher or the "r"
+// the panel happens via the in-player Remote launcher or the "c"
 // keyboard shortcut, so no separate close affordance is needed here.
 function RemoteSidebar() {
   return (

@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bell, BellOff, Clock, FastForward, Loader2, Pause, Play, Repeat, Rewind, SkipBack, SkipForward, Tv } from "lucide-react";
+import { Bell, BellOff, ChevronDown, Clock, FastForward, Loader2, Pause, Play, Repeat, Rewind, SkipBack, SkipForward, Tv } from "lucide-react";
 import type { ChatMessage, ChatMoment, SessionState } from "@shared/protocol";
 import { useAuth } from "@/auth/AuthContext";
 import { useSessionPresence } from "@/auth/SessionPresence";
 import { api } from "@/lib/api";
 import { ReactionBar } from "@/components/theater/ReactionBar";
-import { playChime } from "@/lib/chime";
+import { playChime, unlockChime } from "@/lib/chime";
+import { senderTone } from "@/lib/senderColor";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { cn, mediaKind, urlFilename } from "@/lib/utils";
 
 // Companion screen — open this on a phone (or any second device you're
@@ -26,7 +28,6 @@ export default function Remote() {
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
-  const threadRef = useRef<HTMLDivElement>(null);
   // Server clock skew — used by ±10s skip to compute the room's expected
   // playback time without a live player here.
   const skewRef = useRef(0);
@@ -114,14 +115,14 @@ export default function Remote() {
 
   // Keyboard forwarding — embedded mode only. Keys typed inside the
   // iframe stay inside its document, so /watch never sees them. Forward
-  // the two host-level shortcuts ("r" toggles the sidebar, "f" toggles
+  // the two host-level shortcuts ("c" toggles the sidebar, "f" toggles
   // fullscreen) via postMessage so the parent can dispatch them. Same
   // guards as the host listener (ignore modifier combos + form fields).
   useEffect(() => {
     if (!embedded) return;
     const onKey = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
-      if (key !== "r" && key !== "f") return;
+      if (key !== "c" && key !== "f") return;
       if (e.altKey || e.ctrlKey || e.metaKey) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       e.preventDefault();
@@ -169,14 +170,47 @@ export default function Remote() {
     return cleanup;
   }, [state?.videoUrl, state?.duration, send]);
 
-  // Auto-scroll to bottom when a new message arrives. Only sticks if the
-  // user is already near the bottom — leaves a mid-scroll reader alone.
+  // Virtuoso handle for imperative scroll-to-bottom after the history
+  // backfill. Native auto-scroll (followOutput) handles every live
+  // append from there on — no manual near-bottom math needed.
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  // Tracks whether the user is currently parked at the bottom of the
+  // thread. Drives visibility of the floating "scroll to latest"
+  // button — only shows up when the user has scrolled away from the
+  // tail.
+  const [atBottom, setAtBottom] = useState(true);
+  const scrollToBottom = useCallback(() => {
+    virtuosoRef.current?.scrollToIndex({
+      // Number.MAX_SAFE_INTEGER is clamped by Virtuoso to the last
+      // item, so this stays correct even if `messages` is stale
+      // inside a callback closure.
+      index: Number.MAX_SAFE_INTEGER,
+      behavior: "smooth",
+      align: "end",
+    });
+  }, []);
   useEffect(() => {
-    const el = threadRef.current;
-    if (!el) return;
-    const nearBottom = el.scrollHeight - (el.scrollTop + el.clientHeight) < 80;
-    if (nearBottom) el.scrollTop = el.scrollHeight;
-  }, [messages.length]);
+    if (loadingHistory) return;
+    if (messages.length === 0) return;
+    virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, behavior: "auto", align: "end" });
+    // Run once when history finishes loading; live appends follow via
+    // Virtuoso's followOutput prop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingHistory]);
+
+  // Unlock the chime AudioContext on the first user interaction so the
+  // very next message triggers an audible ping on Chromium/Windows
+  // where contexts start "suspended" until a gesture. Once primed, the
+  // listener removes itself.
+  useEffect(() => {
+    const onInteract = () => unlockChime();
+    window.addEventListener("pointerdown", onInteract, { once: true });
+    window.addEventListener("keydown", onInteract, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", onInteract);
+      window.removeEventListener("keydown", onInteract);
+    };
+  }, []);
 
   const expectedTime = (): number => {
     if (!state) return 0;
@@ -279,7 +313,11 @@ export default function Remote() {
         </div>
       </header>
 
-      <div ref={threadRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      {/* Chat thread. Virtualized via react-virtuoso so the list stays
+          smooth at thousands of messages; followOutput="auto" keeps it
+          stuck to the bottom when the user is at the bottom and leaves
+          a mid-scroll reader alone when they're not. */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
         {loadingHistory ? (
           <div className="flex h-full items-center justify-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -293,38 +331,40 @@ export default function Remote() {
             </div>
           </div>
         ) : (
-          <ul className="flex flex-col px-4 py-3">
-            {messages.map((msg, i) => {
-              // Group consecutive messages from the same sender within 5min —
-              // the per-row header only renders for the first in a run.
-              const prevMsg = messages[i - 1];
-              const sameSender = prevMsg !== undefined && prevMsg.senderId === msg.senderId && msg.sentAt - prevMsg.sentAt < 5 * 60_000;
-              const mine = msg.senderId === meId;
-              return (
-                <li key={msg.id} className={cn("flex flex-col gap-0.5", sameSender ? "mt-0.5" : "mt-3 first:mt-0")}>
-                  {!sameSender && (
-                    <div className="flex items-baseline gap-2">
-                      <span className={cn("font-mono text-[11px]", mine ? "text-accent" : "text-foreground")}>{msg.senderName}</span>
-                      <span className="font-mono text-[10px] text-text-dim">{relativeTime(msg.sentAt)}</span>
-                    </div>
-                  )}
-                  {msg.text && <p className="break-words text-sm text-foreground/95">{msg.text}</p>}
-                  {msg.moment && (
-                    <button
-                      type="button"
-                      onClick={() => jumpToMoment(msg.moment!)}
-                      className="mt-0.5 inline-flex w-fit items-center gap-1.5 border border-accent/40 bg-accent/[0.06] px-2 py-1 text-[11px] text-accent transition hover:border-accent/70 hover:bg-accent/10 active:bg-accent/15"
-                      title="Jump the room to this scene"
-                    >
-                      <Clock className="h-3 w-3 shrink-0" />
-                      <span className="max-w-[220px] truncate">{msg.moment.mediaTitle || "Scene"}</span>
-                      {msg.moment.currentTime > 0.5 && <span className="font-mono text-[10px] text-accent/80">{formatMomentTime(msg.moment.currentTime)}</span>}
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <Virtuoso
+            ref={virtuosoRef}
+            data={messages}
+            // Always glue to bottom on a new item — works for both
+            // own sends and others' arrivals. Trades a tiny bit of
+            // "preserve mid-scroll" UX for a bug-free chat tail; the
+            // user can scroll up freely between messages.
+            followOutput="smooth"
+            initialTopMostItemIndex={Math.max(0, messages.length - 1)}
+            atBottomStateChange={setAtBottom}
+            className="flex-1"
+            // Spacer at the end of the list so the newest bubble has
+            // breathing room above the composer instead of butting
+            // straight up against it.
+            components={chatComponents}
+            itemContent={(index, msg) => {
+              const prev = index > 0 ? messages[index - 1] : null;
+              return <MessageRow msg={msg} prev={prev} isMe={msg.senderId === meId} onJump={jumpToMoment} />;
+            }}
+          />
+        )}
+        {/* Scroll-to-latest affordance. Only visible when the user has
+            scrolled away from the tail. Sits above the composer, with
+            a subtle backdrop so it reads against any background. */}
+        {!loadingHistory && messages.length > 0 && !atBottom && (
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            aria-label="Scroll to latest message"
+            title="Scroll to latest"
+            className="absolute bottom-3 right-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-accent/40 bg-bg-elevated/95 text-accent shadow-[0_8px_24px_-8px_rgba(0,0,0,0.7)] backdrop-blur transition hover:border-accent/70 hover:bg-bg-elevated"
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
         )}
       </div>
 
@@ -519,6 +559,108 @@ function ControlButton({ children, active = false, ...props }: { active?: boolea
   );
 }
 
+// Module-scoped so the same identity is passed to Virtuoso on every
+// render — re-creating the object on each render would re-trigger
+// virtualization re-measurement.
+const chatComponents = {
+  Footer: () => <div className="h-4" />,
+};
+
+// One chat row in the virtualized thread. Own messages right-align in
+// the accent bubble; others left-align with a coloured initial avatar
+// and a per-sender coloured name label. Consecutive messages from the
+// same sender within 5 minutes group: the header (name + time) and
+// avatar render only on the FIRST message in the run, subsequent rows
+// just show the bubble snugly beneath. Day separators land between
+// any two messages whose dates differ.
+function MessageRow({ msg, prev, isMe, onJump }: { msg: ChatMessage; prev: ChatMessage | null; isMe: boolean; onJump: (moment: ChatMoment) => void }) {
+  const sameSender = prev !== null && prev.senderId === msg.senderId && msg.sentAt - prev.sentAt < 5 * 60_000;
+  const showDateSep = !prev || !sameDay(prev.sentAt, msg.sentAt);
+  const tone = senderTone(msg.senderId);
+  const initial = msg.senderName.trim().charAt(0).toUpperCase() || "?";
+  const nameClass = isMe ? "text-accent" : tone.text;
+
+  return (
+    // flex-col on the wrapper prevents the inner bubble's mt-* from
+    // margin-collapsing through the parent — without this, Virtuoso
+    // measures rows shorter than they render and the bottom-stick
+    // detection drifts.
+    <div className="flex flex-col px-3">
+      {showDateSep && <DateSeparator ts={msg.sentAt} />}
+      <div className={cn("flex gap-2", isMe ? "flex-row-reverse" : "flex-row", sameSender && !showDateSep ? "mt-0.5" : "mt-3")}>
+        {/* Avatar gutter for non-me messages. Reserves the width even
+            when grouped so the bubble alignment stays consistent. */}
+        {!isMe && (
+          <div className="w-7 shrink-0">
+            {!sameSender && (
+              <span className={cn("flex h-7 w-7 items-center justify-center rounded-full border text-[11px] font-semibold uppercase", tone.avatar)}>{initial}</span>
+            )}
+          </div>
+        )}
+
+        <div className={cn("flex max-w-[78%] flex-col gap-0.5", isMe ? "items-end" : "items-start")}>
+          {!sameSender && (
+            <div className={cn("flex items-baseline gap-2 px-1", isMe && "flex-row-reverse")}>
+              <span className={cn("font-mono text-[11px]", nameClass)}>{isMe ? "You" : msg.senderName}</span>
+              <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-white/30">{formatShortTime(msg.sentAt)}</span>
+            </div>
+          )}
+          <div
+            className={cn(
+              "rounded-md border px-2.5 py-1.5 text-sm",
+              isMe ? "border-accent/40 bg-accent/15 text-foreground rounded-tr-sm" : "border-white/[0.06] bg-white/[0.04] text-foreground rounded-tl-sm",
+            )}
+          >
+            {msg.text && <p className="whitespace-pre-wrap break-words">{msg.text}</p>}
+            {msg.moment && (
+              <button
+                type="button"
+                onClick={() => onJump(msg.moment!)}
+                className="mt-1.5 inline-flex w-fit items-center gap-1.5 border border-accent/40 bg-accent/[0.06] px-2 py-1 text-[11px] text-accent transition hover:border-accent/70 hover:bg-accent/10 active:bg-accent/15"
+                title="Jump the room to this scene"
+              >
+                <Clock className="h-3 w-3 shrink-0" />
+                <span className="max-w-[180px] truncate">{msg.moment.mediaTitle || "Scene"}</span>
+                {msg.moment.currentTime > 0.5 && <span className="font-mono text-[10px] text-accent/80">{formatMomentTime(msg.moment.currentTime)}</span>}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DateSeparator({ ts }: { ts: number }) {
+  return (
+    <div className="mb-1 mt-3 flex items-center gap-2">
+      <span className="h-px flex-1 bg-white/[0.06]" />
+      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/35">{formatDaySeparator(ts)}</span>
+      <span className="h-px flex-1 bg-white/[0.06]" />
+    </div>
+  );
+}
+
+function sameDay(a: number, b: number): boolean {
+  const da = new Date(a);
+  const db = new Date(b);
+  return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+}
+
+function formatDaySeparator(ts: number): string {
+  const d = new Date(ts);
+  const now = new Date();
+  if (sameDay(d.getTime(), now.getTime())) return "Today";
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (sameDay(d.getTime(), yesterday.getTime())) return "Yesterday";
+  return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+}
+
+function formatShortTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 function formatMomentTime(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   const h = Math.floor(s / 3600);
@@ -528,10 +670,3 @@ function formatMomentTime(seconds: number): string {
   return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
 }
 
-function relativeTime(ts: number): string {
-  const diff = Date.now() - ts;
-  if (diff < 60_000) return "just now";
-  if (diff < 60 * 60_000) return `${Math.round(diff / 60_000)}m`;
-  if (diff < 24 * 60 * 60_000) return `${Math.round(diff / 3_600_000)}h`;
-  return `${Math.round(diff / 86_400_000)}d`;
-}
