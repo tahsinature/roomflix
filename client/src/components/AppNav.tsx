@@ -60,12 +60,6 @@ export function AppNav() {
               <NavLink to="/storage" className={navLinkClass}>
                 Storage
               </NavLink>
-              <NavLink to="/shares" className={navLinkClass}>
-                Shares
-              </NavLink>
-              <NavLink to="/remote" className={navLinkClass}>
-                Remote
-              </NavLink>
               <AccountMenu />
             </div>
 

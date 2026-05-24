@@ -4,7 +4,6 @@ import type { Collection, CollectionHealth } from "@shared/protocol";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { AudioPlayer } from "@/components/player/AudioPlayer";
 import { PhotoPlayer } from "@/components/player/PhotoPlayer";
-import { CollectionStrip } from "@/components/CollectionStrip";
 import { CollectionPanel } from "@/components/CollectionPanel";
 import { TheaterTopBar } from "@/components/theater/TheaterTopBar";
 import { IdleScreen } from "@/components/theater/IdleScreen";
@@ -52,24 +51,6 @@ export default function Watch() {
     }
   }, [remoteSidebarOpen]);
 
-  // Collection filmstrip layout — vertical (left side panel) by
-  // default; "bottom" flips back to the horizontal strip. The panel's
-  // header has a "move to bottom" button; the strip's header has the
-  // inverse. Persisted so a viewer's preference survives reloads.
-  const [collectionLayout, setCollectionLayout] = useState<"bottom" | "side">(() => {
-    try {
-      return localStorage.getItem("roomflix:collection-layout") === "bottom" ? "bottom" : "side";
-    } catch {
-      return "side";
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem("roomflix:collection-layout", collectionLayout);
-    } catch {
-      /* ignore */
-    }
-  }, [collectionLayout]);
 
   const openRemote = useCallback(
     (mode: "sidebar" | "newWindow" | "sameWindow") => {
@@ -295,23 +276,23 @@ export default function Watch() {
   const videoUrlRef = useRef(state.videoUrl);
   videoUrlRef.current = state.videoUrl;
 
-  // ←/→ navigate the loaded collection — for video, audio, and photos
-  // alike. The one exception: a video in fullscreen, where the arrows
-  // should seek instead; there we bow out and let the video player's own
-  // shortcuts run. Capture phase + stopImmediatePropagation so a
-  // non-fullscreen video doesn't ALSO seek. The listener registers once
-  // when a collection loads — before any video player mounts — so it
-  // reliably wins over the player's document-level shortcuts.
+  // ↑/↓ navigate the loaded collection — matches the vertical
+  // filmstrip on the left, where Down means "next item below" and Up
+  // means "previous item above". Left/Right are left to Vidstack so a
+  // non-fullscreen video can still nudge ±5s with the horizontal
+  // arrows. Capture phase wins over the player's document-level
+  // shortcuts. The listener registers once when a collection loads.
   useEffect(() => {
     if (!state.collectionId) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      // A fullscreen video keeps the arrows for seeking.
+      // Fullscreen video keeps the vertical arrows for the player's
+      // own volume shortcut.
       if (mediaKind(videoUrlRef.current) === "video" && document.fullscreenElement) return;
       e.preventDefault();
       e.stopImmediatePropagation();
-      if (e.key === "ArrowRight") actions.collectionNext();
+      if (e.key === "ArrowDown") actions.collectionNext();
       else actions.collectionPrev();
     };
     document.addEventListener("keydown", onKey, true);
@@ -362,13 +343,17 @@ export default function Watch() {
   return (
     <div
       ref={fullscreenRootRef}
-      className={cn("flex h-[100dvh] w-full overflow-hidden bg-black", !chromeShown && "cursor-none")}
+      // h-full takes whatever room the TheaterLayout wrapper hands it —
+      // viewport minus the global nav in normal mode, full screen
+      // when the browser hands the element to the Fullscreen API
+      // (the API overrides height/width to fill the screen, so the nav
+      // disappears with the rest of the chrome).
+      className={cn("flex h-full w-full overflow-hidden bg-black", !chromeShown && "cursor-none")}
       onMouseMove={onPointerActivity}
       onTouchStart={bumpChrome}
     >
-      {/* Vertical filmstrip — only renders when a collection is loaded
-          AND the user has flipped the layout to "side". */}
-      {!idle && state.collectionId && collectionLayout === "side" && (
+      {/* Left filmstrip — only renders when a collection is loaded. */}
+      {!idle && state.collectionId && (
         <CollectionPanel
           collection={collection}
           health={collectionHealth}
@@ -379,7 +364,6 @@ export default function Watch() {
           onJumpTo={actions.collectionJumpTo}
           onToggleLoop={actions.setCollectionLoop}
           onEdit={state.collectionId ? () => navigate(`/collections/${state.collectionId}`) : undefined}
-          onMoveToBottom={() => setCollectionLayout("bottom")}
         />
       )}
 
@@ -488,24 +472,6 @@ export default function Watch() {
         </div>
       </div>
 
-      {/* Collection filmstrip — bottom horizontal layout. Hidden when
-          the user has pivoted the filmstrip to the left side panel. */}
-      {!idle && state.collectionId && collectionLayout === "bottom" && (
-        <div className="max-h-[42vh] shrink-0 overflow-hidden">
-          <CollectionStrip
-            collection={collection}
-            health={collectionHealth}
-            currentIndex={state.collectionIndex}
-            loop={state.collectionLoop}
-            onNext={actions.collectionNext}
-            onPrev={actions.collectionPrev}
-            onJumpTo={actions.collectionJumpTo}
-            onToggleLoop={actions.setCollectionLoop}
-            onEdit={() => navigate(`/collections/${state.collectionId}`)}
-            onMoveToSide={() => setCollectionLayout("side")}
-          />
-        </div>
-      )}
       </div>{/* /content column */}
 
       {remoteSidebarOpen && <RemoteSidebar />}

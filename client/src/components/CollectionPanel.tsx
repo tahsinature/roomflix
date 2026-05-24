@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Ban, Film, ListVideo, Music, PanelBottom, Pencil, Repeat, Search, SkipBack, SkipForward, X } from "lucide-react";
+import { Ban, Film, ListVideo, Music, Pencil, Repeat, Search, SkipBack, SkipForward, X } from "lucide-react";
 import type { Collection, CollectionHealth, CollectionItem } from "@shared/protocol";
 import { cn, mediaKind, urlFilename } from "@/lib/utils";
 
-// Vertical/left-side counterpart of CollectionStrip. Same data, same
-// click-to-jump semantics, just rotated 90° into a sidebar with a
-// search input. Useful when you want to skim a long collection without
-// the bottom strip eating vertical room.
+// Vertical left-side filmstrip — the canonical collection chrome on
+// /watch. Search-enabled, click-to-jump, with the same prev/next/loop
+// + edit controls the old bottom strip had.
 export function CollectionPanel({
   collection,
   health,
@@ -17,7 +16,6 @@ export function CollectionPanel({
   onJumpTo,
   onToggleLoop,
   onEdit,
-  onMoveToBottom,
 }: {
   collection: Collection | null;
   health?: CollectionHealth | null;
@@ -28,8 +26,6 @@ export function CollectionPanel({
   onJumpTo: (index: number) => void;
   onToggleLoop: (next: boolean) => void;
   onEdit?: () => void;
-  // Flips the layout back to the horizontal bottom strip.
-  onMoveToBottom: () => void;
 }) {
   const [query, setQuery] = useState("");
   const listRef = useRef<HTMLUListElement>(null);
@@ -54,25 +50,14 @@ export function CollectionPanel({
   return (
     <aside className="hidden h-full w-[300px] shrink-0 flex-col border-r border-white/10 bg-black md:flex">
       <header className="border-b border-white/[0.06] px-3 py-2.5">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <ListVideo className="h-3.5 w-3.5 shrink-0 text-accent" />
-            <div className="min-w-0">
-              <div className="truncate text-sm font-medium text-white/90" title={collection.title}>
-                {collection.title}
-              </div>
-              <div className="font-mono text-[10px] text-white/45">{count === 0 ? "Empty" : `${currentIndex + 1} / ${count}`}</div>
+        <div className="flex min-w-0 items-center gap-2">
+          <ListVideo className="h-3.5 w-3.5 shrink-0 text-accent" />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-white/90" title={collection.title}>
+              {collection.title}
             </div>
+            <div className="font-mono text-[10px] text-white/45">{count === 0 ? "Empty" : `${currentIndex + 1} / ${count}`}</div>
           </div>
-          <button
-            type="button"
-            onClick={onMoveToBottom}
-            aria-label="Move to bottom"
-            title="Move filmstrip to bottom"
-            className="flex h-7 w-7 shrink-0 items-center justify-center text-white/55 transition hover:text-white"
-          >
-            <PanelBottom className="h-3.5 w-3.5" />
-          </button>
         </div>
         <div className="mt-2 flex items-center gap-1">
           <PanelButton label="Previous" onClick={onPrev}>
