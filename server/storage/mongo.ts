@@ -10,6 +10,8 @@ import type {
   JoinRequest,
   JoinRequester,
   JoinRequestStatus,
+  SessionState,
+  WatchHistoryEntry,
   ShareAccess,
   ShareLink,
   ShareTargetKind,
@@ -32,6 +34,8 @@ import type {
   ChatRepo,
   Session,
   SessionRepo,
+  SessionStateRepo,
+  WatchHistoryRepo,
   ShareAccessRepo,
   ShareLinkRepo,
   SpaceRepo,
@@ -50,6 +54,8 @@ import {
   InviteModel,
   JoinRequestModel,
   SessionModel,
+  SessionStateModel,
+  WatchHistoryModel,
   ShareAccessModel,
   ShareLinkModel,
   SpaceMemberModel,
@@ -104,6 +110,8 @@ export async function createMongoStorage(mongoUrl: string): Promise<Storage> {
     shareLinks: new MongoShareLinkRepo(),
     shareAccesses: new MongoShareAccessRepo(),
     chat: new MongoChatRepo(),
+    sessionState: new MongoSessionStateRepo(),
+    watchHistory: new MongoWatchHistoryRepo(),
     async close() {
       await mongoose.disconnect();
     },
@@ -835,6 +843,122 @@ class MongoChatRepo implements ChatRepo {
   async removeAllForSpace(spaceId: string): Promise<number> {
     const result = await ChatMessageModel.deleteMany({ spaceId });
     return result.deletedCount;
+  }
+}
+
+class MongoWatchHistoryRepo implements WatchHistoryRepo {
+  async add(input: {
+    spaceId: string;
+    videoUrl: string;
+    videoTitle: string | null;
+    collectionId: string | null;
+    collectionTitle: string | null;
+    collectionIndex: number | null;
+    duration: number | null;
+  }): Promise<WatchHistoryEntry> {
+    const doc = {
+      _id: randomId() + randomId(),
+      spaceId: input.spaceId,
+      videoUrl: input.videoUrl,
+      videoTitle: input.videoTitle,
+      collectionId: input.collectionId,
+      collectionTitle: input.collectionTitle,
+      collectionIndex: input.collectionIndex,
+      duration: input.duration,
+      startedAt: Date.now(),
+      endedAt: null,
+      lastPosition: 0,
+      completed: false,
+    };
+    await WatchHistoryModel.create(doc);
+    return toWatchHistory(doc);
+  }
+
+  async close(id: string, lastPosition: number, completed: boolean): Promise<void> {
+    await WatchHistoryModel.findByIdAndUpdate(id, { $set: { endedAt: Date.now(), lastPosition, completed } });
+  }
+
+  async updatePosition(id: string, lastPosition: number): Promise<void> {
+    await WatchHistoryModel.findByIdAndUpdate(id, { $set: { lastPosition } });
+  }
+
+  async listForSpace(spaceId: string, limit: number): Promise<WatchHistoryEntry[]> {
+    const docs = await WatchHistoryModel.find({ spaceId }).sort({ startedAt: -1 }).limit(limit).lean();
+    return docs.map(toWatchHistory);
+  }
+
+  async removeAllForSpace(spaceId: string): Promise<number> {
+    const result = await WatchHistoryModel.deleteMany({ spaceId });
+    return result.deletedCount ?? 0;
+  }
+}
+
+type WatchHistoryLean = {
+  _id: string;
+  spaceId: string;
+  videoUrl: string;
+  videoTitle?: string | null;
+  collectionId?: string | null;
+  collectionTitle?: string | null;
+  collectionIndex?: number | null;
+  duration?: number | null;
+  startedAt: number;
+  endedAt?: number | null;
+  lastPosition?: number;
+  completed?: boolean;
+};
+function toWatchHistory(doc: WatchHistoryLean): WatchHistoryEntry {
+  return {
+    id: doc._id,
+    spaceId: doc.spaceId,
+    videoUrl: doc.videoUrl,
+    videoTitle: doc.videoTitle ?? null,
+    collectionId: doc.collectionId ?? null,
+    collectionTitle: doc.collectionTitle ?? null,
+    collectionIndex: doc.collectionIndex ?? null,
+    duration: doc.duration ?? null,
+    startedAt: doc.startedAt,
+    endedAt: doc.endedAt ?? null,
+    lastPosition: doc.lastPosition ?? 0,
+    completed: !!doc.completed,
+  };
+}
+
+class MongoSessionStateRepo implements SessionStateRepo {
+  async get(spaceId: string): Promise<SessionState | null> {
+    const doc = await SessionStateModel.findById(spaceId).lean();
+    if (!doc) return null;
+    return {
+      videoUrl: doc.videoUrl ?? null,
+      videoTitle: doc.videoTitle ?? null,
+      subtitles: (doc.subtitles ?? []) as Subtitle[],
+      playing: !!doc.playing,
+      currentTime: doc.currentTime ?? 0,
+      collectionId: doc.collectionId ?? null,
+      collectionIndex: doc.collectionIndex ?? 0,
+      collectionLoop: !!doc.collectionLoop,
+      collectionShuffle: !!(doc as { collectionShuffle?: boolean }).collectionShuffle,
+      duration: doc.duration ?? null,
+      updatedAt: doc.updatedAt ?? Date.now(),
+      updatedBy: doc.updatedBy ?? null,
+    };
+  }
+
+  async put(spaceId: string, state: SessionState): Promise<void> {
+    await SessionStateModel.findByIdAndUpdate(
+      spaceId,
+      {
+        $set: {
+          ...state,
+          persistedAt: Date.now(),
+        },
+      },
+      { upsert: true },
+    );
+  }
+
+  async remove(spaceId: string): Promise<void> {
+    await SessionStateModel.deleteOne({ _id: spaceId });
   }
 }
 

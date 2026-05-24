@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bell, BellOff, ChevronDown, Clock, FastForward, Loader2, Pause, Play, Repeat, Rewind, SkipBack, SkipForward, Tv } from "lucide-react";
+import { Bell, BellOff, ChevronDown, Clock, FastForward, Loader2, Pause, Play, Repeat, Rewind, SkipBack, SkipForward, Trash2, Tv } from "lucide-react";
 import type { ChatMessage, ChatMoment, SessionState } from "@shared/protocol";
 import { useAuth } from "@/auth/AuthContext";
 import { useSessionPresence } from "@/auth/SessionPresence";
@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { ReactionBar } from "@/components/theater/ReactionBar";
 import { playChime, unlockChime } from "@/lib/chime";
 import { senderTone } from "@/lib/senderColor";
+import { useToast } from "@/components/Toast";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { cn, mediaKind, urlFilename } from "@/lib/utils";
 
@@ -18,8 +19,10 @@ import { cn, mediaKind, urlFilename } from "@/lib/utils";
 // viewer count.
 export default function Remote() {
   const { currentSpace, user, guest } = useAuth();
-  const { state, viewers, serverTime, send, subscribeChat, subscribeReactions } = useSessionPresence();
+  const { state, viewers, serverTime, send, subscribeChat, subscribeChatCleared, subscribeReactions } = useSessionPresence();
   const navigate = useNavigate();
+  const toast = useToast();
+  const canClearChat = currentSpace?.role === "owner";
   // True when this page is rendered inside an iframe — used by the
   // /watch sidebar host. In that mode the "Open here" link and the
   // post-jump navigate would shove the host page around, so we skip
@@ -98,6 +101,40 @@ export default function Remote() {
       }
     });
   }, [subscribeChat]);
+
+  // Owner wiped chat — flush local state so the thread resets live for
+  // everyone connected, not just the device that hit the button.
+  useEffect(() => {
+    return subscribeChatCleared(() => {
+      setMessages([]);
+      setConfirmingClearChat(false);
+    });
+  }, [subscribeChatCleared]);
+
+  // Two-step clear so a fat-finger doesn't nuke the thread. Auto-cancels
+  // after a short window.
+  const [confirmingClearChat, setConfirmingClearChat] = useState(false);
+  const [clearingChat, setClearingChat] = useState(false);
+  useEffect(() => {
+    if (!confirmingClearChat) return;
+    const t = setTimeout(() => setConfirmingClearChat(false), 4000);
+    return () => clearTimeout(t);
+  }, [confirmingClearChat]);
+  const clearChat = async () => {
+    if (!currentSpace) return;
+    setClearingChat(true);
+    try {
+      const { deleted } = await api.clearChat(currentSpace.id);
+      // The chatCleared broadcast will reset our local thread too —
+      // no manual setMessages needed here.
+      toast.success(deleted > 0 ? `Cleared ${deleted} message${deleted === 1 ? "" : "s"}.` : "Chat was already empty.");
+    } catch (err) {
+      toast.error(`Couldn't clear chat. ${(err as Error).message}`);
+    } finally {
+      setClearingChat(false);
+      setConfirmingClearChat(false);
+    }
+  };
 
   // Reactions don't render in the thread, but they still deserve a
   // ping when chime is on — same "someone reacted" signal you get
@@ -300,6 +337,31 @@ export default function Remote() {
           >
             {chimeEnabled ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
           </button>
+          {/* Owner-only chat wipe. Two-step confirm so a fat-finger
+              doesn't nuke the thread — first click flips to confirm
+              state, second commits. The chatCleared broadcast from
+              the server then resets every connected viewer's thread,
+              not just the owner's. */}
+          {canClearChat && messages.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (confirmingClearChat) clearChat();
+                else setConfirmingClearChat(true);
+              }}
+              disabled={clearingChat}
+              aria-label={confirmingClearChat ? "Confirm clear chat" : "Clear chat"}
+              title={confirmingClearChat ? "Click again to confirm" : "Clear chat (owner only)"}
+              className={cn(
+                "inline-flex h-7 w-7 items-center justify-center border transition disabled:opacity-50",
+                confirmingClearChat
+                  ? "border-accent bg-accent/15 text-accent hover:bg-accent/20"
+                  : "border-border bg-bg-elevated/50 text-muted-foreground hover:border-accent/30 hover:text-foreground",
+              )}
+            >
+              {clearingChat ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+            </button>
+          )}
           {!embedded && (
             <Link
               to="/watch"

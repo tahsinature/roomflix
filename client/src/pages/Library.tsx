@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, HelpCircle, Library as LibraryIcon, Loader2, Pencil, Plus, RefreshCw, Share2, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, HelpCircle, Library as LibraryIcon, Loader2, Pencil, Plus, Share2, Trash2, XCircle } from "lucide-react";
 import type { Collection, LibraryHealth, ProbeResult, Subtitle, Video, VideoHealth } from "@shared/protocol";
 import { CollectionsSection } from "@/components/CollectionsSection";
 import { useAuth } from "@/auth/AuthContext";
@@ -149,7 +149,7 @@ export default function Library() {
 
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-7 px-4 py-6 sm:px-6 sm:py-8">
-      <LibraryHeader count={videos.length} verifying={verifying} onReverify={reverify} onClearAll={handleClearAll} onAdd={() => setAddOpen(true)} />
+      <LibraryHeader count={videos.length} verifying={verifying} onClearAll={handleClearAll} onAdd={() => setAddOpen(true)} />
 
       {error && <div className="border border-accent/30 bg-accent/10 p-3 text-sm text-accent">{error}</div>}
 
@@ -193,13 +193,11 @@ export default function Library() {
 function LibraryHeader({
   count,
   verifying,
-  onReverify,
   onClearAll,
   onAdd,
 }: {
   count: number;
   verifying: boolean;
-  onReverify: () => void;
   onClearAll: () => Promise<void>;
   onAdd: () => void;
 }) {
@@ -237,16 +235,23 @@ function LibraryHeader({
             <LibraryIcon className="h-4 w-4 text-accent" />
             Library
             <span className="font-mono text-[12px] font-normal text-text-dim">· {count}</span>
+            {/* Verification runs automatically when the library loads
+                (and after each add/edit). Inline indicator replaces
+                the old manual "Verify" button — the user still gets
+                visual feedback that something's happening, no extra
+                click needed. */}
+            {verifying && (
+              <span className="ml-1 inline-flex items-center gap-1.5 font-mono text-[11px] font-normal text-muted-foreground" aria-live="polite">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Verifying…
+              </span>
+            )}
           </h1>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Button variant="accent" size="sm" onClick={onAdd} aria-label="Add media">
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Add</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={onReverify} disabled={verifying} aria-label="Re-verify library">
-            <RefreshCw className={cn("h-3.5 w-3.5", verifying && "animate-spin")} />
-            <span className="hidden lg:inline">{verifying ? "Verifying…" : "Verify"}</span>
           </Button>
           <Button
             variant={armedClear ? "destructive" : "ghost"}

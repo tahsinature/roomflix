@@ -15,6 +15,8 @@ import type {
   ShareAccess,
   ShareLink,
   ShareTargetKind,
+  SessionState,
+  WatchHistoryEntry,
   Space,
   SpaceJoinPolicy,
   SpaceMember,
@@ -317,6 +319,39 @@ export type Storage = {
   shareLinks: ShareLinkRepo;
   shareAccesses: ShareAccessRepo;
   chat: ChatRepo;
+  sessionState: SessionStateRepo;
+  watchHistory: WatchHistoryRepo;
   // Lifecycle hook so the server can disconnect cleanly on shutdown.
   close(): Promise<void>;
 };
+
+// Per-space watch-history timeline. Opened/closed by the session
+// layer; the API surface is read-only paginated.
+export interface WatchHistoryRepo {
+  add(input: {
+    spaceId: string;
+    videoUrl: string;
+    videoTitle: string | null;
+    collectionId: string | null;
+    collectionTitle: string | null;
+    collectionIndex: number | null;
+    duration: number | null;
+  }): Promise<WatchHistoryEntry>;
+  // Close the row — endedAt = now, lastPosition + completed get fixed
+  // values from the caller (e.g. completed=true from videoEnded).
+  close(id: string, lastPosition: number, completed: boolean): Promise<void>;
+  // Keep the in-flight row's lastPosition in sync as the room ticks.
+  updatePosition(id: string, lastPosition: number): Promise<void>;
+  // Newest-first, capped at `limit`. Used by the /history page.
+  listForSpace(spaceId: string, limit: number): Promise<WatchHistoryEntry[]>;
+  removeAllForSpace(spaceId: string): Promise<number>;
+}
+
+// Per-space persisted playback snapshot. One row per spaceId. Backs
+// the boot-time hydration in sessions.ts so a server restart doesn't
+// reset the room.
+export interface SessionStateRepo {
+  get(spaceId: string): Promise<SessionState | null>;
+  put(spaceId: string, state: SessionState): Promise<void>;
+  remove(spaceId: string): Promise<void>;
+}

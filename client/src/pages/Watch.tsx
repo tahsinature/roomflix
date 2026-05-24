@@ -25,7 +25,7 @@ const CHROME_HIDE_MS = 3200;
 export default function Watch() {
   const { currentSpace } = useAuth();
   const navigate = useNavigate();
-  const { state, viewers, serverTime, connected, stateLoaded, actions, subscribeReactions, subscribeChat } = useSessionSync();
+  const { state, serverTime, connected, stateLoaded, actions, subscribeReactions, subscribeChat } = useSessionSync();
   // Server-clock skew, captured once per serverTime push, used by the
   // "attach scene" capture to compute the room's currently-playing time
   // without round-tripping through the player ref.
@@ -50,6 +50,24 @@ export default function Watch() {
       /* private mode / disabled storage */
     }
   }, [remoteSidebarOpen]);
+
+  // Left collection-panel visibility. Hidden via the panel's own
+  // hide button; restored via the "show" tab on the left edge of the
+  // media area. Persisted so the user's preference survives reloads.
+  const [collectionPanelHidden, setCollectionPanelHidden] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("roomflix:collection-panel-hidden") === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("roomflix:collection-panel-hidden", collectionPanelHidden ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, [collectionPanelHidden]);
 
 
   const openRemote = useCallback(
@@ -230,13 +248,13 @@ export default function Watch() {
   // Multiple things can hold the chrome open — the library dropdown, the
   // pinned reaction composer. Tracking them per-source means closing one
   // doesn't accidentally release the others.
-  const chromeLocked = useRef({ library: false, watchers: false });
+  const chromeLocked = useRef({ library: false });
 
   const scheduleHide = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => {
       // Re-check rather than hide while any lock is engaged.
-      if (chromeLocked.current.library || chromeLocked.current.watchers) scheduleHide();
+      if (chromeLocked.current.library) scheduleHide();
       else setChromeVisible(false);
     }, CHROME_HIDE_MS);
   }, []);
@@ -352,18 +370,23 @@ export default function Watch() {
       onMouseMove={onPointerActivity}
       onTouchStart={bumpChrome}
     >
-      {/* Left filmstrip — only renders when a collection is loaded. */}
-      {!idle && state.collectionId && (
+      {/* Left filmstrip — only renders when a collection is loaded and
+          the user hasn't hidden the panel. When hidden, a small
+          "show" affordance sits at the top-left of the media area. */}
+      {!idle && state.collectionId && !collectionPanelHidden && (
         <CollectionPanel
           collection={collection}
           health={collectionHealth}
           currentIndex={state.collectionIndex}
           loop={state.collectionLoop}
+          shuffle={state.collectionShuffle}
           onNext={actions.collectionNext}
           onPrev={actions.collectionPrev}
           onJumpTo={actions.collectionJumpTo}
           onToggleLoop={actions.setCollectionLoop}
+          onToggleShuffle={actions.setCollectionShuffle}
           onEdit={state.collectionId ? () => navigate(`/collections/${state.collectionId}`) : undefined}
+          onHide={() => setCollectionPanelHidden(true)}
         />
       )}
 
@@ -447,13 +470,12 @@ export default function Watch() {
         {/* Composer intentionally lives on /remote, not here. The
             theater is for watching; typing happens on the companion. */}
 
-        {/* Auto-hiding top chrome — exit, now-playing, watchers, library. */}
+        {/* Auto-hiding top chrome — now-playing summary + library
+            picker. Watchers / back-to-library live on the global nav. */}
         <div className={cn("absolute inset-x-0 top-0 z-30 transition-opacity duration-300", chromeShown ? "opacity-100" : "pointer-events-none opacity-0")}>
           <TheaterTopBar
             title={title}
             contextLabel={contextLabel}
-            viewers={viewers}
-            connected={connected}
             onLoadUrl={actions.setUrl}
             // Video has its own in-player Remote launcher in the
             // control bar. Audio + photo have no player chrome to
@@ -464,10 +486,9 @@ export default function Watch() {
               chromeLocked.current.library = open;
               bumpChrome();
             }}
-            onWatchersOpenChange={(open) => {
-              chromeLocked.current.watchers = open;
-              bumpChrome();
-            }}
+            // Only show the "show panel" button when there's actually
+            // a collection loaded AND the panel is hidden.
+            onShowCollectionPanel={!idle && state.collectionId && collectionPanelHidden ? () => setCollectionPanelHidden(false) : undefined}
           />
         </div>
       </div>

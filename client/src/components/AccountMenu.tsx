@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ChevronDown, Link2, LogOut, Radio, SlidersHorizontal, Users2 } from "lucide-react";
+import { ChevronDown, History as HistoryIcon, Link2, LogOut, Radio, SlidersHorizontal, Users2 } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 import { cn } from "@/lib/utils";
 
@@ -91,6 +91,16 @@ export function AccountMenu({ className }: { className?: string }) {
           >
             <Link2 className="h-3.5 w-3.5 text-text-dim" />
             Shares
+          </Link>
+
+          <Link
+            to="/history"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-foreground transition hover:bg-white/[0.04]"
+          >
+            <HistoryIcon className="h-3.5 w-3.5 text-text-dim" />
+            History
           </Link>
 
           {!isGuest && (

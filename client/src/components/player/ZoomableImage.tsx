@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ImageOff, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // A single image with wheel-zoom, double-click-zoom, and drag-to-pan.
@@ -10,19 +11,38 @@ const IDENTITY: Transform = { scale: 1, x: 0, y: 0 };
 const MIN_SCALE = 1;
 const MAX_SCALE = 6;
 
+// Tri-state load status. "loading" shows a spinner; "loaded" fades the
+// image in; "error" swaps to a friendly fallback. Tracking this
+// explicitly (vs a single `loaded` flag) gets us a proper error path
+// without re-introducing the cached-image blank bug.
+type LoadStatus = "loading" | "loaded" | "error";
+
 export function ZoomableImage({ src, alt }: { src: string; alt: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   const [transform, setTransform] = useState<Transform>(IDENTITY);
-  const [loaded, setLoaded] = useState(false);
+  const [status, setStatus] = useState<LoadStatus>("loading");
   // Active pointer-drag (panning). Null when not dragging.
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [dragging, setDragging] = useState(false);
 
-  // Reset zoom + fade whenever the photo changes.
+  // Reset zoom + status whenever the photo changes. Then guard against
+  // the classic "img was already cached" race: if the browser had the
+  // image complete BEFORE React attached `onLoad`, the load event was
+  // dispatched without us — onLoad won't fire, the photo would sit
+  // opacity-0 forever. Inspect `complete` + `naturalWidth` to detect
+  // that and flip to "loaded" synchronously.
   useEffect(() => {
     setTransform(IDENTITY);
-    setLoaded(false);
+    const img = imgRef.current;
+    if (img && img.complete) {
+      setStatus(img.naturalWidth > 0 ? "loaded" : "error");
+    } else {
+      setStatus("loading");
+    }
   }, [src]);
+
+  const loaded = status === "loaded";
 
   // Clamp a transform: bound the scale, and keep a zoomed image from being
   // panned entirely off-frame. At scale 1 the image is always centered.
@@ -114,16 +134,30 @@ export function ZoomableImage({ src, alt }: { src: string; alt: string }) {
       )}
     >
       <img
+        ref={imgRef}
         src={src}
         alt={alt}
         draggable={false}
-        onLoad={() => setLoaded(true)}
+        onLoad={() => setStatus("loaded")}
+        onError={() => setStatus("error")}
         className={cn("max-h-full max-w-full object-contain", loaded ? "opacity-100" : "opacity-0")}
         style={{
           transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.scale})`,
           transition: dragging ? "none" : "transform 0.14s ease-out, opacity 0.3s ease-out",
         }}
       />
+
+      {status === "loading" && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <Loader2 className="h-7 w-7 animate-spin text-white/55" />
+        </div>
+      )}
+      {status === "error" && (
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/55">
+          <ImageOff className="h-9 w-9" />
+          <span className="font-mono text-xs uppercase tracking-[0.18em]">Couldn't load photo</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,14 +7,20 @@ import { type ChatMoment, type Collection, type ClientMessage, type ReactionCont
 import {
   broadcastChat,
   broadcastJoinRequestPending,
+  attachStorage,
   broadcastPresence,
   broadcastReaction,
   broadcastState,
   broadcastViewers,
+  closeHistoryEntry,
   getOrCreateSession,
   getSession,
+  hydrateSession,
+  openHistoryEntry,
   removeSocket,
+  schedulePersist,
   startChatRetentionSweeper,
+  startPersistHeartbeat,
   viewersOf,
   type Session,
   type WsData,
@@ -33,6 +39,7 @@ import { buildCollectionsRouter } from "@/api/collections.ts";
 import { buildSharesRouter } from "@/api/shares.ts";
 import { buildPublicShareRouter } from "@/api/public_share.ts";
 import { buildChatRouter } from "@/api/chat.ts";
+import { buildWatchHistoryRouter } from "@/api/history.ts";
 import { buildInvitesRouter, buildJoinRequestsRouter, buildSessionSpaceRouter, buildSpacesRouter } from "@/api/spaces.ts";
 import { buildSessionMembersRouter, buildSessionStateRouter } from "@/api/session_state.ts";
 import { getCurrentPrincipalFromRequest } from "@/auth.ts";
@@ -62,6 +69,12 @@ try {
 
 const storage = await createStorage(MONGO_URL);
 startChatRetentionSweeper(storage);
+// Wire the persistence layer for live sessions — every mutation in
+// handleClientMessage schedules a write, and a 2s heartbeat keeps the
+// `currentTime` of playing rooms fresh so a process restart loses at
+// most ~2s of position.
+attachStorage(storage);
+startPersistHeartbeat();
 
 // Phase-4 boot migration: every existing user gets a Home space and any
 // pre-spaces data (videos, playlists, imports, storage config) reparents
@@ -160,6 +173,7 @@ app.route("/api/shares", buildSharesRouter(storage));
 // singular /api/share so it never collides with the authed /api/shares.
 app.route("/api/share", buildPublicShareRouter(storage));
 app.route("/api/spaces/:id/chat", buildChatRouter(storage));
+app.route("/api/spaces/:id/history", buildWatchHistoryRouter(storage));
 
 // SPA fallback.
 //
@@ -208,6 +222,15 @@ async function applyCollectionItem(session: Session, collection: Collection, ind
 
 // Next index in `direction`. Wraps when loop is on; returns null when the
 // step would run off an end with loop off.
+// Pick a random next index different from `current`. Used when
+// shuffle is on — implicitly endless (never returns null) since
+// shuffling has no natural end point.
+function pickShuffleIndex(current: number, count: number): number {
+  if (count <= 1) return 0;
+  const r = Math.floor(Math.random() * (count - 1));
+  return r >= current ? r + 1 : r;
+}
+
 function stepCollectionIndex(current: number, direction: 1 | -1, count: number, loop: boolean): number | null {
   if (count === 0) return null;
   const next = current + direction;
@@ -298,6 +321,12 @@ function handleReaction(ws: ServerWebSocket<WsData>, raw: unknown): void {
   });
 }
 
+// Per-space gate that blocks concurrent `videoEnded` auto-advances.
+// The set is module-scope (not session-scope) so a session being torn
+// down mid-advance doesn't leave stale entries — the `finally` clears
+// it deterministically.
+const autoAdvanceInFlight = new Set<string>();
+
 async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientMessage) {
   const session = getSession(ws.data.spaceId);
   if (!session) return;
@@ -351,6 +380,12 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
     broadcastPresence(ws.data.spaceId);
     return;
   }
+
+  // Snapshot pre-mutation state so we can detect URL changes (drives
+  // watch-history open/close) and flag completion (set true inside the
+  // videoEnded case so the closing row gets `completed = true`).
+  const prevVideoUrl = session.state.videoUrl;
+  let videoEndedCompleted = false;
 
   switch (message.type) {
     case "hello":
@@ -428,6 +463,9 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
     case "setCollectionLoop":
       session.state.collectionLoop = !!message.loop;
       break;
+    case "setCollectionShuffle":
+      session.state.collectionShuffle = !!message.shuffle;
+      break;
     case "setDuration": {
       // Only the active watcher really knows the duration. Sanity-check
       // the number; ignore NaN / Infinity / negatives.
@@ -441,10 +479,14 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
       const m = validateMoment(message.moment);
       if (!m) return;
       if (m.collectionId) {
-        const collection = await storage.collections.getById(m.collectionId);
-        if (!collection || collection.spaceId !== session.spaceId) return;
-        // Always set the collection context (covers both "load fresh"
-        // and "stay in this collection but jump items").
+        const raw = await storage.collections.getById(m.collectionId);
+        if (!raw || raw.spaceId !== session.spaceId) return;
+        // Synced (folder-mirrored) collections have an empty/stale
+        // items array in the DB doc — the live items list is computed
+        // from the bucket via resolveCollection. Without this the jump
+        // silently no-ops on the `idx >= items.length` guard whenever
+        // the chip points at a synced collection (mp3s, photos, etc).
+        const collection = await resolveCollection(raw, storage);
         session.state.collectionId = collection.id;
         const idx = m.collectionIndex ?? 0;
         if (idx < 0 || idx >= collection.items.length) return;
@@ -470,22 +512,40 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
     }
     case "videoEnded": {
       if (message.endedUrl !== session.state.videoUrl) return;
+      // Mutex: every viewer's player fires `finish` when the track
+      // ends, so we get N concurrent `videoEnded` messages. Without
+      // the gate they all pass the endedUrl-matches check (the await
+      // below yields before state.videoUrl mutates) and each one
+      // calls `stepCollectionIndex` against the same starting index —
+      // result is "track 1 → 3" on a 2-viewer room. The gate makes
+      // only the first one through; the rest no-op.
+      if (autoAdvanceInFlight.has(ws.data.spaceId)) return;
+      videoEndedCompleted = true;
       if (!session.state.collectionId) {
         session.state.playing = false;
         break;
       }
-      const raw = await storage.collections.getById(session.state.collectionId);
-      if (!raw || raw.spaceId !== session.spaceId) {
-        session.state.playing = false;
-        break;
+      autoAdvanceInFlight.add(ws.data.spaceId);
+      try {
+        const raw = await storage.collections.getById(session.state.collectionId);
+        if (!raw || raw.spaceId !== session.spaceId) {
+          session.state.playing = false;
+          break;
+        }
+        const collection = await resolveCollection(raw, storage);
+        // Shuffle short-circuits the sequential step and never returns
+        // null — random ordering has no natural end.
+        const target = session.state.collectionShuffle
+          ? pickShuffleIndex(session.state.collectionIndex, collection.items.length)
+          : stepCollectionIndex(session.state.collectionIndex, 1, collection.items.length, session.state.collectionLoop);
+        if (target === null) {
+          session.state.playing = false;
+          break;
+        }
+        await applyCollectionItem(session, collection, target);
+      } finally {
+        autoAdvanceInFlight.delete(ws.data.spaceId);
       }
-      const collection = await resolveCollection(raw, storage);
-      const target = stepCollectionIndex(session.state.collectionIndex, 1, collection.items.length, session.state.collectionLoop);
-      if (target === null) {
-        session.state.playing = false;
-        break;
-      }
-      await applyCollectionItem(session, collection, target);
       break;
     }
   }
@@ -493,6 +553,35 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
   session.state.updatedAt = now;
   session.state.updatedBy = ws.data.clientId;
   broadcastState(ws.data.spaceId);
+  // Mirror to Mongo so a server restart doesn't lose the room's spot.
+  schedulePersist(ws.data.spaceId);
+
+  // Watch-history bookkeeping — fire-and-forget. If the URL changed
+  // (or videoEnded happened), close the prior row and open a new one
+  // for whatever's playing now.
+  if (prevVideoUrl !== session.state.videoUrl || videoEndedCompleted) {
+    void manageHistoryAfterMutation(session, prevVideoUrl, videoEndedCompleted);
+  }
+}
+
+async function manageHistoryAfterMutation(session: Session, prevVideoUrl: string | null, completed: boolean): Promise<void> {
+  // Close the row tied to the previous URL first. `completed` flips
+  // only when videoEnded fired — manual next/seek leaves it false.
+  if (prevVideoUrl) {
+    await closeHistoryEntry(session.spaceId, completed);
+  }
+  // Open a fresh row for the new URL (skip if state cleared to null).
+  if (!session.state.videoUrl) return;
+  let collectionTitle: string | null = null;
+  if (session.state.collectionId) {
+    try {
+      const c = await storage.collections.getById(session.state.collectionId);
+      if (c) collectionTitle = c.title;
+    } catch {
+      /* missing/unauthorized collections aren't critical for history */
+    }
+  }
+  await openHistoryEntry(session, collectionTitle);
 }
 
 const server = Bun.serve<WsData>({
@@ -549,6 +638,10 @@ const server = Bun.serve<WsData>({
       const status: "online" | "watching" = rawStatus === "online" ? "online" : "watching";
 
       const guestJoinedAt = principal.kind === "guest" ? principal.session.createdAt : undefined;
+      // Hydrate the in-memory session from Mongo BEFORE the WS opens so
+      // the initial state snapshot pushed to the new socket carries the
+      // persisted position (or empty state on a fresh space).
+      await hydrateSession(spaceId);
       const ok = srv.upgrade(req, {
         data: { spaceId, clientId, userId, identityId, identityKind, displayName, status, guestJoinedAt },
       });

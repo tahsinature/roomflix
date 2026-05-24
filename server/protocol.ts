@@ -364,6 +364,10 @@ export type SessionState = {
   collectionId: string | null;
   collectionIndex: number;
   collectionLoop: boolean;
+  // Shuffle the next-item pick on videoEnded auto-advance. Implies
+  // an endless queue — shuffle ON keeps the room going regardless of
+  // collectionLoop, since there's no "end" with a randomized order.
+  collectionShuffle: boolean;
   // Total length of the currently-loaded media in seconds. Null for
   // photos (no timeline) and while the active player hasn't reported
   // its metadata yet. Pushed by the watching client on loadedmetadata
@@ -485,6 +489,30 @@ export type ChatMoment = {
   collectionIndex: number | null;
 };
 
+// One row in the per-space watch history timeline. Opened when the
+// room's loaded URL changes, closed when the next URL change (or end
+// of media) occurs. Snapshots title/duration so the timeline stays
+// readable even if the source is later removed.
+export type WatchHistoryEntry = {
+  id: string;
+  spaceId: string;
+  videoUrl: string;
+  videoTitle: string | null;
+  collectionId: string | null;
+  collectionTitle: string | null;
+  collectionIndex: number | null;
+  duration: number | null;
+  startedAt: number;
+  // Null while the entry is still the room's active item.
+  endedAt: number | null;
+  // Most recently reported playback position (seconds). Updated by the
+  // 2s persist heartbeat while playing.
+  lastPosition: number;
+  // True only when the player reported videoEnded — distinguishes
+  // "watched to the end" from "swapped to the next item".
+  completed: boolean;
+};
+
 // Persistent chat message — the remote-control page's main feed. Lives
 // in the DB so a phone that opens later can scroll back. Also broadcast
 // live on the WS and rendered as an ephemeral bubble on /watch so the
@@ -529,6 +557,7 @@ export type ClientMessage =
   | { type: "collectionPrev" }
   | { type: "collectionJumpTo"; index: number }
   | { type: "setCollectionLoop"; loop: boolean }
+  | { type: "setCollectionShuffle"; shuffle: boolean }
   | { type: "videoEnded"; endedUrl: string }
   // Quick emoji or short text reaction. Server validates the payload
   // (allowed emoji set, length cap), rate-limits per sender, then fans
@@ -582,7 +611,10 @@ export type ServerMessage =
   | { type: "reaction"; reaction: ReactionContent; sender: { id: string; name: string }; clientId: string; sentAt: number }
   // Broadcast to ALL sockets in a space (including remote controls).
   // Carries the full persisted row so clients can append directly.
-  | { type: "chat"; message: ChatMessage };
+  | { type: "chat"; message: ChatMessage }
+  // Owner-initiated wipe of the space's chat history. Triggers every
+  // connected client to reset its local thread state.
+  | { type: "chatCleared" };
 
 export function emptySessionState(): SessionState {
   return {
@@ -594,6 +626,7 @@ export function emptySessionState(): SessionState {
     collectionId: null,
     collectionIndex: 0,
     collectionLoop: false,
+    collectionShuffle: false,
     duration: null,
     updatedAt: Date.now(),
     updatedBy: null,

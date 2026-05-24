@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Ban, Film, ListVideo, Music, Pencil, Repeat, Search, SkipBack, SkipForward, X } from "lucide-react";
+import { Ban, Film, ListVideo, Music, PanelLeftClose, Pencil, Repeat, Search, Shuffle, SkipBack, SkipForward, X } from "lucide-react";
 import type { Collection, CollectionHealth, CollectionItem } from "@shared/protocol";
 import { cn, mediaKind, urlFilename } from "@/lib/utils";
 
@@ -11,21 +11,29 @@ export function CollectionPanel({
   health,
   currentIndex,
   loop,
+  shuffle,
   onNext,
   onPrev,
   onJumpTo,
   onToggleLoop,
+  onToggleShuffle,
   onEdit,
+  onHide,
 }: {
   collection: Collection | null;
   health?: CollectionHealth | null;
   currentIndex: number;
   loop: boolean;
+  shuffle: boolean;
   onNext: () => void;
   onPrev: () => void;
   onJumpTo: (index: number) => void;
   onToggleLoop: (next: boolean) => void;
+  onToggleShuffle: (next: boolean) => void;
   onEdit?: () => void;
+  // Collapse the panel — host adds a small "show" affordance to put
+  // it back. When omitted the hide button doesn't render.
+  onHide?: () => void;
 }) {
   const [query, setQuery] = useState("");
   const listRef = useRef<HTMLUListElement>(null);
@@ -52,12 +60,37 @@ export function CollectionPanel({
       <header className="border-b border-white/[0.06] px-3 py-2.5">
         <div className="flex min-w-0 items-center gap-2">
           <ListVideo className="h-3.5 w-3.5 shrink-0 text-accent" />
-          <div className="min-w-0">
-            <div className="truncate text-sm font-medium text-white/90" title={collection.title}>
-              {collection.title}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-sm font-medium text-white/90" title={collection.title}>
+                {collection.title}
+              </span>
+              {/* Synced (folder-mirrored) collections — items live in
+                  the bucket, the title tracks the folder name, and
+                  the list is read-only. Same cyan badge style as the
+                  Collections grid card so the cue carries through. */}
+              {collection.source && (
+                <span
+                  className="shrink-0 border border-cyan/40 bg-cyan/15 px-1 py-0.5 font-mono text-[9px] uppercase tracking-wider text-cyan"
+                  title="Synced with a storage folder — items update automatically"
+                >
+                  Synced
+                </span>
+              )}
             </div>
             <div className="font-mono text-[10px] text-white/45">{count === 0 ? "Empty" : `${currentIndex + 1} / ${count}`}</div>
           </div>
+          {onHide && (
+            <button
+              type="button"
+              onClick={onHide}
+              aria-label="Hide collection panel"
+              title="Hide panel"
+              className="flex h-7 w-7 shrink-0 items-center justify-center text-white/55 transition hover:text-white"
+            >
+              <PanelLeftClose className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
         <div className="mt-2 flex items-center gap-1">
           <PanelButton label="Previous" onClick={onPrev}>
@@ -74,6 +107,15 @@ export function CollectionPanel({
             className={cn("flex h-7 w-7 items-center justify-center transition", loop ? "text-accent" : "text-white/55 hover:text-white")}
           >
             <Repeat className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            aria-label={shuffle ? "Disable shuffle" : "Enable shuffle"}
+            title={shuffle ? "Shuffle is on" : "Shuffle is off"}
+            onClick={() => onToggleShuffle(!shuffle)}
+            className={cn("flex h-7 w-7 items-center justify-center transition", shuffle ? "text-accent" : "text-white/55 hover:text-white")}
+          >
+            <Shuffle className="h-3.5 w-3.5" />
           </button>
           {onEdit && (
             <PanelButton label="Edit collection" onClick={onEdit}>

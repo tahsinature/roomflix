@@ -30,6 +30,7 @@ export type SessionSync = {
     collectionPrev: () => void;
     collectionJumpTo: (index: number) => void;
     setCollectionLoop: (loop: boolean) => void;
+    setCollectionShuffle: (shuffle: boolean) => void;
     videoEnded: (endedUrl: string) => void;
     // Debounced to ~200ms — slider drags fire dozens of events per
     // second and we don't want one per ws.send. The trailing edge wins.
@@ -79,6 +80,7 @@ export function useSessionSync(): SessionSync {
       collectionPrev: () => presence.send({ type: "collectionPrev" }),
       collectionJumpTo: (index: number) => presence.send({ type: "collectionJumpTo", index }),
       setCollectionLoop: (loop: boolean) => presence.send({ type: "setCollectionLoop", loop }),
+      setCollectionShuffle: (shuffle: boolean) => presence.send({ type: "setCollectionShuffle", shuffle }),
       videoEnded: (endedUrl: string) => presence.send({ type: "videoEnded", endedUrl }),
       setVolume: (level: number, muted: boolean) => {
         pendingVolume.current = { level, muted };

@@ -23,6 +23,7 @@ import type {
   StorageConnectionDetail,
   Subtitle,
   Video,
+  WatchHistoryEntry,
 } from "@shared/protocol";
 
 // Result of POST /api/invites/redeem. When the target space's
@@ -294,4 +295,10 @@ export const api = {
   // Persistent chat history for the current space — used by the remote
   // control page to backfill what was said before it opened.
   chatHistory: (spaceId: string, limit = 100) => request<ChatMessage[]>(`/api/spaces/${encodeURIComponent(spaceId)}/chat?limit=${limit}`),
+  clearChat: (spaceId: string) =>
+    request<{ deleted: number }>(`/api/spaces/${encodeURIComponent(spaceId)}/chat`, { method: "DELETE" }),
+  watchHistory: (spaceId: string, limit = 100) =>
+    request<WatchHistoryEntry[]>(`/api/spaces/${encodeURIComponent(spaceId)}/history?limit=${limit}`),
+  clearWatchHistory: (spaceId: string) =>
+    request<{ deleted: number }>(`/api/spaces/${encodeURIComponent(spaceId)}/history`, { method: "DELETE" }),
 };

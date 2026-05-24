@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowUpRight, Ban, ListVideo } from "lucide-react";
+import { Ban, ListVideo } from "lucide-react";
 import type { LibraryHealth, Video } from "@shared/protocol";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -137,16 +136,6 @@ export function LibraryPicker({ onPick, onOpenChange }: Props) {
             </ul>
           )}
 
-          <div className="mt-1 border-t border-border pt-1">
-            <Link
-              to="/library"
-              onClick={() => setOpen(false)}
-              className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-muted-foreground transition hover:bg-white/[0.04] hover:text-foreground"
-            >
-              <span>Manage library</span>
-              <ArrowUpRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
         </div>
       )}
     </div>

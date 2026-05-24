@@ -14,7 +14,10 @@ type Item =
   | { kind: "emoji"; id: string; emoji: string; sender: string }
   | { kind: "text"; id: string; text: string; sender: string; moment: ChatMoment | null };
 
-const LIFESPAN_MS = 6000;
+// How long a bubble (chat message or reaction) stays on the overlay
+// before the auto-dismiss timer drops it. Tuned so a glance away
+// doesn't make you miss what was said.
+const LIFESPAN_MS = 12000;
 // Visible cap so a burst doesn't paint the whole side of the screen.
 const MAX_VISIBLE = 8;
 

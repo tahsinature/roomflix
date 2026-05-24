@@ -56,6 +56,10 @@ type SessionPresenceValue = {
   // Same emitter pattern for persistent chat messages — fires whenever a
   // new chat row is broadcast by the server.
   subscribeChat: (cb: (message: ChatMessage) => void) => () => void;
+  // Fires when the owner wipes chat history. Subscribers reset their
+  // local message state to []. Server broadcasts this after a
+  // successful DELETE /api/spaces/:id/chat.
+  subscribeChatCleared: (cb: () => void) => () => void;
 };
 
 const DEFAULT: SessionPresenceValue = {
@@ -72,6 +76,7 @@ const DEFAULT: SessionPresenceValue = {
   setStatus: () => {},
   subscribeReactions: () => () => {},
   subscribeChat: () => () => {},
+  subscribeChatCleared: () => () => {},
 };
 
 const Ctx = createContext<SessionPresenceValue>(DEFAULT);
@@ -107,6 +112,16 @@ export function SessionPresenceProvider({ children }: { children: ReactNode }) {
     chatListenersRef.current.add(cb);
     return () => {
       chatListenersRef.current.delete(cb);
+    };
+  }, []);
+  // Owner-initiated chat wipes broadcast a `chatCleared` event so every
+  // connected viewer's local thread resets live. Subscribers (Remote)
+  // listen for this and zero out their messages state.
+  const chatClearedListenersRef = useRef<Set<() => void>>(new Set());
+  const subscribeChatCleared = useCallback((cb: () => void) => {
+    chatClearedListenersRef.current.add(cb);
+    return () => {
+      chatClearedListenersRef.current.delete(cb);
     };
   }, []);
   // Latest desired status. Watch page flips this on mount/unmount; we
@@ -224,6 +239,8 @@ export function SessionPresenceProvider({ children }: { children: ReactNode }) {
           }
         } else if (msg.type === "chat") {
           for (const cb of chatListenersRef.current) cb(msg.message);
+        } else if (msg.type === "chatCleared") {
+          for (const cb of chatClearedListenersRef.current) cb();
         }
       };
     };
@@ -260,6 +277,7 @@ export function SessionPresenceProvider({ children }: { children: ReactNode }) {
     setStatus,
     subscribeReactions,
     subscribeChat,
+    subscribeChatCleared,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

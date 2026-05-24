@@ -39,8 +39,10 @@ export const ReactionBar = forwardRef<
     setText("");
   };
 
+  const canSend = !!text.trim() || !!attachedMoment;
+
   return (
-    <div className="flex flex-col gap-1.5 border-t border-white/10 bg-black/70 px-3 py-2 backdrop-blur sm:px-4">
+    <div className="flex flex-col gap-2 border-t border-white/[0.06] bg-black/70 px-3 py-2.5 backdrop-blur sm:px-4">
       {attachedMoment && (
         <MomentChip
           moment={attachedMoment}
@@ -48,10 +50,11 @@ export const ReactionBar = forwardRef<
         />
       )}
 
-      {/* Two stacked rows: quick-react emojis, then text+actions. The
-          old single-row layout overflowed in narrow surfaces like the
-          /remote sidebar (380px). Stacking is also calmer to read. */}
-      <div className="flex flex-wrap items-center gap-1">
+      {/* Emoji rail — 8 equal columns so the quick reactions distribute
+          evenly across whatever width the surface has. Borderless cells
+          with a hover lift read calmer than the old bordered grid;
+          aspect-square keeps each cell a clean target. */}
+      <div className="grid grid-cols-8 gap-1">
         {QUICK_EMOJIS.map((emoji) => (
           <button
             key={emoji}
@@ -59,10 +62,9 @@ export const ReactionBar = forwardRef<
             onPointerDown={(e) => e.preventDefault()}
             onClick={() => onSend({ kind: "emoji", emoji })}
             aria-label={`React with ${emoji}`}
-            title={`React ${emoji}`}
-            className="flex h-8 w-8 items-center justify-center border border-white/10 bg-white/[0.04] text-base transition hover:scale-105 hover:border-white/30 hover:bg-white/10 active:scale-95"
+            className="flex aspect-square items-center justify-center rounded-md text-lg transition hover:scale-110 hover:bg-white/[0.07] active:scale-95"
           >
-            {emoji}
+            <span aria-hidden>{emoji}</span>
           </button>
         ))}
       </div>
@@ -75,7 +77,7 @@ export const ReactionBar = forwardRef<
           placeholder={attachedMoment ? "Add a note (optional)…" : "Say something…"}
           maxLength={MAX_TEXT_LEN}
           aria-label="Send a message"
-          className="h-8 min-w-0 flex-1 border border-white/10 bg-black/50 px-2.5 text-sm text-white placeholder:text-white/40 focus:border-white/30 focus:outline-none"
+          className="h-9 min-w-0 flex-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-sm text-white placeholder:text-white/35 transition focus:border-accent/45 focus:bg-black/40 focus:outline-none"
         />
         {canAttach && (
           <button
@@ -86,21 +88,26 @@ export const ReactionBar = forwardRef<
             title={attachedMoment ? "Replace attached scene" : "Attach current scene"}
             className={
               attachedMoment
-                ? "flex h-8 w-8 shrink-0 items-center justify-center border border-accent/60 bg-accent/15 text-accent transition hover:border-accent hover:bg-accent/20"
-                : "flex h-8 w-8 shrink-0 items-center justify-center border border-white/10 bg-white/[0.04] text-white/70 transition hover:border-white/30 hover:text-white"
+                ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-accent/55 bg-accent/15 text-accent transition hover:border-accent hover:bg-accent/20"
+                : "flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-white/55 transition hover:bg-white/[0.07] hover:text-white"
             }
           >
-            <Clock className="h-3.5 w-3.5" />
+            <Clock className="h-4 w-4" />
           </button>
         )}
         <button
           type="submit"
           onPointerDown={(e) => e.preventDefault()}
-          disabled={!text.trim() && !attachedMoment}
+          disabled={!canSend}
           aria-label="Send message"
-          className="flex h-8 w-8 shrink-0 items-center justify-center border border-white/10 bg-white/[0.04] text-white/70 transition hover:border-accent/50 hover:text-white disabled:opacity-30"
+          title="Send"
+          className={
+            canSend
+              ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground transition hover:bg-accent-bright"
+              : "flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-white/30 disabled:cursor-not-allowed"
+          }
         >
-          <Send className="h-3.5 w-3.5" />
+          <Send className="h-4 w-4" />
         </button>
       </form>
     </div>
