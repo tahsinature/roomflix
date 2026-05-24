@@ -1,6 +1,7 @@
 import type { ServerWebSocket } from "bun";
 import {
   emptySessionState,
+  type ChatMessage,
   type Participant,
   type PresenceStatus,
   type ReactionContent,
@@ -187,6 +188,24 @@ export function sweepEmptySessions() {
 
 setInterval(sweepEmptySessions, 60_000);
 
+// Per-space chat retention — keep the last N messages, sweep hourly.
+// Called by index.ts once storage is constructed.
+export function startChatRetentionSweeper(
+  storage: { chat: { distinctSpaceIds(): Promise<string[]>; trim(spaceId: string, keepLast: number): Promise<number> } },
+  keepLast = 500,
+  intervalMs = 60 * 60 * 1000,
+) {
+  const run = async () => {
+    try {
+      const ids = await storage.chat.distinctSpaceIds();
+      for (const sid of ids) await storage.chat.trim(sid, keepLast);
+    } catch (err) {
+      console.error("[roomflix] chat retention sweep failed", err);
+    }
+  };
+  setInterval(run, intervalMs);
+}
+
 // ── Broadcast helpers ──────────────────────────────────────────────────
 //
 // Centralized here so api routes (e.g. /me) can fan out side effects
@@ -230,6 +249,16 @@ export function broadcastReaction(spaceId: string, payload: { reaction: Reaction
   for (const ws of session.sockets) {
     if (ws.data.status === "watching") ws.send(wire);
   }
+}
+
+// Fan a chat message out to EVERY socket in the space, not just
+// "watching" ones — the remote-control page joins the session without
+// flipping to watching status but still needs to see chat live.
+export function broadcastChat(spaceId: string, message: ChatMessage): void {
+  const session = getSession(spaceId);
+  if (!session) return;
+  const payload = JSON.stringify({ type: "chat", message } satisfies ServerMessage);
+  for (const ws of session.sockets) ws.send(payload);
 }
 
 export function broadcastJoinRequestPending(spaceId: string): void {

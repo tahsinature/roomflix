@@ -7,6 +7,8 @@ import type {
   Collection,
   CollectionItem,
   InviteCode,
+  ChatMessage,
+  ChatMoment,
   CollectionSource,
   JoinRequest,
   JoinRequester,
@@ -59,7 +61,10 @@ export interface UserRepo {
   listAll(): Promise<StoredUser[]>;
   // Patch user-editable profile fields. Currently just displayName; the
   // shape is left open so we can extend without changing call sites.
-  updateProfile(id: string, patch: { displayName?: string | null }): Promise<StoredUser | null>;
+  updateProfile(
+    id: string,
+    patch: { displayName?: string | null; timezone?: string | null; city?: string | null; homeBezelStyle?: "cinema" | "crt" | "minimal" | null },
+  ): Promise<StoredUser | null>;
 }
 
 // Sessions back the cookie. A session is EITHER tied to a real user
@@ -198,6 +203,11 @@ export interface MembershipRepo {
   // Fan out a denormalized profile change (displayName) to every membership
   // row the user has. Returns the count of touched rows.
   updateDisplayNameForUser(userId: string, displayName: string | null): Promise<number>;
+  // Sync the denormalized location fields onto every space-member row
+  // belonging to this user. Called by the profile patch when timezone
+  // or city changes so member-list panels stay current without a
+  // per-row user fetch.
+  updateLocationForUser(userId: string, patch: { timezone?: string | null; city?: string | null }): Promise<number>;
 }
 
 // Short, human-shareable codes that grant access when redeemed.
@@ -275,6 +285,21 @@ export interface ShareAccessRepo {
   removeAllForShare(shareId: string): Promise<number>;
 }
 
+// Persistent per-space chat — the remote-control page's main feed.
+export interface ChatRepo {
+  add(input: { spaceId: string; senderId: string; senderKind: "user" | "guest"; senderName: string; text: string; moment: ChatMoment | null }): Promise<ChatMessage>;
+  // Most-recent N, returned in ascending (oldest → newest) order so the
+  // client can append-only as new messages arrive.
+  listForSpace(spaceId: string, limit: number): Promise<ChatMessage[]>;
+  // Retention sweep — keep at most `keepLast` messages per space, drop
+  // the rest from oldest. Returns the count deleted.
+  trim(spaceId: string, keepLast: number): Promise<number>;
+  // Every distinct spaceId currently in chat — used by the periodic
+  // sweeper to iterate.
+  distinctSpaceIds(): Promise<string[]>;
+  removeAllForSpace(spaceId: string): Promise<number>;
+}
+
 export type Storage = {
   videos: VideoRepo;
   users: UserRepo;
@@ -291,6 +316,7 @@ export type Storage = {
   joinRequests: JoinRequestRepo;
   shareLinks: ShareLinkRepo;
   shareAccesses: ShareAccessRepo;
+  chat: ChatRepo;
   // Lifecycle hook so the server can disconnect cleanly on shutdown.
   close(): Promise<void>;
 };

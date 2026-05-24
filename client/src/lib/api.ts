@@ -1,5 +1,6 @@
 import type {
   AuthUser,
+  ChatMessage,
   Collection,
   CollectionHealth,
   CollectionItem,
@@ -132,7 +133,7 @@ export const api = {
       body: JSON.stringify(input),
     }),
   authLogout: () => request<void>("/api/auth/logout", { method: "POST" }),
-  updateProfile: (patch: { displayName?: string | null }) =>
+  updateProfile: (patch: { displayName?: string | null; timezone?: string | null; city?: string | null; homeBezelStyle?: "cinema" | "crt" | "minimal" | null }) =>
     request<AuthUser>("/api/auth/me", {
       method: "PATCH",
       body: JSON.stringify(patch),
@@ -290,4 +291,7 @@ export const api = {
     }),
   sessionState: () => request<SessionStateSnapshot | null>("/api/session/state"),
   sessionMembers: () => request<SpaceMember[]>("/api/session/members"),
+  // Persistent chat history for the current space — used by the remote
+  // control page to backfill what was said before it opened.
+  chatHistory: (spaceId: string, limit = 100) => request<ChatMessage[]>(`/api/spaces/${encodeURIComponent(spaceId)}/chat?limit=${limit}`),
 };

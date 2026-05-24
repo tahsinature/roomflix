@@ -72,6 +72,7 @@ export async function deleteSpaceCascade(storage: Storage, spaceId: string): Pro
   await storage.shareLinks.removeAllForSpace(spaceId);
   await storage.invites.removeAllForSpace(spaceId);
   await storage.joinRequests.removeAllForSpace(spaceId);
+  await storage.chat.removeAllForSpace(spaceId);
   await storage.memberships.removeAllForSpace(spaceId);
   await storage.spaces.remove(spaceId);
   // Kick anyone currently connected to the in-memory session so they

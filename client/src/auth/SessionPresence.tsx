@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   emptySessionState,
+  type ChatMessage,
   type ClientMessage,
   type Participant,
   type PresenceStatus,
@@ -52,6 +53,9 @@ type SessionPresenceValue = {
   // Subscribe to incoming reactions. Returns an unsubscribe. Uses a ref-
   // based emitter so a stream of reactions doesn't re-render the world.
   subscribeReactions: (cb: (event: ReactionEvent) => void) => () => void;
+  // Same emitter pattern for persistent chat messages — fires whenever a
+  // new chat row is broadcast by the server.
+  subscribeChat: (cb: (message: ChatMessage) => void) => () => void;
 };
 
 const DEFAULT: SessionPresenceValue = {
@@ -67,6 +71,7 @@ const DEFAULT: SessionPresenceValue = {
   send: () => {},
   setStatus: () => {},
   subscribeReactions: () => () => {},
+  subscribeChat: () => () => {},
 };
 
 const Ctx = createContext<SessionPresenceValue>(DEFAULT);
@@ -93,6 +98,15 @@ export function SessionPresenceProvider({ children }: { children: ReactNode }) {
     reactionListenersRef.current.add(cb);
     return () => {
       reactionListenersRef.current.delete(cb);
+    };
+  }, []);
+  // Same pattern for chat — but unlike reactions, the /remote page also
+  // needs to append to a persistent thread, so this is the primary path.
+  const chatListenersRef = useRef<Set<(message: ChatMessage) => void>>(new Set());
+  const subscribeChat = useCallback((cb: (message: ChatMessage) => void) => {
+    chatListenersRef.current.add(cb);
+    return () => {
+      chatListenersRef.current.delete(cb);
     };
   }, []);
   // Latest desired status. Watch page flips this on mount/unmount; we
@@ -208,6 +222,8 @@ export function SessionPresenceProvider({ children }: { children: ReactNode }) {
           for (const cb of reactionListenersRef.current) {
             cb({ reaction: msg.reaction, sender: msg.sender, clientId: msg.clientId, sentAt: msg.sentAt });
           }
+        } else if (msg.type === "chat") {
+          for (const cb of chatListenersRef.current) cb(msg.message);
         }
       };
     };
@@ -243,6 +259,7 @@ export function SessionPresenceProvider({ children }: { children: ReactNode }) {
     send,
     setStatus,
     subscribeReactions,
+    subscribeChat,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

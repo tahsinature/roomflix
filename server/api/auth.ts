@@ -9,6 +9,13 @@ import { ensureHomeSpace, listSpaceSummaries, resolveDefaultSpaceId } from "@/sp
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,32}$/;
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_DISPLAY_NAME = 50;
+const MAX_CITY = 80;
+// IANA timezones are area/location with a few exceptions. Keep the
+// validator loose — anything obviously not a tz name is rejected, but
+// we don't ship the full canonical list. The client picks from
+// Intl.supportedValuesOf("timeZone") on modern runtimes.
+const TIMEZONE_RE = /^[A-Za-z]+(?:[/_+\-][A-Za-z0-9_+\-]+)*$/;
+const ALLOWED_BEZELS = new Set(["cinema", "crt", "minimal"]);
 
 // REST routes for authentication.
 //   POST   /api/auth/register       { username, password } → AuthUser (logs in)
@@ -87,12 +94,25 @@ export function buildAuthRouter(storage: Storage) {
     const principal = await getCurrentPrincipal(c, storage);
     if (!principal) return c.json({ error: "unauthorized" }, 401);
 
-    const body = (await c.req.json().catch(() => null)) as { displayName?: unknown } | null;
+    const body = (await c.req.json().catch(() => null)) as
+      | { displayName?: unknown; timezone?: unknown; city?: unknown; homeBezelStyle?: unknown }
+      | null;
     const parsed = parseDisplayName(body);
     if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+    const tz = parseTimezone(body);
+    if (!tz.ok) return c.json({ error: tz.error }, 400);
+    const city = parseCity(body);
+    if (!city.ok) return c.json({ error: city.error }, 400);
+    const bezel = parseBezel(body);
+    if (!bezel.ok) return c.json({ error: bezel.error }, 400);
 
     if (principal.kind === "user") {
-      const updated = await storage.users.updateProfile(principal.user.id, { displayName: parsed.value });
+      const updated = await storage.users.updateProfile(principal.user.id, {
+        displayName: parsed.value,
+        timezone: tz.value,
+        city: city.value,
+        homeBezelStyle: bezel.value,
+      });
       if (!updated) return c.json({ error: "not found" }, 404);
       if (parsed.value !== undefined) {
         await storage.memberships.updateDisplayNameForUser(updated.id, parsed.value);
@@ -101,6 +121,14 @@ export function buildAuthRouter(storage: Storage) {
         // member rows stay consistent.
         const label = updated.displayName?.trim() || `@${updated.username}`;
         await propagateUserDisplayName(updated.id, label, storage);
+      }
+      // Denormalize timezone/city onto space-member rows so member panels
+      // render local time + city without a per-row user fetch.
+      if (tz.value !== undefined || city.value !== undefined) {
+        await storage.memberships.updateLocationForUser(updated.id, {
+          timezone: tz.value,
+          city: city.value,
+        });
       }
       return c.json(toAuthUser(updated));
     }
@@ -181,6 +209,43 @@ function parseDisplayName(body: { displayName?: unknown } | null): DisplayNamePa
   const trimmed = raw.trim();
   if (trimmed.length > MAX_DISPLAY_NAME) return { ok: false, error: `display name is at most ${MAX_DISPLAY_NAME} characters` };
   return { ok: true, value: trimmed === "" ? null : trimmed };
+}
+
+type StringParse = { ok: true; value: string | null | undefined } | { ok: false; error: string };
+
+// "Absent" key → undefined (no change). Explicit null → clear. Empty
+// string → also clear (so the form can wipe the field). Same calling
+// shape as parseDisplayName for consistency.
+function parseTimezone(body: { timezone?: unknown } | null): StringParse {
+  if (!body || !("timezone" in body)) return { ok: true, value: undefined };
+  const raw = body.timezone;
+  if (raw === null) return { ok: true, value: null };
+  if (typeof raw !== "string") return { ok: false, error: "timezone must be a string or null" };
+  const trimmed = raw.trim();
+  if (trimmed === "") return { ok: true, value: null };
+  if (trimmed.length > 64 || !TIMEZONE_RE.test(trimmed)) return { ok: false, error: "timezone must be a valid IANA name" };
+  return { ok: true, value: trimmed };
+}
+
+function parseCity(body: { city?: unknown } | null): StringParse {
+  if (!body || !("city" in body)) return { ok: true, value: undefined };
+  const raw = body.city;
+  if (raw === null) return { ok: true, value: null };
+  if (typeof raw !== "string") return { ok: false, error: "city must be a string or null" };
+  const trimmed = raw.trim();
+  if (trimmed === "") return { ok: true, value: null };
+  if (trimmed.length > MAX_CITY) return { ok: false, error: `city is at most ${MAX_CITY} characters` };
+  return { ok: true, value: trimmed };
+}
+
+type BezelParse = { ok: true; value: "cinema" | "crt" | "minimal" | null | undefined } | { ok: false; error: string };
+
+function parseBezel(body: { homeBezelStyle?: unknown } | null): BezelParse {
+  if (!body || !("homeBezelStyle" in body)) return { ok: true, value: undefined };
+  const raw = body.homeBezelStyle;
+  if (raw === null) return { ok: true, value: null };
+  if (typeof raw !== "string" || !ALLOWED_BEZELS.has(raw)) return { ok: false, error: "homeBezelStyle must be cinema, crt, or minimal" };
+  return { ok: true, value: raw as "cinema" | "crt" | "minimal" };
 }
 
 function registrationAllowed(): boolean {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import type { Collection, CollectionHealth } from "@shared/protocol";
+import type { ChatMoment, Collection, CollectionHealth } from "@shared/protocol";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { AudioPlayer } from "@/components/player/AudioPlayer";
 import { PhotoPlayer } from "@/components/player/PhotoPlayer";
@@ -26,7 +26,30 @@ const CHROME_HIDE_MS = 3200;
 // surfaces auto-hiding controls.
 export default function Watch() {
   const { currentSpace } = useAuth();
-  const { state, viewers, serverTime, connected, stateLoaded, actions, subscribeReactions } = useSessionSync();
+  const { state, viewers, serverTime, connected, stateLoaded, actions, subscribeReactions, subscribeChat } = useSessionSync();
+  // Server-clock skew, captured once per serverTime push, used by the
+  // "attach scene" capture to compute the room's currently-playing time
+  // without round-tripping through the player ref.
+  const skewRef = useRef(0);
+  useEffect(() => {
+    skewRef.current = Date.now() - serverTime;
+  }, [serverTime]);
+  // Pending moment chip — captured when the user clicks the attach
+  // button, cleared when sent or dismissed. Lives here (not in
+  // ReactionBar) so multiple opens of the composer don't lose it.
+  const [attachedMoment, setAttachedMoment] = useState<ChatMoment | null>(null);
+  const captureMoment = useCallback((): ChatMoment | null => {
+    if (!state.videoUrl) return null;
+    const serverNow = Date.now() - skewRef.current;
+    const expected = state.playing ? state.currentTime + Math.max(0, (serverNow - state.updatedAt) / 1000) : state.currentTime;
+    return {
+      videoUrl: state.videoUrl,
+      currentTime: Math.max(0, expected),
+      mediaTitle: state.videoTitle ?? urlFilename(state.videoUrl) ?? "Scene",
+      collectionId: state.collectionId,
+      collectionIndex: state.collectionId ? state.collectionIndex : null,
+    };
+  }, [state.videoUrl, state.videoTitle, state.playing, state.currentTime, state.updatedAt, state.collectionId, state.collectionIndex]);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [collection, setCollection] = useState<Collection | null>(null);
@@ -123,13 +146,13 @@ export default function Watch() {
   // Multiple things can hold the chrome open — the library dropdown, the
   // pinned reaction composer. Tracking them per-source means closing one
   // doesn't accidentally release the others.
-  const chromeLocked = useRef({ library: false, composer: false });
+  const chromeLocked = useRef({ library: false, composer: false, watchers: false });
 
   const scheduleHide = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => {
       // Re-check rather than hide while any lock is engaged.
-      if (chromeLocked.current.library || chromeLocked.current.composer) scheduleHide();
+      if (chromeLocked.current.library || chromeLocked.current.composer || chromeLocked.current.watchers) scheduleHide();
       else setChromeVisible(false);
     }, CHROME_HIDE_MS);
   }, []);
@@ -295,7 +318,7 @@ export default function Watch() {
     <div className={cn("flex h-[100dvh] w-full flex-col overflow-hidden bg-black", !chromeShown && "cursor-none")} onMouseMove={onPointerActivity} onTouchStart={bumpChrome}>
       <div ref={setMediaArea} className="relative min-h-0 flex-1">
         {idle ? (
-          <IdleScreen spaceName={currentSpace?.name ?? "Roomflix"} onLoadUrl={actions.setUrl} />
+          <IdleScreen spaceName={currentSpace?.name ?? "Roomflix"} />
         ) : currentBroken ? (
           <UnavailableScreen title={title} />
         ) : kind === "image" ? (
@@ -348,7 +371,15 @@ export default function Watch() {
 
         {/* Live reactions — portals to the fullscreen element when a
             video is fullscreen so emojis ride along with the picture. */}
-        {!idle && <ReactionsOverlay subscribe={subscribeReactions} container={fsEl ?? mediaArea} bottomOffsetClass={kind === "video" ? "bottom-36" : "bottom-16"} />}
+        {!idle && (
+          <ReactionsOverlay
+            subscribe={subscribeReactions}
+            subscribeChat={subscribeChat}
+            container={fsEl ?? mediaArea}
+            bottomOffsetClass={kind === "video" ? "bottom-36" : "bottom-16"}
+            onJump={actions.jumpTo}
+          />
+        )}
 
         {/* Reactions composer — portaled into the fullscreen element when
           one is active, otherwise into the theater media area, so it's
@@ -374,7 +405,22 @@ export default function Watch() {
                 chromeShown || composerPinned ? "opacity-100" : "pointer-events-none opacity-0",
               )}
             >
-              <ReactionBar ref={composerInputRef} onSend={actions.sendReaction} />
+              <ReactionBar
+                ref={composerInputRef}
+                onSend={(content) => {
+                  // Text → persistent chat (bundled with any attached
+                  // moment); emoji → ephemeral reaction.
+                  if (content.kind === "text") {
+                    actions.sendChat(content.text, attachedMoment);
+                    setAttachedMoment(null);
+                  } else {
+                    actions.sendReaction(content);
+                  }
+                }}
+                attachedMoment={attachedMoment}
+                onAttachMoment={() => setAttachedMoment(captureMoment())}
+                onClearMoment={() => setAttachedMoment(null)}
+              />
             </div>,
             (fsEl ?? mediaArea)!,
           )}
@@ -389,6 +435,10 @@ export default function Watch() {
             onLoadUrl={actions.setUrl}
             onLibraryOpenChange={(open) => {
               chromeLocked.current.library = open;
+              bumpChrome();
+            }}
+            onWatchersOpenChange={(open) => {
+              chromeLocked.current.watchers = open;
               bumpChrome();
             }}
           />

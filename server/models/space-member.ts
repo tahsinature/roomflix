@@ -10,8 +10,10 @@ const spaceMemberSchema = new Schema(
     userId: { type: String, required: true, index: true },
     username: { type: String, required: true },
     // Denormalized: lets member lists render without a per-row user
-    // lookup. updateDisplayNameForUser keeps these in sync.
+    // lookup. propagateUserProfile keeps these in sync.
     displayName: { type: String, default: null },
+    timezone: { type: String, default: null },
+    city: { type: String, default: null },
     role: { type: String, required: true, enum: ["owner", "member"] },
     joinedAt: { type: Number, required: true },
   },

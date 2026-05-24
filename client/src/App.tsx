@@ -8,6 +8,7 @@ import Library from "@/pages/Library";
 import CollectionEdit from "@/pages/CollectionEdit";
 import Shares from "@/pages/Shares";
 import PublicShare from "@/pages/PublicShare";
+import Remote from "@/pages/Remote";
 import Help from "@/pages/Help";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
@@ -90,6 +91,7 @@ export default function App() {
         <Route path="/library" element={<Library />} />
         <Route path="/collections/:id" element={<CollectionEdit />} />
         <Route path="/shares" element={<Shares />} />
+        <Route path="/remote" element={<Remote />} />
         <Route path="/help" element={<Help />} />
         {/* /spaces → /settings/space. Spaces management is now a
             Settings section; the redirect catches any old links. */}

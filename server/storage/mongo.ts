@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 
 import type {
+  ChatMessage,
+  ChatMoment,
   Collection,
   CollectionItem,
   CollectionSource,
@@ -27,6 +29,7 @@ import type {
   InviteRepo,
   JoinRequestRepo,
   MembershipRepo,
+  ChatRepo,
   Session,
   SessionRepo,
   ShareAccessRepo,
@@ -42,6 +45,7 @@ import type {
   VideoRepo,
 } from "@/storage/types.ts";
 import {
+  ChatMessageModel,
   CollectionModel,
   InviteModel,
   JoinRequestModel,
@@ -99,6 +103,7 @@ export async function createMongoStorage(mongoUrl: string): Promise<Storage> {
     joinRequests: new MongoJoinRequestRepo(),
     shareLinks: new MongoShareLinkRepo(),
     shareAccesses: new MongoShareAccessRepo(),
+    chat: new MongoChatRepo(),
     async close() {
       await mongoose.disconnect();
     },
@@ -223,9 +228,15 @@ class MongoUserRepo implements UserRepo {
     return docs.map(toStoredUser);
   }
 
-  async updateProfile(id: string, patch: { displayName?: string | null }): Promise<StoredUser | null> {
+  async updateProfile(
+    id: string,
+    patch: { displayName?: string | null; timezone?: string | null; city?: string | null; homeBezelStyle?: "cinema" | "crt" | "minimal" | null },
+  ): Promise<StoredUser | null> {
     const set: Record<string, unknown> = {};
     if (patch.displayName !== undefined) set.displayName = patch.displayName;
+    if (patch.timezone !== undefined) set.timezone = patch.timezone;
+    if (patch.city !== undefined) set.city = patch.city;
+    if (patch.homeBezelStyle !== undefined) set.homeBezelStyle = patch.homeBezelStyle;
     if (Object.keys(set).length === 0) {
       const existing = await UserModel.findOne({ _id: id }).lean();
       return existing ? toStoredUser(existing) : null;
@@ -645,6 +656,15 @@ class MongoMembershipRepo implements MembershipRepo {
     const result = await SpaceMemberModel.updateMany({ userId }, { $set: { displayName } });
     return result.modifiedCount;
   }
+
+  async updateLocationForUser(userId: string, patch: { timezone?: string | null; city?: string | null }): Promise<number> {
+    const set: Record<string, unknown> = {};
+    if (patch.timezone !== undefined) set.timezone = patch.timezone;
+    if (patch.city !== undefined) set.city = patch.city;
+    if (Object.keys(set).length === 0) return 0;
+    const result = await SpaceMemberModel.updateMany({ userId }, { $set: set });
+    return result.modifiedCount;
+  }
 }
 
 class MongoInviteRepo implements InviteRepo {
@@ -774,6 +794,50 @@ class MongoShareLinkRepo implements ShareLinkRepo {
   }
 }
 
+class MongoChatRepo implements ChatRepo {
+  async add(input: { spaceId: string; senderId: string; senderKind: "user" | "guest"; senderName: string; text: string; moment: ChatMoment | null }): Promise<ChatMessage> {
+    const doc = {
+      _id: randomId() + randomId(),
+      spaceId: input.spaceId,
+      senderId: input.senderId,
+      senderKind: input.senderKind,
+      senderName: input.senderName,
+      text: input.text,
+      moment: input.moment,
+      sentAt: Date.now(),
+    };
+    await ChatMessageModel.create(doc);
+    return toChatMessage(doc);
+  }
+
+  async listForSpace(spaceId: string, limit: number): Promise<ChatMessage[]> {
+    // Pull the most-recent N (sorted desc), then reverse to ascending so
+    // the client can render top-to-bottom and append new arrivals.
+    const docs = await ChatMessageModel.find({ spaceId }).sort({ sentAt: -1 }).limit(limit).lean();
+    return docs.reverse().map(toChatMessage);
+  }
+
+  async trim(spaceId: string, keepLast: number): Promise<number> {
+    // Find the cutoff: the (keepLast+1)-th newest sentAt. Anything older
+    // gets deleted. Single index scan to find the boundary, one delete.
+    const boundary = await ChatMessageModel.find({ spaceId }).sort({ sentAt: -1 }).skip(keepLast).limit(1).select({ sentAt: 1 }).lean();
+    const cutoff = boundary[0]?.sentAt;
+    if (cutoff === undefined) return 0;
+    const result = await ChatMessageModel.deleteMany({ spaceId, sentAt: { $lte: cutoff } });
+    return result.deletedCount;
+  }
+
+  async distinctSpaceIds(): Promise<string[]> {
+    const ids = await ChatMessageModel.distinct("spaceId");
+    return ids as string[];
+  }
+
+  async removeAllForSpace(spaceId: string): Promise<number> {
+    const result = await ChatMessageModel.deleteMany({ spaceId });
+    return result.deletedCount;
+  }
+}
+
 class MongoShareAccessRepo implements ShareAccessRepo {
   async add(input: { shareId: string; ip: string; userAgent: string }): Promise<void> {
     await ShareAccessModel.create({
@@ -851,15 +915,22 @@ type UserLean = {
   _id: string;
   username: string;
   displayName?: string | null;
+  timezone?: string | null;
+  city?: string | null;
+  homeBezelStyle?: string | null;
   passwordHash: string;
   isAdmin: boolean;
   createdAt: number;
 };
 function toStoredUser(doc: UserLean): StoredUser {
+  const bezel = doc.homeBezelStyle;
   return {
     id: doc._id,
     username: doc.username,
     displayName: doc.displayName ?? null,
+    timezone: doc.timezone ?? null,
+    city: doc.city ?? null,
+    homeBezelStyle: bezel === "cinema" || bezel === "crt" || bezel === "minimal" ? bezel : null,
     passwordHash: doc.passwordHash,
     isAdmin: doc.isAdmin,
     createdAt: doc.createdAt,
@@ -1046,6 +1117,8 @@ type SpaceMemberLean = {
   // Mongoose infers `default: null` fields as nullable-or-missing. The
   // converter coerces `?? null`, so accept either shape here.
   displayName?: string | null;
+  timezone?: string | null;
+  city?: string | null;
   role: SpaceRole;
   joinedAt: number;
 };
@@ -1055,6 +1128,8 @@ function toMember(doc: SpaceMemberLean): SpaceMember {
     userId: doc.userId,
     username: doc.username,
     displayName: doc.displayName ?? null,
+    timezone: doc.timezone ?? null,
+    city: doc.city ?? null,
     role: doc.role,
     joinedAt: doc.joinedAt,
   };
@@ -1077,6 +1152,45 @@ function toInvite(doc: InviteLean): InviteCode {
     usesRemaining: doc.usesRemaining ?? null,
     expiresAt: doc.expiresAt ?? null,
     createdAt: doc.createdAt,
+  };
+}
+
+type ChatMomentLean = {
+  videoUrl?: string;
+  currentTime?: number;
+  mediaTitle?: string | null;
+  collectionId?: string | null;
+  collectionIndex?: number | null;
+};
+type ChatMessageLean = {
+  _id: string;
+  spaceId: string;
+  senderId: string;
+  senderKind: string;
+  senderName: string;
+  text?: string;
+  moment?: ChatMomentLean | null;
+  sentAt: number;
+};
+function toChatMessage(doc: ChatMessageLean): ChatMessage {
+  return {
+    id: doc._id,
+    spaceId: doc.spaceId,
+    senderId: doc.senderId,
+    senderKind: doc.senderKind === "guest" ? "guest" : "user",
+    senderName: doc.senderName,
+    text: doc.text ?? "",
+    moment:
+      doc.moment && typeof doc.moment.videoUrl === "string" && typeof doc.moment.currentTime === "number"
+        ? {
+            videoUrl: doc.moment.videoUrl,
+            currentTime: doc.moment.currentTime,
+            mediaTitle: doc.moment.mediaTitle ?? "",
+            collectionId: doc.moment.collectionId ?? null,
+            collectionIndex: doc.moment.collectionIndex ?? null,
+          }
+        : null,
+    sentAt: doc.sentAt,
   };
 }
 

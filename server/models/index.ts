@@ -1,6 +1,7 @@
 // Single import point for all Mongoose models. Importing this from the
 // repo layer ensures every schema is registered before any query fires.
 export { AlbumModel } from "@/models/album.ts";
+export { ChatMessageModel } from "@/models/chat-message.ts";
 export { CollectionModel } from "@/models/collection.ts";
 export { InviteModel } from "@/models/invite.ts";
 export { JoinRequestModel } from "@/models/join-request.ts";

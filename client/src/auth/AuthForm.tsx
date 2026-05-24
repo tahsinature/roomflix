@@ -102,6 +102,16 @@ export function AuthForm({
             {switchLink.cta}
           </Link>
         </p>
+
+        {/* Invite-code path. Lives below the register/login switch link
+            so the primary flow stays uninterrupted, but is reachable
+            without going back to the marketing page. */}
+        <p className="mt-2 text-center text-[13px] text-muted-foreground">
+          Have an invite code?{" "}
+          <Link to="/join" className="text-foreground underline decoration-accent/40 underline-offset-4 transition hover:decoration-accent">
+            Sign in with code
+          </Link>
+        </p>
       </div>
     </main>
   );

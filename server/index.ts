@@ -3,8 +3,9 @@ import { join } from "node:path";
 import type { ServerWebSocket } from "bun";
 import { Hono } from "hono";
 
-import { type Collection, type ClientMessage, type ReactionContent, type ServerMessage } from "@/protocol.ts";
+import { type ChatMoment, type Collection, type ClientMessage, type ReactionContent, type ServerMessage } from "@/protocol.ts";
 import {
+  broadcastChat,
   broadcastJoinRequestPending,
   broadcastPresence,
   broadcastReaction,
@@ -13,6 +14,7 @@ import {
   getOrCreateSession,
   getSession,
   removeSocket,
+  startChatRetentionSweeper,
   viewersOf,
   type Session,
   type WsData,
@@ -30,6 +32,7 @@ import { buildStorageSecretRouter } from "@/api/storage_secret.ts";
 import { buildCollectionsRouter } from "@/api/collections.ts";
 import { buildSharesRouter } from "@/api/shares.ts";
 import { buildPublicShareRouter } from "@/api/public_share.ts";
+import { buildChatRouter } from "@/api/chat.ts";
 import { buildInvitesRouter, buildJoinRequestsRouter, buildSessionSpaceRouter, buildSpacesRouter } from "@/api/spaces.ts";
 import { buildSessionMembersRouter, buildSessionStateRouter } from "@/api/session_state.ts";
 import { getCurrentPrincipalFromRequest } from "@/auth.ts";
@@ -58,6 +61,7 @@ try {
 }
 
 const storage = await createStorage(MONGO_URL);
+startChatRetentionSweeper(storage);
 
 // Phase-4 boot migration: every existing user gets a Home space and any
 // pre-spaces data (videos, playlists, imports, storage config) reparents
@@ -155,6 +159,7 @@ app.route("/api/shares", buildSharesRouter(storage));
 // Public, unauthenticated — share-link redemption. Mounted at the
 // singular /api/share so it never collides with the authed /api/shares.
 app.route("/api/share", buildPublicShareRouter(storage));
+app.route("/api/spaces/:id/chat", buildChatRouter(storage));
 
 // SPA fallback.
 app.all("*", async (c) => {
@@ -221,6 +226,51 @@ function validateReaction(raw: unknown): ReactionContent | null {
   return null;
 }
 
+// Server-computed expected playback time — used when /remote sends
+// play/pause without a currentTime (it has no live player to read).
+function expectedCurrentTime(session: Session, now: number): number {
+  const elapsed = (now - session.state.updatedAt) / 1000;
+  return session.state.currentTime + (session.state.playing ? Math.max(0, elapsed) : 0);
+}
+
+function validateMoment(raw: unknown): ChatMoment | null {
+  if (!raw || typeof raw !== "object") return null;
+  const m = raw as Record<string, unknown>;
+  if (typeof m.videoUrl !== "string" || !m.videoUrl.trim()) return null;
+  if (typeof m.currentTime !== "number" || !Number.isFinite(m.currentTime)) return null;
+  return {
+    videoUrl: m.videoUrl.trim(),
+    currentTime: Math.max(0, m.currentTime),
+    mediaTitle: typeof m.mediaTitle === "string" ? m.mediaTitle.trim() : "",
+    collectionId: typeof m.collectionId === "string" && m.collectionId ? m.collectionId : null,
+    collectionIndex: typeof m.collectionIndex === "number" && Number.isFinite(m.collectionIndex) ? Math.floor(m.collectionIndex) : null,
+  };
+}
+
+async function handleChat(ws: ServerWebSocket<WsData>, rawText: unknown, rawMoment: unknown): Promise<void> {
+  const text = typeof rawText === "string" ? rawText.trim().slice(0, REACTION_MAX_TEXT_LEN) : "";
+  const moment = validateMoment(rawMoment);
+  // Either text or a moment must be present — a fully empty message is
+  // a no-op.
+  if (!text && !moment) return;
+  // Share the reaction rate-limit window — chat + reactions count
+  // against the same quota so a spammer can't bypass by mixing.
+  const now = Date.now();
+  const window = (reactionWindows.get(ws) ?? []).filter((t) => now - t < REACTION_WINDOW_MS);
+  if (window.length >= REACTION_MAX_IN_WINDOW) return;
+  window.push(now);
+  reactionWindows.set(ws, window);
+  const stored = await storage.chat.add({
+    spaceId: ws.data.spaceId,
+    senderId: ws.data.identityId,
+    senderKind: ws.data.identityKind,
+    senderName: ws.data.displayName,
+    text,
+    moment,
+  });
+  broadcastChat(ws.data.spaceId, stored);
+}
+
 function handleReaction(ws: ServerWebSocket<WsData>, raw: unknown): void {
   const reaction = validateReaction(raw);
   if (!reaction) return;
@@ -270,6 +320,13 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
     return;
   }
 
+  // Persistent chat — server stores + broadcasts to everyone in the
+  // space. Like reactions, doesn't touch playback state.
+  if (message.type === "chat") {
+    await handleChat(ws, message.text, message.moment);
+    return;
+  }
+
   // Volume updates are presence-only too. Cheap to no-op when nothing
   // actually changed — saves redundant broadcasts during slider drags
   // that happen to repeat the same value (debounce isn't perfect).
@@ -288,12 +345,14 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
     case "hello":
       return;
     case "play":
+      // currentTime is optional — the remote-control surface has no
+      // live player, so we fall back to the room's expected time.
+      session.state.currentTime = message.currentTime ?? expectedCurrentTime(session, now);
       session.state.playing = true;
-      session.state.currentTime = message.currentTime;
       break;
     case "pause":
+      session.state.currentTime = message.currentTime ?? expectedCurrentTime(session, now);
       session.state.playing = false;
-      session.state.currentTime = message.currentTime;
       break;
     case "seek":
       session.state.currentTime = message.currentTime;
@@ -355,6 +414,36 @@ async function handleClientMessage(ws: ServerWebSocket<WsData>, message: ClientM
     case "setCollectionLoop":
       session.state.collectionLoop = !!message.loop;
       break;
+    case "jumpTo": {
+      const m = validateMoment(message.moment);
+      if (!m) return;
+      if (m.collectionId) {
+        const collection = await storage.collections.getById(m.collectionId);
+        if (!collection || collection.spaceId !== session.spaceId) return;
+        // Always set the collection context (covers both "load fresh"
+        // and "stay in this collection but jump items").
+        session.state.collectionId = collection.id;
+        const idx = m.collectionIndex ?? 0;
+        if (idx < 0 || idx >= collection.items.length) return;
+        await applyCollectionItem(session, collection, idx);
+      } else {
+        // Standalone media — clear any collection context and load the
+        // referenced URL. Hydrate library metadata when we have a row
+        // for the URL; otherwise fall back to the moment's snapshot
+        // title.
+        if (session.state.videoUrl !== m.videoUrl) {
+          const entry = await storage.videos.findByUrl(session.spaceId, m.videoUrl).catch(() => null);
+          session.state.videoUrl = m.videoUrl;
+          session.state.videoTitle = entry?.title ?? m.mediaTitle ?? null;
+          session.state.subtitles = entry?.subtitles ?? [];
+        }
+        session.state.collectionId = null;
+        session.state.collectionIndex = 0;
+      }
+      session.state.currentTime = Math.max(0, m.currentTime);
+      session.state.playing = true;
+      break;
+    }
     case "videoEnded": {
       if (message.endedUrl !== session.state.videoUrl) return;
       if (!session.state.collectionId) {

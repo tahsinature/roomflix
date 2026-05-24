@@ -11,6 +11,14 @@ const userSchema = new Schema(
     // null = "use @username". Modeled explicitly so toJSON / API
     // responses are stable.
     displayName: { type: String, default: null },
+    // IANA timezone like "America/Los_Angeles". Auto-detected from the
+    // browser on first login; user can override in Settings.
+    timezone: { type: String, default: null },
+    // Free-form city label, used for weather lookup + display.
+    city: { type: String, default: null },
+    // Home page mini-monitor bezel style — "cinema" | "crt" | "minimal".
+    // Null = use the default ("cinema").
+    homeBezelStyle: { type: String, default: null },
     isAdmin: { type: Boolean, default: false },
     createdAt: { type: Number, required: true },
   },

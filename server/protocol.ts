@@ -25,12 +25,25 @@ export type Video = {
 // Wire shape for the current user. The password hash is never serialized.
 // displayName is the friendly label other people see — falls back to
 // `@username` everywhere when null.
+// Home page mini-monitor bezel chrome. Stored on the user so the home
+// surface follows them across spaces. Defaults to "cinema" when unset.
+export type BezelStyle = "cinema" | "crt" | "minimal";
+
 export type AuthUser = {
   id: string;
   username: string;
   displayName: string | null;
   isAdmin: boolean;
   createdAt: number;
+  // IANA timezone like "America/Los_Angeles". Auto-detected from the
+  // browser on first login; user can override in Settings. Surfaced
+  // via space-member rows so other viewers can see what time it is
+  // where this person is.
+  timezone?: string | null;
+  // Free-form city label, used for weather lookup + display. Optional.
+  city?: string | null;
+  // Preferred bezel chrome for the home mini-monitor.
+  homeBezelStyle?: BezelStyle | null;
 };
 
 // A space groups members + their shared library, playlists, imports, and
@@ -86,6 +99,11 @@ export type SpaceMember = {
   displayName: string | null; // denormalized too; null = render as @username
   role: SpaceRole;
   joinedAt: number;
+  // Denormalized from AuthUser so member-list panels can render local
+  // time / city without a per-row user fetch. Kept in sync by the
+  // profile-update path.
+  timezone?: string | null;
+  city?: string | null;
 };
 
 // Invite codes are short, human-shareable, and bound to one space.
@@ -441,8 +459,41 @@ export type PublicShareGate = { state: "ready"; share: PublicShare } | { state: 
 
 // Lightweight, ephemeral reaction broadcast over the session WS. Doesn't
 // touch playback state and isn't persisted — a moment-in-time event sent
-// to everyone currently watching together.
+// to everyone currently watching together. Text reactions used to ride
+// this channel too; they now travel as `chat` messages (persistent) and
+// only emoji come through here.
 export type ReactionContent = { kind: "emoji"; emoji: string } | { kind: "text"; text: string };
+
+// A captured point in playback that can ride along on a chat message —
+// "this scene", "this beat", "this photo". Receivers tap the chip in
+// the thread / bubble and the server loads that item + seeks to
+// `currentTime`. For a photo `currentTime` is just 0. `mediaTitle` is
+// denormalized so the chip stays readable even if the source title
+// later changes.
+export type ChatMoment = {
+  videoUrl: string;
+  currentTime: number;
+  mediaTitle: string;
+  collectionId: string | null;
+  collectionIndex: number | null;
+};
+
+// Persistent chat message — the remote-control page's main feed. Lives
+// in the DB so a phone that opens later can scroll back. Also broadcast
+// live on the WS and rendered as an ephemeral bubble on /watch so the
+// theater audience sees what's being said without leaving the picture.
+export type ChatMessage = {
+  id: string;
+  spaceId: string;
+  senderId: string;
+  senderKind: "user" | "guest";
+  senderName: string;
+  text: string;
+  // Optional "scene" pointer. When set, clients render a clickable chip
+  // that asks the server to jump the room to that point.
+  moment: ChatMoment | null;
+  sentAt: number;
+};
 
 // Messages sent by the client to the server.
 //
@@ -459,8 +510,11 @@ export type ReactionContent = { kind: "emoji"; emoji: string } | { kind: "text";
 //                        ignore stale signals (e.g. a rejoined client).
 export type ClientMessage =
   | { type: "hello"; clientId: string }
-  | { type: "play"; currentTime: number }
-  | { type: "pause"; currentTime: number }
+  // currentTime is optional on play/pause — the remote-control surface
+  // doesn't have a live player to read it from, so the server falls
+  // back to the room's expected time when absent.
+  | { type: "play"; currentTime?: number }
+  | { type: "pause"; currentTime?: number }
   | { type: "seek"; currentTime: number }
   | { type: "setUrl"; videoUrl: string }
   | { type: "loadCollection"; collectionId: string }
@@ -473,6 +527,15 @@ export type ClientMessage =
   // (allowed emoji set, length cap), rate-limits per sender, then fans
   // it out to everyone watching. Never affects playback.
   | { type: "reaction"; reaction: ReactionContent }
+  // Persistent chat message — server stores it, broadcasts to everyone
+  // in the space, then a periodic sweeper trims each space to its
+  // retention cap. Shares the reaction rate-limit window. Optionally
+  // carries a `moment` so the message points at a specific scene the
+  // receivers can jump to.
+  | { type: "chat"; text: string; moment?: ChatMoment }
+  // Receiver clicked a scene chip — server loads the referenced item
+  // (and collection context if any) and seeks to the captured time.
+  | { type: "jumpTo"; moment: ChatMoment }
   // Sent when the client transitions in/out of /watch within the SPA.
   // Server updates ws.data.status and rebroadcasts presence + viewers.
   | { type: "setStatus"; status: PresenceStatus }
@@ -503,7 +566,10 @@ export type ServerMessage =
   // Broadcast to every "watching" socket in a space. Carries the sender
   // identity so the receiver can show "alice 🔥" floating up. clientId
   // lets the sender's own client recognize echoes if it cares.
-  | { type: "reaction"; reaction: ReactionContent; sender: { id: string; name: string }; clientId: string; sentAt: number };
+  | { type: "reaction"; reaction: ReactionContent; sender: { id: string; name: string }; clientId: string; sentAt: number }
+  // Broadcast to ALL sockets in a space (including remote controls).
+  // Carries the full persisted row so clients can append directly.
+  | { type: "chat"; message: ChatMessage };
 
 export function emptySessionState(): SessionState {
   return {

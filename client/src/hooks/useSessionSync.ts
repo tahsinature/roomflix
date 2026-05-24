@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { type ReactionContent, type SessionState, type Viewer } from "@shared/protocol";
+import { type ChatMessage, type ChatMoment, type ReactionContent, type SessionState, type Viewer } from "@shared/protocol";
 import { emptyState, useSessionPresence, type ReactionEvent } from "@/auth/SessionPresence";
 
 const VOLUME_DEBOUNCE_MS = 200;
@@ -35,8 +35,11 @@ export type SessionSync = {
     // second and we don't want one per ws.send. The trailing edge wins.
     setVolume: (level: number, muted: boolean) => void;
     sendReaction: (reaction: ReactionContent) => void;
+    sendChat: (text: string, moment?: ChatMoment | null) => void;
+    jumpTo: (moment: ChatMoment) => void;
   };
   subscribeReactions: (cb: (event: ReactionEvent) => void) => () => void;
+  subscribeChat: (cb: (message: ChatMessage) => void) => () => void;
 };
 
 export function useSessionSync(): SessionSync {
@@ -85,6 +88,8 @@ export function useSessionSync(): SessionSync {
         }, VOLUME_DEBOUNCE_MS);
       },
       sendReaction: (reaction: ReactionContent) => presence.send({ type: "reaction", reaction }),
+      sendChat: (text: string, moment?: ChatMoment | null) => presence.send(moment ? { type: "chat", text, moment } : { type: "chat", text }),
+      jumpTo: (moment: ChatMoment) => presence.send({ type: "jumpTo", moment }),
     }),
     [presence.send],
   );
@@ -98,5 +103,6 @@ export function useSessionSync(): SessionSync {
     clientId: presence.clientId,
     actions,
     subscribeReactions: presence.subscribeReactions,
+    subscribeChat: presence.subscribeChat,
   };
 }

@@ -34,9 +34,16 @@ type AuthContextValue = {
   refresh: () => Promise<void>;
   // Switch active space (users only; guests can't switch).
   switchSpace: (spaceId: string) => Promise<void>;
-  // Patch the current principal's display name. Works for users and
-  // guests — server-side picks the right backing store.
-  updateProfile: (patch: { displayName: string | null }) => Promise<void>;
+  // Patch the current principal's profile. displayName works for users
+  // and guests (server picks the right backing store); the location +
+  // bezel fields are user-only and silently no-op for guests on the
+  // server.
+  updateProfile: (patch: {
+    displayName?: string | null;
+    timezone?: string | null;
+    city?: string | null;
+    homeBezelStyle?: "cinema" | "crt" | "minimal" | null;
+  }) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -67,6 +74,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Auto-detect the browser's IANA timezone and silently PATCH it onto
+  // the user if it's missing or has drifted. Runs only for real
+  // accounts (guests don't have a profile to update). Failures are
+  // swallowed — the home page falls back gracefully when timezone is
+  // null.
+  useEffect(() => {
+    if (state === "loading" || !state) return;
+    let detected: string | undefined;
+    try {
+      detected = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+    } catch {
+      return;
+    }
+    if (!detected) return;
+    if (state.timezone === detected) return;
+    void api
+      .updateProfile({ timezone: detected })
+      .then(() => refresh())
+      .catch(() => undefined);
+  }, [state, refresh]);
 
   // Global UnauthorizedError listener — drops the session if any api.*
   // call returns 401 (typically: session expired mid-page).

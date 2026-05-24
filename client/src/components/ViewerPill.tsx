@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Circle, ChevronDown, Crown, Pause, Play, User, Users } from "lucide-react";
+import { Circle, ChevronDown, Pause, Play, Users } from "lucide-react";
 import type { Participant, PresenceStatus } from "@shared/protocol";
 import { MemberDetailModal, type MemberDetailKey } from "@/components/MemberDetailModal";
+import { MemberRow } from "@/components/MemberRow";
 import { useSessionPresence } from "@/auth/SessionPresence";
 import { cn, urlFilename } from "@/lib/utils";
 
@@ -175,7 +176,11 @@ export function ViewerPill({
       {open && !empty && (
         <div
           className={cn(
-            "absolute top-10 z-40 min-w-[16rem] border border-border bg-bg-elevated/95 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl",
+            // Width is bounded so long media titles + member names
+            // truncate cleanly instead of letting the panel stretch
+            // wider than the page. max-w cap keeps it readable on
+            // narrow screens.
+            "absolute top-10 z-40 w-[20rem] max-w-[calc(100vw-2rem)] border border-border bg-bg-elevated/95 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl",
             align === "right" ? "right-0" : "left-0",
           )}
           role="menu"
@@ -193,12 +198,12 @@ export function ViewerPill({
               <MemberRow
                 key={r.id}
                 name={r.name}
-                sublabel={r.sublabel}
+                subtitle={r.sublabel}
                 isOwner={r.isOwner}
                 isMe={r.isMe}
-                status={r.status}
                 tone={r.tone}
-                playing={playing}
+                title="See details"
+                rightSlot={<StatusBadge status={r.status} playing={playing} />}
                 onClick={() => {
                   setOpen(false);
                   setSelectedDetail({
@@ -235,16 +240,20 @@ function NowPlayingHeader({ title, playing, imHere, onClose }: { title: string; 
       <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center border border-accent/40 bg-accent/15 text-accent">
         {playing ? <PlayingBars className="h-3 w-3" /> : <Play className="h-3 w-3 fill-current" />}
       </span>
+      {/* min-w-0 lets the truncate child clip the title even when it's
+          much longer than the popover width. */}
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm text-foreground">{title}</div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-dim">{sublabel}</div>
+        <div className="truncate text-sm text-foreground" title={title}>
+          {title}
+        </div>
+        <div className="truncate font-mono text-[10px] uppercase tracking-[0.18em] text-text-dim">{sublabel}</div>
       </div>
     </>
   );
 
   if (imHere) {
     return (
-      <div className="flex items-center gap-2.5 border-b border-border bg-accent/10 px-3 py-2" title={stateLabel}>
+      <div className="flex w-full items-center gap-2.5 border-b border-border bg-accent/10 px-3 py-2" title={stateLabel}>
         {body}
       </div>
     );
@@ -255,62 +264,11 @@ function NowPlayingHeader({ title, playing, imHere, onClose }: { title: string; 
       to="/watch"
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClose}
-      className="flex items-center gap-2.5 border-b border-border bg-accent/10 px-3 py-2 transition hover:bg-accent/15"
+      className="flex w-full items-center gap-2.5 border-b border-border bg-accent/10 px-3 py-2 transition hover:bg-accent/15"
       title={`${stateLabel} — click to open the player`}
     >
       {body}
     </Link>
-  );
-}
-
-function MemberRow({
-  name,
-  sublabel,
-  isOwner,
-  isMe,
-  status,
-  tone,
-  playing,
-  onClick,
-}: {
-  name: string;
-  sublabel: string;
-  isOwner: boolean;
-  isMe: boolean;
-  status: PresenceStatus | "offline";
-  tone: "member" | "guest";
-  // Current playback state of the space's session.
-  playing: boolean;
-  // Open the detail modal for this identity.
-  onClick: () => void;
-}) {
-  return (
-    <li>
-      <button
-        type="button"
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={onClick}
-        className="flex w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-white/[0.04]"
-        title="See details"
-      >
-        <span
-          className={cn(
-            "inline-flex h-7 w-7 shrink-0 items-center justify-center border",
-            tone === "guest" ? "border-amber-300/30 bg-amber-300/10 text-amber-200" : "border-accent/30 bg-accent/10 text-accent",
-          )}
-        >
-          {isOwner ? <Crown className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className={cn("truncate text-sm text-foreground", tone === "guest" && "italic")}>{name}</span>
-            {isMe && <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-dim">you</span>}
-          </div>
-          <div className="font-mono text-[11px] text-text-dim">{sublabel}</div>
-        </div>
-        <StatusBadge status={status} playing={playing} />
-      </button>
-    </li>
   );
 }
 

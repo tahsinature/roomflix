@@ -210,6 +210,9 @@ export function toAuthUser(user: StoredUser): AuthUser {
     id: user.id,
     username: user.username,
     displayName: user.displayName,
+    timezone: user.timezone ?? null,
+    city: user.city ?? null,
+    homeBezelStyle: user.homeBezelStyle ?? null,
     isAdmin: user.isAdmin,
     createdAt: user.createdAt,
   };
