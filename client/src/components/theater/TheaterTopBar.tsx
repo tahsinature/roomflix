@@ -21,11 +21,16 @@ type Props = {
   // Same idea for the watchers popover — the parent holds the chrome
   // open while the panel is showing names.
   onWatchersOpenChange?: (open: boolean) => void;
+  // Video carries its own in-player Remote launcher (with the side-
+  // panel / new-window / replace options), so the top-chrome Remote
+  // link only renders for non-video kinds as a fallback. False hides
+  // it entirely.
+  showRemoteLink?: boolean;
 };
 
 // Auto-hiding top chrome for the theater: an exit affordance, the
 // now-playing summary, the live watcher list, and the library picker.
-export function TheaterTopBar({ title, contextLabel, viewers, connected, onLoadUrl, onLibraryOpenChange, onWatchersOpenChange }: Props) {
+export function TheaterTopBar({ title, contextLabel, viewers, connected, onLoadUrl, onLibraryOpenChange, onWatchersOpenChange, showRemoteLink = false }: Props) {
   return (
     <div className="relative">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/85 via-black/45 to-transparent" />
@@ -49,19 +54,20 @@ export function TheaterTopBar({ title, contextLabel, viewers, connected, onLoadU
 
         <div className="flex shrink-0 items-center gap-2">
           <Watchers viewers={viewers} connected={connected} onOpenChange={onWatchersOpenChange} />
-          {/* Same chrome treatment as the library button so the two
-              read as peer affordances. Icon-only on narrow screens,
-              icon + label on lg+ to match LibraryPicker's responsive
-              behavior. */}
-          <Link
-            to="/remote"
-            aria-label="Open the remote / chat companion"
-            title="Open the remote / chat companion on this device"
-            className="inline-flex h-9 w-9 items-center justify-center gap-1.5 border border-white/15 bg-black/50 text-sm font-medium text-white/85 backdrop-blur transition hover:bg-black/70 hover:text-white lg:w-auto lg:px-3"
-          >
-            <Radio className="h-3.5 w-3.5" />
-            <span className="hidden lg:inline">Remote</span>
-          </Link>
+          {/* Fallback Remote affordance for audio + photo (video has
+              its own in-player launcher). Same chrome treatment as
+              Library so the two read as peer buttons. */}
+          {showRemoteLink && (
+            <Link
+              to="/remote"
+              aria-label="Open the remote / chat companion"
+              title="Open the remote / chat companion on this device"
+              className="inline-flex h-9 w-9 items-center justify-center gap-1.5 border border-white/15 bg-black/50 text-sm font-medium text-white/85 backdrop-blur transition hover:bg-black/70 hover:text-white lg:w-auto lg:px-3"
+            >
+              <Radio className="h-3.5 w-3.5" />
+              <span className="hidden lg:inline">Remote</span>
+            </Link>
+          )}
           <LibraryPicker onPick={onLoadUrl} onOpenChange={onLibraryOpenChange} />
         </div>
       </div>

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Clock, FastForward, Loader2, Pause, Play, Repeat, Rewind, SkipBack, SkipForward, Tv } from "lucide-react";
+import { Bell, BellOff, Clock, FastForward, Loader2, Pause, Play, Repeat, Rewind, SkipBack, SkipForward, Tv } from "lucide-react";
 import type { ChatMessage, ChatMoment, SessionState } from "@shared/protocol";
 import { useAuth } from "@/auth/AuthContext";
 import { useSessionPresence } from "@/auth/SessionPresence";
 import { api } from "@/lib/api";
 import { ReactionBar } from "@/components/theater/ReactionBar";
+import { playChime } from "@/lib/chime";
 import { cn, mediaKind, urlFilename } from "@/lib/utils";
 
 // Companion screen — open this on a phone (or any second device you're
@@ -15,8 +16,13 @@ import { cn, mediaKind, urlFilename } from "@/lib/utils";
 // viewer count.
 export default function Remote() {
   const { currentSpace, user, guest } = useAuth();
-  const { state, viewers, serverTime, send, subscribeChat } = useSessionPresence();
+  const { state, viewers, serverTime, send, subscribeChat, subscribeReactions } = useSessionPresence();
   const navigate = useNavigate();
+  // True when this page is rendered inside an iframe — used by the
+  // /watch sidebar host. In that mode the "Open here" link and the
+  // post-jump navigate would shove the host page around, so we skip
+  // both: the room state is already on the parent page.
+  const embedded = typeof window !== "undefined" && window.self !== window.top;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -53,13 +59,77 @@ export default function Remote() {
     };
   }, [currentSpace?.id]);
 
+  // Chime preference — persisted across sessions. Default ON. Refs
+  // mirror state + meId so the WS subscribe callbacks below can read
+  // the latest values without forcing re-subscriptions on every change.
+  const [chimeEnabled, setChimeEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("roomflix:chime") !== "0";
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("roomflix:chime", chimeEnabled ? "1" : "0");
+    } catch {
+      /* private mode / disabled storage */
+    }
+  }, [chimeEnabled]);
+  const chimeEnabledRef = useRef(chimeEnabled);
+  chimeEnabledRef.current = chimeEnabled;
+  const meId = user?.id ?? guest?.id ?? "";
+  const meIdRef = useRef(meId);
+  meIdRef.current = meId;
+  // Rate-limit reaction chimes so an emoji burst doesn't sound like a
+  // slot machine. Chat chimes are not throttled — typing pace is its
+  // own limiter.
+  const lastReactionChimeRef = useRef(0);
+
   // Live tail — append any chat row the WS broadcasts, dedupe in case
-  // the same id arrives twice across reconnects.
+  // the same id arrives twice across reconnects. Plays a soft chime
+  // for messages from other people when sound notifications are on.
   useEffect(() => {
     return subscribeChat((msg) => {
       setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+      if (chimeEnabledRef.current && msg.senderId !== meIdRef.current) {
+        playChime("message");
+      }
     });
   }, [subscribeChat]);
+
+  // Reactions don't render in the thread, but they still deserve a
+  // ping when chime is on — same "someone reacted" signal you get
+  // visually on /watch. Throttled to one chime per 2s.
+  useEffect(() => {
+    return subscribeReactions((event) => {
+      if (!chimeEnabledRef.current) return;
+      if (event.sender.id === meIdRef.current) return;
+      const now = Date.now();
+      if (now - lastReactionChimeRef.current < 2000) return;
+      lastReactionChimeRef.current = now;
+      playChime("reaction");
+    });
+  }, [subscribeReactions]);
+
+  // Keyboard forwarding — embedded mode only. Keys typed inside the
+  // iframe stay inside its document, so /watch never sees them. Forward
+  // the two host-level shortcuts ("r" toggles the sidebar, "f" toggles
+  // fullscreen) via postMessage so the parent can dispatch them. Same
+  // guards as the host listener (ignore modifier combos + form fields).
+  useEffect(() => {
+    if (!embedded) return;
+    const onKey = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (key !== "r" && key !== "f") return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      e.preventDefault();
+      window.parent.postMessage({ source: "roomflix:remote", key }, window.location.origin);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [embedded]);
 
   // Duration probe — when the room has a media URL but the session
   // state still doesn't carry a duration (no /watch open, or its
@@ -153,16 +223,14 @@ export default function Remote() {
   };
   // Two effects in one tap: nudge the room to the captured spot, and
   // hop this device into the theater so the user actually lands in the
-  // player after the seek. Without the nav, the chip silently moves
-  // the room on whatever device has /watch open and the remote sees
-  // no feedback at all — confusing if you're testing on a single
-  // device or the only listener.
+  // player after the seek. Embedded mode (sidebar) skips the navigate
+  // — the host page already IS the theater.
   const jumpToMoment = (moment: ChatMoment) => {
     send({ type: "jumpTo", moment });
-    navigate("/watch");
+    if (!embedded) navigate("/watch");
   };
 
-  const meId = user?.id ?? guest?.id ?? "";
+  // meId declared earlier alongside the chime refs — reusing here.
   const playingTitle = state?.videoUrl ? state.videoTitle || urlFilename(state.videoUrl) : null;
   const hasMedia = Boolean(state?.videoUrl);
   const hasCollection = Boolean(state?.collectionId);
@@ -176,20 +244,39 @@ export default function Remote() {
   }
 
   return (
-    <main className="mx-auto flex h-[calc(100dvh-4.5rem)] max-w-xl flex-col">
+    <main className={cn("mx-auto flex max-w-xl flex-col", embedded ? "h-[100dvh]" : "h-[calc(100dvh-4.5rem)]")}>
       <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Remote · {currentSpace.name}</p>
           <p className="mt-0.5 truncate text-sm text-foreground">{playingTitle ? `${viewers.length} watching · ${playingTitle}` : "Nothing playing"}</p>
         </div>
-        <Link
-          to="/watch"
-          className="inline-flex shrink-0 items-center gap-1.5 border border-border bg-bg-elevated/50 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground transition hover:border-accent/40 hover:text-foreground"
-          title="Open theater on this device"
-        >
-          <Tv className="h-3.5 w-3.5" />
-          Open here
-        </Link>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setChimeEnabled((v) => !v)}
+            aria-label={chimeEnabled ? "Mute chime" : "Enable chime"}
+            title={chimeEnabled ? "Chime on — click to mute" : "Chime off — click to enable"}
+            aria-pressed={chimeEnabled}
+            className={cn(
+              "inline-flex h-7 w-7 items-center justify-center border transition",
+              chimeEnabled
+                ? "border-accent/40 bg-accent/10 text-accent hover:border-accent/60"
+                : "border-border bg-bg-elevated/50 text-muted-foreground hover:border-accent/30 hover:text-foreground",
+            )}
+          >
+            {chimeEnabled ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
+          </button>
+          {!embedded && (
+            <Link
+              to="/watch"
+              className="inline-flex items-center gap-1.5 border border-border bg-bg-elevated/50 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground transition hover:border-accent/40 hover:text-foreground"
+              title="Open theater on this device"
+            >
+              <Tv className="h-3.5 w-3.5" />
+              Open here
+            </Link>
+          )}
+        </div>
       </header>
 
       <div ref={threadRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -248,7 +335,11 @@ export default function Remote() {
         onClearMoment={() => setAttachedMoment(null)}
       />
 
-      {hasMedia && (
+      {/* Progress + transport controls. Hidden when embedded as a /watch
+          sidebar — the host page already owns the player's seek bar and
+          control buttons, so rendering them again here would just
+          duplicate chrome and steal vertical room from the chat. */}
+      {!embedded && hasMedia && (
         <ProgressIndicator
           state={state!}
           skewRef={skewRef}
@@ -256,38 +347,40 @@ export default function Remote() {
         />
       )}
 
-      <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border bg-black/30 px-3 py-3 backdrop-blur sm:px-4 sm:py-4">
-        <ControlButton onClick={prev} disabled={!hasCollection} aria-label="Previous item">
-          <SkipBack className="h-4 w-4" />
-        </ControlButton>
-        <ControlButton onClick={() => skip(-10)} disabled={!hasMedia} aria-label="Skip back 10 seconds">
-          <Rewind className="h-4 w-4" />
-        </ControlButton>
-        <button
-          type="button"
-          onClick={togglePlay}
-          disabled={!hasMedia}
-          aria-label={state?.playing ? "Pause" : "Play"}
-          className="flex h-14 w-14 items-center justify-center border border-accent/60 bg-accent text-accent-foreground transition hover:bg-accent-bright disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {state?.playing ? <Pause className="h-6 w-6 fill-current" /> : <Play className="h-6 w-6 fill-current" />}
-        </button>
-        <ControlButton onClick={() => skip(10)} disabled={!hasMedia} aria-label="Skip forward 10 seconds">
-          <FastForward className="h-4 w-4" />
-        </ControlButton>
-        <ControlButton onClick={next} disabled={!hasCollection} aria-label="Next item">
-          <SkipForward className="h-4 w-4" />
-        </ControlButton>
-        <ControlButton
-          onClick={toggleLoop}
-          disabled={!hasCollection}
-          aria-label={state?.collectionLoop ? "Disable loop" : "Enable loop"}
-          title={state?.collectionLoop ? "Loop is on" : "Loop is off"}
-          active={state?.collectionLoop ?? false}
-        >
-          <Repeat className="h-4 w-4" />
-        </ControlButton>
-      </div>
+      {!embedded && (
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border bg-black/30 px-3 py-3 backdrop-blur sm:px-4 sm:py-4">
+          <ControlButton onClick={prev} disabled={!hasCollection} aria-label="Previous item">
+            <SkipBack className="h-4 w-4" />
+          </ControlButton>
+          <ControlButton onClick={() => skip(-10)} disabled={!hasMedia} aria-label="Skip back 10 seconds">
+            <Rewind className="h-4 w-4" />
+          </ControlButton>
+          <button
+            type="button"
+            onClick={togglePlay}
+            disabled={!hasMedia}
+            aria-label={state?.playing ? "Pause" : "Play"}
+            className="flex h-14 w-14 items-center justify-center border border-accent/60 bg-accent text-accent-foreground transition hover:bg-accent-bright disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {state?.playing ? <Pause className="h-6 w-6 fill-current" /> : <Play className="h-6 w-6 fill-current" />}
+          </button>
+          <ControlButton onClick={() => skip(10)} disabled={!hasMedia} aria-label="Skip forward 10 seconds">
+            <FastForward className="h-4 w-4" />
+          </ControlButton>
+          <ControlButton onClick={next} disabled={!hasCollection} aria-label="Next item">
+            <SkipForward className="h-4 w-4" />
+          </ControlButton>
+          <ControlButton
+            onClick={toggleLoop}
+            disabled={!hasCollection}
+            aria-label={state?.collectionLoop ? "Disable loop" : "Enable loop"}
+            title={state?.collectionLoop ? "Loop is on" : "Loop is off"}
+            active={state?.collectionLoop ?? false}
+          >
+            <Repeat className="h-4 w-4" />
+          </ControlButton>
+        </div>
+      )}
     </main>
   );
 }

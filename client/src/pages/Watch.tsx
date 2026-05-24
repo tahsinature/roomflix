@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import type { ChatMoment, Collection, CollectionHealth } from "@shared/protocol";
+import type { Collection, CollectionHealth } from "@shared/protocol";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { AudioPlayer } from "@/components/player/AudioPlayer";
 import { PhotoPlayer } from "@/components/player/PhotoPlayer";
@@ -10,7 +9,6 @@ import { TheaterTopBar } from "@/components/theater/TheaterTopBar";
 import { IdleScreen } from "@/components/theater/IdleScreen";
 import { UnavailableScreen } from "@/components/theater/UnavailableScreen";
 import { ReactionsOverlay } from "@/components/theater/ReactionsOverlay";
-import { ReactionBar } from "@/components/theater/ReactionBar";
 import { useSessionSync } from "@/hooks/useSessionSync";
 import { useAuth } from "@/auth/AuthContext";
 import { api } from "@/lib/api";
@@ -26,6 +24,7 @@ const CHROME_HIDE_MS = 3200;
 // surfaces auto-hiding controls.
 export default function Watch() {
   const { currentSpace } = useAuth();
+  const navigate = useNavigate();
   const { state, viewers, serverTime, connected, stateLoaded, actions, subscribeReactions, subscribeChat } = useSessionSync();
   // Server-clock skew, captured once per serverTime push, used by the
   // "attach scene" capture to compute the room's currently-playing time
@@ -34,40 +33,123 @@ export default function Watch() {
   useEffect(() => {
     skewRef.current = Date.now() - serverTime;
   }, [serverTime]);
-  // Pending moment chip — captured when the user clicks the attach
-  // button, cleared when sent or dismissed. Lives here (not in
-  // ReactionBar) so multiple opens of the composer don't lose it.
-  const [attachedMoment, setAttachedMoment] = useState<ChatMoment | null>(null);
-  const captureMoment = useCallback((): ChatMoment | null => {
-    if (!state.videoUrl) return null;
-    const serverNow = Date.now() - skewRef.current;
-    const expected = state.playing ? state.currentTime + Math.max(0, (serverNow - state.updatedAt) / 1000) : state.currentTime;
-    return {
-      videoUrl: state.videoUrl,
-      currentTime: Math.max(0, expected),
-      mediaTitle: state.videoTitle ?? urlFilename(state.videoUrl) ?? "Scene",
-      collectionId: state.collectionId,
-      collectionIndex: state.collectionId ? state.collectionIndex : null,
-    };
-  }, [state.videoUrl, state.videoTitle, state.playing, state.currentTime, state.updatedAt, state.collectionId, state.collectionIndex]);
+  // Sidebar that hosts /remote inside the theater. State persists across
+  // refreshes so a viewer who likes the split layout keeps it. Driven
+  // by the in-player Remote launcher's "Side panel" option.
+  const [remoteSidebarOpen, setRemoteSidebarOpen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("roomflix:remote-sidebar") === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("roomflix:remote-sidebar", remoteSidebarOpen ? "1" : "0");
+    } catch {
+      /* private mode / disabled storage */
+    }
+  }, [remoteSidebarOpen]);
+
+  const openRemote = useCallback(
+    (mode: "sidebar" | "newWindow" | "sameWindow") => {
+      if (mode === "sidebar") {
+        setRemoteSidebarOpen((v) => !v);
+        return;
+      }
+      if (mode === "newWindow") {
+        // Detached companion popup — 420×820 is roomy enough for the
+        // chat thread + composer + controls on most laptops, and a
+        // named window so a second click reuses the same popup.
+        window.open("/remote", "roomflix-remote", "popup,width=420,height=820,resizable=yes");
+        return;
+      }
+      navigate("/remote");
+    },
+    [navigate],
+  );
+
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const [collection, setCollection] = useState<Collection | null>(null);
   const [collectionHealth, setCollectionHealth] = useState<CollectionHealth | null>(null);
-  // Captured via callback ref — the bar + reactions overlay portal into
-  // either this (non-fullscreen) or the current fullscreen element.
+  // Captured via callback ref — the reactions overlay portal points
+  // into either this (non-fullscreen) or the current fullscreen element.
   const [mediaArea, setMediaArea] = useState<HTMLElement | null>(null);
-  // Tracks the current fullscreen element. When set, the bar + overlay
-  // portal into it so they ride along inside fullscreen — no need to
-  // exit fullscreen just to react.
+  // Fullscreen targets the outer row (player + sidebar), not just the
+  // video element, so the sidebar persists when the user goes full-
+  // screen. The ref points at the row; the toggle below requests
+  // fullscreen on it.
+  const fullscreenRootRef = useRef<HTMLDivElement | null>(null);
+  // Tracks the current fullscreen element. When set, the overlay
+  // portals into it so chat bubbles ride along inside fullscreen.
   const [fsEl, setFsEl] = useState<Element | null>(typeof document === "undefined" ? null : document.fullscreenElement);
   useEffect(() => {
     const onFs = () => setFsEl(document.fullscreenElement);
     document.addEventListener("fullscreenchange", onFs);
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
-  // Lets the in-player react button focus the composer in the chrome.
-  const composerInputRef = useRef<HTMLInputElement | null>(null);
+  const isFullscreen = fsEl !== null;
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {
+        /* user cancelled / unsupported */
+      });
+    } else {
+      fullscreenRootRef.current?.requestFullscreen().catch(() => {
+        /* permission denied */
+      });
+    }
+  }, []);
+
+  // Intercept the "f" key BEFORE Vidstack's document-level shortcut
+  // handler runs, so the keyboard path matches the button path: fullscreen
+  // targets the row (sidebar stays visible) instead of just the media
+  // element. Capture phase + stopImmediatePropagation prevents Vidstack
+  // from also reacting to the same keystroke.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "f" && e.key !== "F") return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      toggleFullscreen();
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [toggleFullscreen]);
+
+  // "r" toggles the remote sidebar — keyboard parity with the in-player
+  // launcher's "Side panel" option. Same intercept pattern as "f" so the
+  // shortcut doesn't compete with any document-level handler.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "r" && e.key !== "R") return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      setRemoteSidebarOpen((v) => !v);
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, []);
+
+  // Bridge for keystrokes fired inside the /remote iframe. Iframes
+  // capture their own keydowns and the host never sees them — the
+  // iframe posts the key here and we dispatch the same shortcuts as
+  // the host-level listeners above.
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      const data = e.data as { source?: string; key?: string } | null;
+      if (!data || data.source !== "roomflix:remote") return;
+      if (data.key === "r") setRemoteSidebarOpen((v) => !v);
+      else if (data.key === "f") toggleFullscreen();
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [toggleFullscreen]);
 
   // ── Deep links — ?video= / ?collection= ───────────────────────────
   // Each replaces whatever's loaded when it differs: clicking Play on a
@@ -146,13 +228,13 @@ export default function Watch() {
   // Multiple things can hold the chrome open — the library dropdown, the
   // pinned reaction composer. Tracking them per-source means closing one
   // doesn't accidentally release the others.
-  const chromeLocked = useRef({ library: false, composer: false, watchers: false });
+  const chromeLocked = useRef({ library: false, watchers: false });
 
   const scheduleHide = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => {
       // Re-check rather than hide while any lock is engaged.
-      if (chromeLocked.current.library || chromeLocked.current.composer || chromeLocked.current.watchers) scheduleHide();
+      if (chromeLocked.current.library || chromeLocked.current.watchers) scheduleHide();
       else setChromeVisible(false);
     }, CHROME_HIDE_MS);
   }, []);
@@ -256,66 +338,17 @@ export default function Watch() {
   // The current item is known-broken when its URL probed as "gone".
   const currentBroken = !idle && state.videoUrl !== null && collectionHealth?.items[state.videoUrl] === "gone";
 
-  // Composer pin: while pinned, the bar stays visible regardless of the
-  // chrome's auto-hide. Driven by the in-player react button, the "/"
-  // hotkey, and explicit dismiss (Escape / click outside).
-  const [composerPinned, setComposerPinned] = useState(false);
-  const barWrapperRef = useRef<HTMLDivElement | null>(null);
-
-  // Sync the pin to the chrome lock so auto-hide leaves the bar alone
-  // while it's open. Restarts the hide timer on unpin.
-  useEffect(() => {
-    chromeLocked.current.composer = composerPinned;
-    if (!composerPinned) bumpChrome();
-  }, [composerPinned, bumpChrome]);
-
-  // Open + focus the composer. Used by the in-player smile button and the
-  // "/" hotkey. The bar portals into the fullscreen element when one is
-  // active, so we no longer exit fullscreen to compose — the user can
-  // keep watching at full size and still type.
-  const openComposer = useCallback(() => {
-    setComposerPinned(true);
-    bumpChrome();
-    requestAnimationFrame(() => composerInputRef.current?.focus());
-  }, [bumpChrome]);
-
-  // Hotkey: "/" opens the composer (chat tradition). Escape closes it
-  // when pinned — captured before Watch's exit-to-library Escape so the
-  // first press dismisses the bar, the next leaves the theater.
-  useEffect(() => {
-    if (idle) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "/") {
-        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-        e.preventDefault();
-        void openComposer();
-      } else if (e.key === "Escape" && composerPinned) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        setComposerPinned(false);
-        (document.activeElement as HTMLElement | null)?.blur?.();
-      }
-    };
-    document.addEventListener("keydown", onKey, true);
-    return () => document.removeEventListener("keydown", onKey, true);
-  }, [idle, composerPinned, openComposer]);
-
-  // Click outside the bar wrapper dismisses the pinned composer. Listener
-  // only mounts while pinned, so the opening click can't immediately
-  // close what it just opened.
-  useEffect(() => {
-    if (!composerPinned) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (!barWrapperRef.current?.contains(e.target as Node | null)) {
-        setComposerPinned(false);
-      }
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [composerPinned]);
-
   return (
-    <div className={cn("flex h-[100dvh] w-full flex-col overflow-hidden bg-black", !chromeShown && "cursor-none")} onMouseMove={onPointerActivity} onTouchStart={bumpChrome}>
+    <div
+      ref={fullscreenRootRef}
+      className={cn("flex h-[100dvh] w-full overflow-hidden bg-black", !chromeShown && "cursor-none")}
+      onMouseMove={onPointerActivity}
+      onTouchStart={bumpChrome}
+    >
+      {/* Content column — media + collection strip. The sidebar (when
+          open) sits beside this whole column so the strip also shrinks
+          to leave room. */}
+      <div className="flex min-w-0 flex-1 flex-col">
       <div ref={setMediaArea} className="relative min-h-0 flex-1">
         {idle ? (
           <IdleScreen spaceName={currentSpace?.name ?? "Roomflix"} />
@@ -366,8 +399,14 @@ export default function Watch() {
             onLoadUrl={actions.setUrl}
             onVolumeChange={actions.setVolume}
             onDurationKnown={actions.setDuration}
+            onOpenRemote={openRemote}
+            remoteSidebarOpen={remoteSidebarOpen}
+            // Custom fullscreen target so the sidebar stays visible.
+            // Vidstack's own FullscreenButton would fullscreen the video
+            // element alone and clip out the sidebar.
+            onToggleFullscreen={toggleFullscreen}
+            isFullscreen={isFullscreen}
             loadingIncoming={incomingPending}
-            onReact={openComposer}
           />
         )}
 
@@ -383,49 +422,8 @@ export default function Watch() {
           />
         )}
 
-        {/* Reactions composer — portaled into the fullscreen element when
-          one is active, otherwise into the theater media area, so it's
-          reachable in fullscreen without exiting. Positioned as an
-          absolute overlay so toggling it doesn't shift the video. */}
-        {!idle &&
-          (fsEl ?? mediaArea) &&
-          createPortal(
-            <div
-              ref={barWrapperRef}
-              // Pin while focus lives anywhere in the bar (input or
-              // buttons). Catches the case where the user just clicks the
-              // input directly — without that, the chrome's auto-hide
-              // would fade the bar mid-sentence.
-              onFocus={() => setComposerPinned(true)}
-              onBlur={(e) => {
-                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setComposerPinned(false);
-              }}
-              className={cn(
-                "absolute inset-x-0 z-40 transition-opacity duration-300",
-                // Sit above the video's own controls when there are any.
-                kind === "video" ? "bottom-20" : "bottom-0",
-                chromeShown || composerPinned ? "opacity-100" : "pointer-events-none opacity-0",
-              )}
-            >
-              <ReactionBar
-                ref={composerInputRef}
-                onSend={(content) => {
-                  // Text → persistent chat (bundled with any attached
-                  // moment); emoji → ephemeral reaction.
-                  if (content.kind === "text") {
-                    actions.sendChat(content.text, attachedMoment);
-                    setAttachedMoment(null);
-                  } else {
-                    actions.sendReaction(content);
-                  }
-                }}
-                attachedMoment={attachedMoment}
-                onAttachMoment={() => setAttachedMoment(captureMoment())}
-                onClearMoment={() => setAttachedMoment(null)}
-              />
-            </div>,
-            (fsEl ?? mediaArea)!,
-          )}
+        {/* Composer intentionally lives on /remote, not here. The
+            theater is for watching; typing happens on the companion. */}
 
         {/* Auto-hiding top chrome — exit, now-playing, watchers, library. */}
         <div className={cn("absolute inset-x-0 top-0 z-30 transition-opacity duration-300", chromeShown ? "opacity-100" : "pointer-events-none opacity-0")}>
@@ -434,6 +432,9 @@ export default function Watch() {
             contextLabel={contextLabel}
             viewers={viewers}
             connected={connected}
+            // Video carries its own in-player Remote launcher; the
+            // top-chrome fallback only renders for non-video kinds.
+            showRemoteLink={kind !== "video"}
             onLoadUrl={actions.setUrl}
             onLibraryOpenChange={(open) => {
               chromeLocked.current.library = open;
@@ -464,6 +465,29 @@ export default function Watch() {
           />
         </div>
       )}
+      </div>{/* /content column */}
+
+      {remoteSidebarOpen && <RemoteSidebar />}
     </div>
+  );
+}
+
+// Side dock host for /remote. Iframes the route so we get the full
+// chat + composer + progress + controls UI without a refactor; the
+// embedded layout in Remote.tsx (and AuthedLayout) is iframe-aware and
+// drops the AppNav + "Open here" link automatically. Hidden on
+// narrow widths — the player already fights for room there. Closing
+// the panel happens via the in-player Remote launcher or the "r"
+// keyboard shortcut, so no separate close affordance is needed here.
+function RemoteSidebar() {
+  return (
+    <aside className="relative hidden h-full w-[380px] shrink-0 border-l border-white/10 bg-black md:block">
+      <iframe
+        title="Remote companion"
+        src="/remote"
+        className="h-full w-full border-0"
+        // Same-origin iframe — auth cookie + WS just work.
+      />
+    </aside>
   );
 }

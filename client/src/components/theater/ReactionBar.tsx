@@ -48,60 +48,61 @@ export const ReactionBar = forwardRef<
         />
       )}
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <div className="flex shrink-0 items-center gap-1">
-          {QUICK_EMOJIS.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              onPointerDown={(e) => e.preventDefault()}
-              onClick={() => onSend({ kind: "emoji", emoji })}
-              aria-label={`React with ${emoji}`}
-              title={`React ${emoji}`}
-              className="flex h-8 w-8 items-center justify-center border border-white/10 bg-white/[0.04] text-base transition hover:scale-105 hover:border-white/30 hover:bg-white/10 active:scale-95 sm:h-9 sm:w-9 sm:text-lg"
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
-
-        <form onSubmit={submitText} className="flex min-w-0 flex-1 items-center gap-1.5">
-          <input
-            ref={inputRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={attachedMoment ? "Add a note (optional)…" : "Say something…"}
-            maxLength={MAX_TEXT_LEN}
-            aria-label="Send a message"
-            className="h-8 min-w-0 flex-1 border border-white/10 bg-black/50 px-2.5 text-sm text-white placeholder:text-white/40 focus:border-white/30 focus:outline-none sm:h-9"
-          />
-          {canAttach && (
-            <button
-              type="button"
-              onPointerDown={(e) => e.preventDefault()}
-              onClick={onAttachMoment}
-              aria-label="Attach current scene"
-              title={attachedMoment ? "Replace attached scene" : "Attach current scene"}
-              className={
-                attachedMoment
-                  ? "flex h-8 w-8 shrink-0 items-center justify-center border border-accent/60 bg-accent/15 text-accent transition hover:border-accent hover:bg-accent/20 sm:h-9 sm:w-9"
-                  : "flex h-8 w-8 shrink-0 items-center justify-center border border-white/10 bg-white/[0.04] text-white/70 transition hover:border-white/30 hover:text-white sm:h-9 sm:w-9"
-              }
-            >
-              <Clock className="h-3.5 w-3.5" />
-            </button>
-          )}
+      {/* Two stacked rows: quick-react emojis, then text+actions. The
+          old single-row layout overflowed in narrow surfaces like the
+          /remote sidebar (380px). Stacking is also calmer to read. */}
+      <div className="flex flex-wrap items-center gap-1">
+        {QUICK_EMOJIS.map((emoji) => (
           <button
-            type="submit"
+            key={emoji}
+            type="button"
             onPointerDown={(e) => e.preventDefault()}
-            disabled={!text.trim() && !attachedMoment}
-            aria-label="Send message"
-            className="flex h-8 w-8 shrink-0 items-center justify-center border border-white/10 bg-white/[0.04] text-white/70 transition hover:border-accent/50 hover:text-white disabled:opacity-30 sm:h-9 sm:w-9"
+            onClick={() => onSend({ kind: "emoji", emoji })}
+            aria-label={`React with ${emoji}`}
+            title={`React ${emoji}`}
+            className="flex h-8 w-8 items-center justify-center border border-white/10 bg-white/[0.04] text-base transition hover:scale-105 hover:border-white/30 hover:bg-white/10 active:scale-95"
           >
-            <Send className="h-3.5 w-3.5" />
+            {emoji}
           </button>
-        </form>
+        ))}
       </div>
+
+      <form onSubmit={submitText} className="flex w-full items-center gap-1.5">
+        <input
+          ref={inputRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={attachedMoment ? "Add a note (optional)…" : "Say something…"}
+          maxLength={MAX_TEXT_LEN}
+          aria-label="Send a message"
+          className="h-8 min-w-0 flex-1 border border-white/10 bg-black/50 px-2.5 text-sm text-white placeholder:text-white/40 focus:border-white/30 focus:outline-none"
+        />
+        {canAttach && (
+          <button
+            type="button"
+            onPointerDown={(e) => e.preventDefault()}
+            onClick={onAttachMoment}
+            aria-label="Attach current scene"
+            title={attachedMoment ? "Replace attached scene" : "Attach current scene"}
+            className={
+              attachedMoment
+                ? "flex h-8 w-8 shrink-0 items-center justify-center border border-accent/60 bg-accent/15 text-accent transition hover:border-accent hover:bg-accent/20"
+                : "flex h-8 w-8 shrink-0 items-center justify-center border border-white/10 bg-white/[0.04] text-white/70 transition hover:border-white/30 hover:text-white"
+            }
+          >
+            <Clock className="h-3.5 w-3.5" />
+          </button>
+        )}
+        <button
+          type="submit"
+          onPointerDown={(e) => e.preventDefault()}
+          disabled={!text.trim() && !attachedMoment}
+          aria-label="Send message"
+          className="flex h-8 w-8 shrink-0 items-center justify-center border border-white/10 bg-white/[0.04] text-white/70 transition hover:border-accent/50 hover:text-white disabled:opacity-30"
+        >
+          <Send className="h-3.5 w-3.5" />
+        </button>
+      </form>
     </div>
   );
 });

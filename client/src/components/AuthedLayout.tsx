@@ -12,6 +12,11 @@ import { AppNav } from "@/components/AppNav";
 // (for /settings) still wraps individually since that's a sub-gate.
 export function AuthedLayout() {
   const { user, guest, loading } = useAuth();
+  // When this app is rendered inside an iframe (e.g. /remote opened as
+  // a sidebar from /watch), the top nav adds chrome that doesn't fit
+  // the narrower frame. Suppress it; the host page provides the
+  // navigation context already.
+  const embedded = typeof window !== "undefined" && window.self !== window.top;
 
   if (loading) {
     return (
@@ -25,7 +30,7 @@ export function AuthedLayout() {
 
   return (
     <>
-      <AppNav />
+      {!embedded && <AppNav />}
       {/* Scrolling lives inside this container rather than on the
           body so the page scrollbar sits BELOW the fixed nav instead
           of running the full viewport height past it. Cleaner visual
@@ -36,7 +41,11 @@ export function AuthedLayout() {
           (Chrome's URL bar collapses dynamically). Using `vh`/`screen`
           here was causing a phantom ~60px scroll-by-nav-height on
           Android Chrome. */}
-      <div className="h-[100dvh] overflow-y-auto pt-[60px] sm:pt-[68px]">
+      {/* overflow-x-hidden in embedded mode keeps the sidebar from
+          gaining a horizontal scrollbar — any stray wide content gets
+          clipped instead. Vertical scroll still flows for the
+          intentional cases (chat thread, settings forms). */}
+      <div className={embedded ? "h-[100dvh] overflow-y-auto overflow-x-hidden" : "h-[100dvh] overflow-y-auto pt-[60px] sm:pt-[68px]"}>
         <Outlet />
       </div>
     </>

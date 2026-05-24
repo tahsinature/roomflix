@@ -37,6 +37,16 @@ type Props = {
   // The player itself doesn't care about its own duration — this is
   // purely a fan-out to other tabs.
   onDurationKnown?: (duration: number | null) => void;
+  // Hook for the in-player Remote launcher. Each option calls back
+  // with the chosen open-mode; the host (Watch.tsx) dispatches.
+  onOpenRemote?: (mode: "sidebar" | "newWindow" | "sameWindow") => void;
+  remoteSidebarOpen?: boolean;
+  // Custom fullscreen target. When set, the player's fullscreen button
+  // calls this instead of Vidstack's media-only fullscreen — needed so
+  // the sidebar host can fullscreen its outer wrapper and keep the
+  // sidebar visible.
+  onToggleFullscreen?: () => void;
+  isFullscreen?: boolean;
   // True when the room is initializing with a URL passed via ?video= but the
   // synced state hasn't caught up yet. Avoids flashing the URL-input form
   // when we already know what's about to load.
@@ -90,6 +100,10 @@ export function VideoPlayer({
   onLoadUrl,
   onVolumeChange,
   onDurationKnown,
+  onOpenRemote,
+  remoteSidebarOpen,
+  onToggleFullscreen,
+  isFullscreen,
   loadingIncoming = false,
   fill = false,
   onReact,
@@ -367,7 +381,16 @@ export function VideoPlayer({
       <Gesture className="absolute inset-y-0 right-0 z-10 block h-full w-1/2" event="dblpointerup" action="seek:10" />
 
       {!fill && <TitleBar title={videoTitle || urlFilename(videoUrl)} />}
-      <Controls subtitles={subtitles} activeSubtitleId={activeSubtitleId} onSelectSubtitle={setActiveSubtitleId} onReact={onReact} />
+      <Controls
+        subtitles={subtitles}
+        activeSubtitleId={activeSubtitleId}
+        onSelectSubtitle={setActiveSubtitleId}
+        onReact={onReact}
+        onOpenRemote={onOpenRemote}
+        remoteSidebarOpen={remoteSidebarOpen}
+        onToggleFullscreen={onToggleFullscreen}
+        isFullscreen={isFullscreen}
+      />
 
       <LoadingOverlay hasError={playbackError !== null} />
 
