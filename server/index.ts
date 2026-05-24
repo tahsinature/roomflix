@@ -162,14 +162,23 @@ app.route("/api/share", buildPublicShareRouter(storage));
 app.route("/api/spaces/:id/chat", buildChatRouter(storage));
 
 // SPA fallback.
+//
+// `Content-Security-Policy: frame-ancestors 'self'` is set on every SPA
+// response so the /watch sidebar can iframe /remote in prod. Modern
+// browsers prefer CSP frame-ancestors over X-Frame-Options, so this
+// also overrides any default `X-Frame-Options: DENY` a reverse proxy /
+// hosting layer might tack on. Safe to keep on always — the policy
+// only restricts framing, doesn't change app behavior anywhere else.
 app.all("*", async (c) => {
   if (!HAS_CLIENT_BUILD) {
     return c.text("roomflix server running. Start the Vite dev server for the UI.");
   }
   const path = c.req.path === "/" ? "/index.html" : c.req.path;
   const file = Bun.file(join(CLIENT_DIST, path));
-  if (await file.exists()) return new Response(file);
-  return new Response(Bun.file(join(CLIENT_DIST, "index.html")));
+  const body = (await file.exists()) ? file : Bun.file(join(CLIENT_DIST, "index.html"));
+  const res = new Response(body);
+  res.headers.set("Content-Security-Policy", "frame-ancestors 'self'");
+  return res;
 });
 
 // Seed the session's current-item fields from a collection item.
