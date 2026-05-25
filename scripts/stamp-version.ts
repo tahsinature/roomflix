@@ -28,13 +28,17 @@ function gitOrFallback(args: string[], fallback: string): string {
   }
 }
 
-const sha = gitOrFallback(["rev-parse", "--short", "HEAD"], "dev");
-// Build time = the moment this script runs. Close enough to "deployed
-// at" for almost every flow — the image is built once per deploy and
-// shipped immediately afterwards. The server also tracks its own
-// start time at runtime for "is this the same process or did it
-// restart" diagnostics.
-const builtAt = new Date().toISOString();
+// Resolution order:
+//   1. BUILD_SHA / BUILD_TIME env vars — set by `docker build --build-arg`
+//      in CI/CD. The container's .dockerignore strips .git so git can't
+//      run inside the builder; env vars are the only way to get real
+//      version info into the prod image.
+//   2. Local git history — useful for `bun run build` on a dev box.
+//   3. "dev" / "now" — last-resort fallback so the build never fails.
+const envSha = process.env.BUILD_SHA?.trim();
+const envTime = process.env.BUILD_TIME?.trim();
+const sha = envSha || gitOrFallback(["rev-parse", "--short", "HEAD"], "dev");
+const builtAt = envTime || new Date().toISOString();
 
 // `string` annotation widens the inferred literal type so consumers
 // can still write things like `if (SHA !== "dev")` without TS
