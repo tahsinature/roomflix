@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ChevronDown, History as HistoryIcon, Link2, LogOut, Radio, SlidersHorizontal, Users2 } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
+import { api } from "@/lib/api";
+import { BUILT_AT, SHA } from "@/lib/version";
 import { cn } from "@/lib/utils";
 
 // Identity menu in the top nav. Now strictly identity-shaped:
@@ -140,8 +142,60 @@ export function AccountMenu({ className }: { className?: string }) {
             <LogOut className="h-3.5 w-3.5" />
             {isGuest ? "Leave session" : "Sign out"}
           </button>
+
+          {open && <VersionRow />}
         </div>
       )}
     </div>
   );
+}
+
+// Tiny footer line with the build SHA + how long ago it was built.
+// Reads from the client bundle's stamped version constants directly so
+// it always renders even if /api/version is unreachable (e.g. when
+// the server hasn't been restarted since the last stamp). Also fetches
+// the server's version in the background to detect a stale tab —
+// surfaces a small "refresh" hint when the bundle's SHA doesn't match
+// what the server is now serving.
+function VersionRow() {
+  const built = new Date(BUILT_AT);
+  const isReal = SHA !== "dev" && Number.isFinite(built.getTime()) && built.getTime() > 1_000_000_000_000;
+  const [serverSha, setServerSha] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getVersion()
+      .then((v) => {
+        if (!cancelled) setServerSha(v.sha);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const stale = isReal && serverSha && serverSha !== SHA;
+  return (
+    <div
+      className="flex items-baseline justify-between gap-2 border-t border-border px-3 py-1.5 font-mono text-[10px] text-text-dim"
+      title={isReal ? `Build ${SHA}\nBuilt: ${built.toLocaleString()}${stale ? `\nServer is on ${serverSha} — refresh for the latest.` : ""}` : "Local dev build"}
+    >
+      <span>v {SHA}</span>
+      <span className="flex items-center gap-1.5">
+        {stale && <span className="border border-amber-300/40 bg-amber-300/10 px-1 text-amber-300">refresh</span>}
+        {isReal && <span>{relativeAge(built)}</span>}
+      </span>
+    </div>
+  );
+}
+
+// "2m ago" / "3h ago" / "4d ago". Bigger units past a week so the
+// footer doesn't read "153d ago" — anything older than a week shows
+// the absolute month/day.
+function relativeAge(d: Date): string {
+  const diff = Date.now() - d.getTime();
+  if (diff < 60_000) return "just now";
+  if (diff < 60 * 60_000) return `${Math.round(diff / 60_000)}m ago`;
+  if (diff < 24 * 60 * 60_000) return `${Math.round(diff / 3_600_000)}h ago`;
+  if (diff < 7 * 24 * 60 * 60_000) return `${Math.round(diff / 86_400_000)}d ago`;
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }

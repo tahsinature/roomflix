@@ -297,6 +297,7 @@ export const api = {
   chatHistory: (spaceId: string, limit = 100) => request<ChatMessage[]>(`/api/spaces/${encodeURIComponent(spaceId)}/chat?limit=${limit}`),
   clearChat: (spaceId: string) =>
     request<{ deleted: number }>(`/api/spaces/${encodeURIComponent(spaceId)}/chat`, { method: "DELETE" }),
+  getVersion: () => request<{ sha: string; builtAt: string; startedAt: string }>("/api/version"),
   watchHistory: (spaceId: string, limit = 100) =>
     request<WatchHistoryEntry[]>(`/api/spaces/${encodeURIComponent(spaceId)}/history?limit=${limit}`),
   clearWatchHistory: (spaceId: string) =>
