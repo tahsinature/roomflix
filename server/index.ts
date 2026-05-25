@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { ServerWebSocket } from "bun";
 import { Hono } from "hono";
+import { compress } from "hono/compress";
 
 import { type ChatMoment, type Collection, type ClientMessage, type ReactionContent, type ServerMessage } from "@/protocol.ts";
 import {
@@ -139,6 +140,26 @@ await runCollectionMigration(storage);
 
 const app = new Hono();
 
+// Compress text responses (JS, CSS, HTML, JSON, SVG) — built-in
+// Accept-Encoding negotiation, below-threshold bodies skip. Cuts the
+// main JS bundle from ~815 KB raw to ~220 KB gzip on the wire, which
+// also shrinks the window in which the broken-HTTP/3 path (see below)
+// can stall a chunk mid-flight.
+app.use("*", compress());
+
+// Tell browsers to forget any cached HTTP/3 alt-svc for this origin.
+// Zeabur's ingress advertises `h3=":443"` but the QUIC data path on
+// this Tencent Cloud network is intermittently broken (handshake OK,
+// then stalls), which shows up as "JS files hang forever" in the
+// Network tab. Stripping alt-svc keeps clients on the reliable
+// HTTP/2-over-TCP path. Whether this actually wins depends on whether
+// the ingress overrides our header — verify with
+// `curl -D - https://roomflix.tahsin.us/` after deploy.
+app.use("*", async (c, next) => {
+  await next();
+  c.header("Alt-Svc", "clear");
+});
+
 app.get("/healthz", (c) => c.text("ok"));
 
 app.route("/api/auth", buildAuthRouter(storage));
@@ -183,15 +204,27 @@ app.route("/api/spaces/:id/history", buildWatchHistoryRouter(storage));
 // also overrides any default `X-Frame-Options: DENY` a reverse proxy /
 // hosting layer might tack on. Safe to keep on always — the policy
 // only restricts framing, doesn't change app behavior anywhere else.
+//
+// Cache: Vite's `/assets/*` files are content-hashed (immutable), so we
+// max-age them forever; index.html and friends are `no-cache` so a
+// deploy is picked up immediately. Missing `/assets/*` files return a
+// real 404 instead of falling back to index.html — otherwise a stale
+// chunk reference after a deploy silently gets HTML served as a JS
+// module and the page breaks with a parse error.
 app.all("*", async (c) => {
   if (!HAS_CLIENT_BUILD) {
     return c.text("roomflix server running. Start the Vite dev server for the UI.");
   }
-  const path = c.req.path === "/" ? "/index.html" : c.req.path;
-  const file = Bun.file(join(CLIENT_DIST, path));
-  const body = (await file.exists()) ? file : Bun.file(join(CLIENT_DIST, "index.html"));
+  const reqPath = c.req.path;
+  const isAsset = reqPath.startsWith("/assets/");
+  const filePath = reqPath === "/" ? "/index.html" : reqPath;
+  const file = Bun.file(join(CLIENT_DIST, filePath));
+  const exists = await file.exists();
+  if (isAsset && !exists) return c.notFound();
+  const body = exists ? file : Bun.file(join(CLIENT_DIST, "index.html"));
   const res = new Response(body);
   res.headers.set("Content-Security-Policy", "frame-ancestors 'self'");
+  res.headers.set("Cache-Control", isAsset ? "public, max-age=31536000, immutable" : "no-cache");
   return res;
 });
 
