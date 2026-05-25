@@ -408,6 +408,11 @@ export type Collection = {
   title: string;
   items: CollectionItem[];
   source: CollectionSource | null;
+  // Optional cover image URL — overrides the auto-picked thumbnail.
+  // Editable on both manual and synced collections (the field lives on
+  // the collection doc, not the items). Null means "auto" (renderer
+  // falls back to the first image item, then a placeholder).
+  coverUrl: string | null;
   createdAt: number;
   updatedAt: number;
 };

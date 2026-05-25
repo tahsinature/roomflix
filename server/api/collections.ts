@@ -37,7 +37,7 @@ export function buildCollectionsRouter(storage: Storage) {
   app.post("/", async (c) => {
     const spaceId = c.get("space").id;
     const createdBy = c.get("user").id;
-    const body = (await c.req.json().catch(() => null)) as { title?: unknown; items?: unknown; source?: unknown } | null;
+    const body = (await c.req.json().catch(() => null)) as { title?: unknown; items?: unknown; source?: unknown; coverUrl?: unknown } | null;
     const title = typeof body?.title === "string" ? body.title : "";
     if (!title.trim()) return c.json({ error: "title is required" }, 400);
 
@@ -61,6 +61,7 @@ export function buildCollectionsRouter(storage: Storage) {
       title,
       items: parseItems(body?.items) ?? [],
       source,
+      coverUrl: parseCoverUrl(body?.coverUrl),
     });
     return c.json(await resolveCollection(created, storage), 201);
   });
@@ -107,21 +108,25 @@ export function buildCollectionsRouter(storage: Storage) {
       return c.json({ error: "only the collection creator or space owner can edit it" }, 403);
     }
 
-    const body = (await c.req.json().catch(() => null)) as { title?: unknown; items?: unknown } | null;
+    const body = (await c.req.json().catch(() => null)) as { title?: unknown; items?: unknown; coverUrl?: unknown } | null;
     if (!body) return c.json({ error: "invalid body" }, 400);
 
     // Synced collections track a folder — title and items are derived,
-    // so any edit attempt is a conceptual mistake.
+    // so any edit attempt is a conceptual mistake. `coverUrl` is fair
+    // game on synced collections though — it's metadata, not content.
     if (existing.source) {
       if (typeof body.title === "string" || body.items !== undefined) {
         return c.json({ error: "this collection is synced to a storage folder; manage it there" }, 409);
       }
     }
 
-    const patch: { title?: string; items?: CollectionItem[] } = {};
+    const patch: { title?: string; items?: CollectionItem[]; coverUrl?: string | null } = {};
     if (typeof body.title === "string") patch.title = body.title;
     const items = parseItems(body.items);
     if (items !== null) patch.items = items;
+    // Distinguish "omit" (leave alone) from "null" (clear it). The
+    // parser returns the sentinel `undefined` when the key is absent.
+    if ("coverUrl" in body) patch.coverUrl = parseCoverUrl(body.coverUrl);
 
     const updated = await storage.collections.update(spaceId, c.req.param("id"), patch);
     if (!updated) return c.json({ error: "not found" }, 404);
@@ -163,6 +168,18 @@ function parseItems(raw: unknown): CollectionItem[] | null {
     out.push({ url: r.url.trim(), name: typeof r.name === "string" ? r.name : "" });
   }
   return out;
+}
+
+// Coerces unknown cover input. `null` and empty/whitespace-only strings
+// become `null` (clears the cover); a non-empty string is trimmed and
+// kept. We don't validate that it's reachable or actually an image —
+// the user said lenient, and `<img>` falls back to the placeholder
+// when the URL fails to load.
+function parseCoverUrl(raw: unknown): string | null {
+  if (raw === null) return null;
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  return trimmed || null;
 }
 
 // Coerces unknown input to a CollectionSource. Anything malformed → null.

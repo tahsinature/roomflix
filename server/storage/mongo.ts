@@ -32,6 +32,7 @@ import type {
   JoinRequestRepo,
   MembershipRepo,
   ChatRepo,
+  PasswordResetRepo,
   Session,
   SessionRepo,
   SessionStateRepo,
@@ -53,6 +54,7 @@ import {
   CollectionModel,
   InviteModel,
   JoinRequestModel,
+  PasswordResetTokenModel,
   SessionModel,
   SessionStateModel,
   WatchHistoryModel,
@@ -110,6 +112,7 @@ export async function createMongoStorage(mongoUrl: string): Promise<Storage> {
     shareLinks: new MongoShareLinkRepo(),
     shareAccesses: new MongoShareAccessRepo(),
     chat: new MongoChatRepo(),
+    passwordResets: new MongoPasswordResetRepo(),
     sessionState: new MongoSessionStateRepo(),
     watchHistory: new MongoWatchHistoryRepo(),
     async close() {
@@ -252,6 +255,43 @@ class MongoUserRepo implements UserRepo {
     const updated = await UserModel.findOneAndUpdate({ _id: id }, { $set: set }, { returnDocument: "after" }).lean();
     return updated ? toStoredUser(updated) : null;
   }
+
+  async updatePasswordHash(id: string, passwordHash: string): Promise<void> {
+    await UserModel.updateOne({ _id: id }, { $set: { passwordHash } });
+  }
+}
+
+class MongoPasswordResetRepo implements PasswordResetRepo {
+  async add(input: { token: string; userId: string; expiresAt: number }): Promise<void> {
+    await PasswordResetTokenModel.create({
+      _id: input.token,
+      userId: input.userId,
+      createdAt: Date.now(),
+      expiresAt: input.expiresAt,
+      usedAt: null,
+    });
+  }
+
+  async get(token: string): Promise<{ token: string; userId: string; createdAt: number; expiresAt: number; usedAt: number | null } | null> {
+    const doc = await PasswordResetTokenModel.findById(token).lean();
+    if (!doc) return null;
+    return {
+      token: doc._id,
+      userId: doc.userId,
+      createdAt: doc.createdAt,
+      expiresAt: doc.expiresAt,
+      usedAt: doc.usedAt ?? null,
+    };
+  }
+
+  async markUsed(token: string): Promise<void> {
+    await PasswordResetTokenModel.updateOne({ _id: token }, { $set: { usedAt: Date.now() } });
+  }
+
+  async removeAllForUser(userId: string): Promise<number> {
+    const result = await PasswordResetTokenModel.deleteMany({ userId });
+    return result.deletedCount ?? 0;
+  }
 }
 
 class MongoSessionRepo implements SessionRepo {
@@ -291,6 +331,11 @@ class MongoSessionRepo implements SessionRepo {
   async deleteByToken(token: string): Promise<boolean> {
     const result = await SessionModel.deleteOne({ _id: token });
     return result.deletedCount === 1;
+  }
+
+  async deleteAllForUser(userId: string): Promise<number> {
+    const result = await SessionModel.deleteMany({ userId });
+    return result.deletedCount ?? 0;
   }
 }
 
@@ -484,7 +529,7 @@ class MongoCollectionRepo implements CollectionRepo {
     return doc ? toCollection(doc) : null;
   }
 
-  async create(input: { spaceId: string; createdBy: string; title: string; items: CollectionItem[]; source: CollectionSource | null }): Promise<Collection> {
+  async create(input: { spaceId: string; createdBy: string; title: string; items: CollectionItem[]; source: CollectionSource | null; coverUrl?: string | null }): Promise<Collection> {
     const now = Date.now();
     const doc = {
       _id: randomId(),
@@ -495,6 +540,7 @@ class MongoCollectionRepo implements CollectionRepo {
       items: input.source ? [] : normalizeCollectionItems(input.items),
       sourceConnectionId: input.source?.connectionId ?? null,
       sourceFolderPrefix: input.source?.folderPrefix ?? null,
+      coverUrl: normalizeCoverUrl(input.coverUrl ?? null),
       createdAt: now,
       updatedAt: now,
     };
@@ -502,10 +548,11 @@ class MongoCollectionRepo implements CollectionRepo {
     return toCollection(doc);
   }
 
-  async update(spaceId: string, id: string, patch: { title?: string; items?: CollectionItem[] }): Promise<Collection | null> {
+  async update(spaceId: string, id: string, patch: { title?: string; items?: CollectionItem[]; coverUrl?: string | null }): Promise<Collection | null> {
     const set: Record<string, unknown> = { updatedAt: Date.now() };
     if (patch.title !== undefined) set.title = patch.title.trim() || "Untitled collection";
     if (patch.items !== undefined) set.items = normalizeCollectionItems(patch.items);
+    if (patch.coverUrl !== undefined) set.coverUrl = normalizeCoverUrl(patch.coverUrl);
     const updated = await CollectionModel.findOneAndUpdate({ _id: id, spaceId }, { $set: set }, { returnDocument: "after" }).lean();
     return updated ? toCollection(updated) : null;
   }
@@ -1160,6 +1207,7 @@ type CollectionLean = {
   items?: Array<{ url: string; name?: string | null }>;
   sourceConnectionId?: string | null;
   sourceFolderPrefix?: string | null;
+  coverUrl?: string | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -1171,9 +1219,19 @@ function toCollection(doc: CollectionLean): Collection {
     title: doc.title,
     items: (doc.items ?? []).map((it) => ({ url: it.url, name: it.name ?? "" })),
     source: doc.sourceConnectionId && doc.sourceFolderPrefix ? { connectionId: doc.sourceConnectionId, folderPrefix: doc.sourceFolderPrefix } : null,
+    coverUrl: doc.coverUrl ?? null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
+}
+
+// Trim + reject empties so the field is canonically `null` when unset
+// — keeps the "cover present?" check in the client to a simple truthy
+// test. We don't validate the URL itself; the user said lenient.
+function normalizeCoverUrl(raw: string | null | undefined): string | null {
+  if (raw === null || raw === undefined) return null;
+  const trimmed = raw.trim();
+  return trimmed || null;
 }
 
 type SpaceLean = {

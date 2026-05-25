@@ -13,6 +13,8 @@ import History from "@/pages/History";
 import Help from "@/pages/Help";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import PasswordResetRequest from "@/pages/PasswordResetRequest";
+import PasswordResetConfirm from "@/pages/PasswordResetConfirm";
 import Join from "@/pages/Join";
 import JoinWaiting from "@/pages/JoinWaiting";
 import Settings from "@/pages/Settings";
@@ -46,6 +48,13 @@ export default function App() {
           </RedirectIfAuthenticated>
         }
       />
+      {/* Password reset — request a link, then open the link to set a
+          new password. Both routes are auth-agnostic: a signed-in user
+          who lost their password can still go through the flow, and
+          confirming wipes any active sessions so they end up signed
+          out either way. */}
+      <Route path="/reset-password" element={<PasswordResetRequest />} />
+      <Route path="/reset-password/:token" element={<PasswordResetConfirm />} />
       {/* /join — code-entry pad. Wrapped by RedirectIfAuthenticated so
           a signed-in user lands on something useful instead of seeing
           the join page. */}

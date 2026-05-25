@@ -67,6 +67,21 @@ export interface UserRepo {
     id: string,
     patch: { displayName?: string | null; timezone?: string | null; city?: string | null; homeBezelStyle?: "cinema" | "crt" | "minimal" | null },
   ): Promise<StoredUser | null>;
+  // Replace the stored password hash. Called by the password-reset
+  // confirm flow after the new password has already been hashed.
+  updatePasswordHash(id: string, passwordHash: string): Promise<void>;
+}
+
+// One-use password-reset tokens. Plaintext storage is deliberate — see
+// the model file. The repo just handles CRUD; the API layer enforces
+// TTL + one-use semantics.
+export interface PasswordResetRepo {
+  add(input: { token: string; userId: string; expiresAt: number }): Promise<void>;
+  get(token: string): Promise<{ token: string; userId: string; createdAt: number; expiresAt: number; usedAt: number | null } | null>;
+  markUsed(token: string): Promise<void>;
+  // Drop every outstanding token for a user — handy at confirm time
+  // so a token leak can't be replayed once the password's changed.
+  removeAllForUser(userId: string): Promise<number>;
 }
 
 // Sessions back the cookie. A session is EITHER tied to a real user
@@ -91,6 +106,9 @@ export interface SessionRepo {
   setCurrentSpace(token: string, spaceId: string | null): Promise<void>;
   setGuestDisplayName(token: string, displayName: string): Promise<void>;
   deleteByToken(token: string): Promise<boolean>;
+  // Nuke every session belonging to a user — called after a password
+  // reset so old sessions can't outlive the credential rotation.
+  deleteAllForUser(userId: string): Promise<number>;
 }
 
 // DEPRECATED — backed by the legacy `storage_configs` collection. Kept
@@ -177,8 +195,9 @@ export interface CollectionRepo {
   // Used by the WS handler — the lookup must work for any space member
   // navigating a loaded collection, not just whoever loaded it.
   getById(id: string): Promise<Collection | null>;
-  create(input: { spaceId: string; createdBy: string; title: string; items: CollectionItem[]; source: CollectionSource | null }): Promise<Collection>;
-  update(spaceId: string, id: string, patch: { title?: string; items?: CollectionItem[] }): Promise<Collection | null>;
+  create(input: { spaceId: string; createdBy: string; title: string; items: CollectionItem[]; source: CollectionSource | null; coverUrl?: string | null }): Promise<Collection>;
+  // `coverUrl: null` clears it (back to auto-pick); omit to leave alone.
+  update(spaceId: string, id: string, patch: { title?: string; items?: CollectionItem[]; coverUrl?: string | null }): Promise<Collection | null>;
   remove(spaceId: string, id: string): Promise<boolean>;
 }
 
@@ -321,6 +340,7 @@ export type Storage = {
   chat: ChatRepo;
   sessionState: SessionStateRepo;
   watchHistory: WatchHistoryRepo;
+  passwordResets: PasswordResetRepo;
   // Lifecycle hook so the server can disconnect cleanly on shutdown.
   close(): Promise<void>;
 };

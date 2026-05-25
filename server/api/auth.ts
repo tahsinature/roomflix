@@ -4,6 +4,7 @@ import type { GuestIdentity, SpaceSummary } from "@/protocol.ts";
 import type { Storage } from "@/storage/index.ts";
 import { endSession, getCurrentPrincipal, hashPassword, requireUser, startSession, toAuthUser, verifyPassword } from "@/auth.ts";
 import { propagateGuestDisplayName, propagateUserDisplayName } from "@/sessions.ts";
+import { sendPasswordResetEmail } from "@/notify.ts";
 import { ensureHomeSpace, listSpaceSummaries, resolveDefaultSpaceId } from "@/spaces.ts";
 
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,32}$/;
@@ -196,8 +197,107 @@ export function buildAuthRouter(storage: Storage) {
     });
   });
 
+  // ── Password reset ────────────────────────────────────────────────
+  //
+  // Three endpoints implement the request → validate → confirm flow.
+  // No email integration yet — the request handler logs the link via
+  // notify.sendPasswordResetEmail (currently a console log) so the
+  // operator can grab it manually from container logs or the
+  // password_reset_tokens collection. Swap notify.ts when email
+  // ships; nothing else changes.
+
+  // POST /password-reset { username } → 204
+  // Always returns 204 so an attacker can't probe the username space.
+  // If the username matches a real account, a token is generated and
+  // the reset link is sent (today: logged to stdout).
+  app.post("/password-reset", async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { username?: unknown } | null;
+    const raw = typeof body?.username === "string" ? body.username.trim() : "";
+    if (!raw) return c.body(null, 204);
+    const user = await storage.users.findByUsername(raw).catch(() => null);
+    if (user) {
+      const token = generateResetToken();
+      await storage.passwordResets.add({
+        token,
+        userId: user.id,
+        expiresAt: Date.now() + RESET_TOKEN_TTL_MS,
+      });
+      const link = buildResetLink(c.req.url, token);
+      await sendPasswordResetEmail({ username: user.username, userId: user.id, link }).catch((err) => {
+        console.error("[roomflix] notify.sendPasswordResetEmail failed", err);
+      });
+    }
+    // Constant-ish response shape regardless of whether the user
+    // existed. Don't await any timing-revealing extra work above.
+    return c.body(null, 204);
+  });
+
+  // GET /password-reset/validate?token=X → 200 { username } | 410
+  // The reset-confirm page calls this before showing the new-password
+  // form so the user gets a clean "link expired" message instead of
+  // typing a password into a dead form.
+  app.get("/password-reset/validate", async (c) => {
+    const token = c.req.query("token")?.trim() ?? "";
+    if (!token) return c.json({ error: "token required" }, 400);
+    const row = await storage.passwordResets.get(token);
+    if (!row || row.usedAt || row.expiresAt < Date.now()) {
+      return c.json({ error: "token invalid or expired" }, 410);
+    }
+    const user = await storage.users.findById(row.userId);
+    if (!user) return c.json({ error: "token invalid or expired" }, 410);
+    return c.json({ username: user.username });
+  });
+
+  // POST /password-reset/confirm { token, newPassword } → 204
+  // On success: updates the password, invalidates the token + every
+  // remaining reset token for this user, and nukes all live sessions
+  // so a leaked session can't outlive the reset.
+  app.post("/password-reset/confirm", async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { token?: unknown; newPassword?: unknown } | null;
+    const token = typeof body?.token === "string" ? body.token.trim() : "";
+    const newPassword = typeof body?.newPassword === "string" ? body.newPassword : "";
+    if (!token) return c.json({ error: "token required" }, 400);
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      return c.json({ error: `password must be at least ${MIN_PASSWORD_LENGTH} characters` }, 400);
+    }
+    const row = await storage.passwordResets.get(token);
+    if (!row || row.usedAt || row.expiresAt < Date.now()) {
+      return c.json({ error: "token invalid or expired" }, 410);
+    }
+    const user = await storage.users.findById(row.userId);
+    if (!user) return c.json({ error: "token invalid or expired" }, 410);
+    const passwordHash = await hashPassword(newPassword);
+    await storage.users.updatePasswordHash(user.id, passwordHash);
+    await storage.passwordResets.markUsed(token);
+    // Nuke any outstanding tokens for this user — even though they're
+    // unguessable, rotating credentials should rotate everything tied
+    // to the old credential set.
+    await storage.passwordResets.removeAllForUser(user.id).catch(() => undefined);
+    await storage.sessions.deleteAllForUser(user.id).catch(() => undefined);
+    return c.body(null, 204);
+  });
+
   return app;
 }
+
+// 32 bytes of url-safe random — opaque, unguessable, fits in a URL
+// path segment without encoding.
+function generateResetToken(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  // base64url without padding.
+  return Buffer.from(bytes).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+// Build the human-facing reset URL using the same origin as the
+// incoming request. Avoids needing a separate APP_BASE_URL env var.
+function buildResetLink(requestUrl: string, token: string): string {
+  const u = new URL(requestUrl);
+  return `${u.origin}/reset-password/${token}`;
+}
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+
 
 type DisplayNameParse = { ok: true; value: string | null | undefined } | { ok: false; error: string };
 

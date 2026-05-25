@@ -134,6 +134,23 @@ export const api = {
       body: JSON.stringify(input),
     }),
   authLogout: () => request<void>("/api/auth/logout", { method: "POST" }),
+
+  // Password reset (request → validate → confirm). No email today —
+  // the request endpoint always 204s; the operator pulls the link out
+  // of the server logs (or the password_reset_tokens collection) and
+  // hands it to the user. When email lands, only the server changes.
+  requestPasswordReset: (input: { username: string }) =>
+    request<void>("/api/auth/password-reset", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  validatePasswordResetToken: (token: string) =>
+    request<{ username: string }>(`/api/auth/password-reset/validate?token=${encodeURIComponent(token)}`),
+  confirmPasswordReset: (input: { token: string; newPassword: string }) =>
+    request<void>("/api/auth/password-reset/confirm", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   updateProfile: (patch: { displayName?: string | null; timezone?: string | null; city?: string | null; homeBezelStyle?: "cinema" | "crt" | "minimal" | null }) =>
     request<AuthUser>("/api/auth/me", {
       method: "PATCH",
@@ -195,12 +212,13 @@ export const api = {
   getCollection: (id: string) => request<Collection>(`/api/collections/${encodeURIComponent(id)}`),
   getCollectionHealth: (id: string, opts: { refresh?: boolean } = {}) =>
     request<CollectionHealth>(`/api/collections/${encodeURIComponent(id)}/health${opts.refresh ? "?refresh=true" : ""}`),
-  createCollection: (input: { title: string; items?: CollectionItem[]; source?: { connectionId: string; folderPrefix: string } }) =>
+  createCollection: (input: { title: string; items?: CollectionItem[]; source?: { connectionId: string; folderPrefix: string }; coverUrl?: string | null }) =>
     request<Collection>("/api/collections", {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  updateCollection: (id: string, patch: { title?: string; items?: CollectionItem[] }) =>
+  // `coverUrl: null` clears it (back to auto-pick); omit to leave alone.
+  updateCollection: (id: string, patch: { title?: string; items?: CollectionItem[]; coverUrl?: string | null }) =>
     request<Collection>(`/api/collections/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify(patch),

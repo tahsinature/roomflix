@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, HelpCircle, Library as LibraryIcon, Loader2, Pencil, Plus, Share2, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, ChevronDown, HelpCircle, Library as LibraryIcon, Loader2, Pencil, Plus, Share2, Trash2, XCircle } from "lucide-react";
 import type { Collection, LibraryHealth, ProbeResult, Subtitle, Video, VideoHealth } from "@shared/protocol";
 import { CollectionsSection } from "@/components/CollectionsSection";
 import { useAuth } from "@/auth/AuthContext";
@@ -103,12 +103,25 @@ export default function Library() {
     }
   };
 
-  const handleClearAll = async () => {
-    // Fan out deletes in parallel — no bulk-delete API, but for typical
-    // library sizes (tens of entries) this is fine. Track per-item
-    // results so we can surface a meaningful aggregate toast and only
-    // remove successfully-deleted rows from local state.
-    const targets = videos;
+  const handleClearAll = () => bulkDelete(videos);
+
+  // "Invalid" here means a `gone` health verdict — the URL responded
+  // 4xx/5xx, timed out, or network-errored. Deliberately excludes
+  // `unverified` (host blocked HEAD): that often hits perfectly
+  // playable URLs on HEAD-hostile CDNs, so deleting them would silently
+  // wipe healthy entries.
+  const handleClearInvalid = () => {
+    const targets = videos.filter((v) => health?.videos[v.id]?.video === "gone");
+    if (targets.length === 0) return;
+    return bulkDelete(targets);
+  };
+
+  // Fan-out delete used by both "Clear all" and "Clear invalid". No
+  // bulk-delete API exists — for typical library sizes (tens of
+  // entries) parallel single deletes are fine. Tracks per-item results
+  // so we can surface a meaningful aggregate toast and only drop
+  // successfully-deleted rows from local state.
+  const bulkDelete = async (targets: Video[]) => {
     const results = await Promise.all(
       targets.map(async (v) => {
         try {
@@ -149,7 +162,14 @@ export default function Library() {
 
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-7 px-4 py-6 sm:px-6 sm:py-8">
-      <LibraryHeader count={videos.length} verifying={verifying} onClearAll={handleClearAll} onAdd={() => setAddOpen(true)} />
+      <LibraryHeader
+        count={videos.length}
+        goneCount={health ? videos.filter((v) => health.videos[v.id]?.video === "gone").length : 0}
+        verifying={verifying}
+        onClearAll={handleClearAll}
+        onClearInvalid={handleClearInvalid}
+        onAdd={() => setAddOpen(true)}
+      />
 
       {error && <div className="border border-accent/30 bg-accent/10 p-3 text-sm text-accent">{error}</div>}
 
@@ -192,39 +212,20 @@ export default function Library() {
 
 function LibraryHeader({
   count,
+  goneCount,
   verifying,
   onClearAll,
+  onClearInvalid,
   onAdd,
 }: {
   count: number;
+  goneCount: number;
   verifying: boolean;
   onClearAll: () => Promise<void>;
+  onClearInvalid: () => Promise<void> | undefined;
   onAdd: () => void;
 }) {
   const { currentSpace } = useAuth();
-  const [armedClear, setArmedClear] = useState(false);
-  const [clearing, setClearing] = useState(false);
-
-  useEffect(() => {
-    if (!armedClear) return;
-    const t = setTimeout(() => setArmedClear(false), 3000);
-    return () => clearTimeout(t);
-  }, [armedClear]);
-
-  const triggerClear = async () => {
-    if (clearing || count === 0) return;
-    if (!armedClear) {
-      setArmedClear(true);
-      return;
-    }
-    setArmedClear(false);
-    setClearing(true);
-    try {
-      await onClearAll();
-    } finally {
-      setClearing(false);
-    }
-  };
 
   return (
     <div className="flex flex-col gap-4 border-b border-border pb-5">
@@ -253,21 +254,161 @@ function LibraryHeader({
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Add</span>
           </Button>
-          <Button
-            variant={armedClear ? "destructive" : "ghost"}
-            size="sm"
-            onClick={triggerClear}
-            disabled={count === 0 || clearing}
-            aria-label={armedClear ? "Click again to clear library" : "Clear library"}
-            title={count === 0 ? "Library is empty" : armedClear ? "Click again to confirm" : "Delete all entries"}
-            className={cn(armedClear && "animate-pulse-soft")}
-          >
-            {clearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className={cn("h-3.5 w-3.5", !armedClear && "text-accent/80")} />}
-            <span className="hidden lg:inline">{clearing ? "Clearing…" : armedClear ? "Click again" : "Clear all"}</span>
-          </Button>
+          <ClearMenu count={count} goneCount={goneCount} onClearAll={onClearAll} onClearInvalid={onClearInvalid} />
         </div>
       </header>
     </div>
+  );
+}
+
+// Trash dropdown — collapses "Clear invalid" + "Clear all" behind a
+// single trigger so the header stays at one destructive surface even
+// when health verification produces a count. Both menu items use the
+// same two-step arm-then-confirm pattern as the rest of the app:
+// first click on a row arms it (label morphs to "Click again to
+// confirm"); second click commits. Clicking outside or pressing Esc
+// closes the menu and disarms.
+function ClearMenu({
+  count,
+  goneCount,
+  onClearAll,
+  onClearInvalid,
+}: {
+  count: number;
+  goneCount: number;
+  onClearAll: () => Promise<void>;
+  onClearInvalid: () => Promise<void> | undefined;
+}) {
+  const [open, setOpen] = useState(false);
+  const [armed, setArmed] = useState<"all" | "invalid" | null>(null);
+  const [busy, setBusy] = useState<"all" | "invalid" | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close + disarm on outside click / Esc. Mirrors ExportMenu's pattern
+  // so the two dropdowns feel identical to use.
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setArmed(null);
+      }
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        setArmed(null);
+      }
+    };
+    window.addEventListener("mousedown", onClick);
+    window.addEventListener("keydown", onEsc);
+    return () => {
+      window.removeEventListener("mousedown", onClick);
+      window.removeEventListener("keydown", onEsc);
+    };
+  }, [open]);
+
+  // Auto-disarm after 3s of inaction — same timeout the standalone
+  // buttons had.
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(null), 3000);
+    return () => clearTimeout(t);
+  }, [armed]);
+
+  const triggerClear = async (kind: "all" | "invalid", action: () => Promise<void> | undefined) => {
+    if (busy) return;
+    if (armed !== kind) {
+      setArmed(kind);
+      return;
+    }
+    setArmed(null);
+    setBusy(kind);
+    try {
+      await action();
+      setOpen(false);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Disable the whole trigger when there's nothing to clear at all.
+  // Once health resolves and surfaces `gone` entries, the menu has
+  // value even if the library is otherwise empty (won't happen — count
+  // includes gones — but the condition reads cleanly this way).
+  const triggerDisabled = count === 0;
+
+  return (
+    <div ref={ref} className="relative">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setOpen((o) => !o)}
+        disabled={triggerDisabled}
+        aria-label="Clear library"
+        title={triggerDisabled ? "Library is empty" : "Clear entries"}
+      >
+        <Trash2 className="h-3.5 w-3.5 text-accent/80" />
+        <span className="hidden lg:inline">Clear</span>
+        <ChevronDown className="h-3 w-3 opacity-60" />
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-full z-30 mt-2 min-w-[14rem] border border-white/10 bg-[#16181f]/95 p-1 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)] backdrop-blur-xl">
+          {/* "Clear invalid" — only rendered when there's something
+              gone. If the library is clean the row would be useless
+              and a disabled-row would just be noise. */}
+          {goneCount > 0 && (
+            <ClearMenuItem
+              armed={armed === "invalid"}
+              busy={busy === "invalid"}
+              disabled={busy !== null && busy !== "invalid"}
+              label={`Clear invalid · ${goneCount}`}
+              armedLabel="Click again to confirm"
+              onClick={() => void triggerClear("invalid", onClearInvalid)}
+            />
+          )}
+          <ClearMenuItem
+            armed={armed === "all"}
+            busy={busy === "all"}
+            disabled={busy !== null && busy !== "all"}
+            label={`Clear all · ${count}`}
+            armedLabel="Click again to confirm"
+            onClick={() => void triggerClear("all", onClearAll)}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ClearMenuItem({
+  armed,
+  busy,
+  disabled,
+  label,
+  armedLabel,
+  onClick,
+}: {
+  armed: boolean;
+  busy: boolean;
+  disabled: boolean;
+  label: string;
+  armedLabel: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || busy}
+      className={cn(
+        "flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50",
+        armed ? "animate-pulse-soft bg-accent/15 text-accent" : "text-foreground hover:bg-white/[0.04]",
+      )}
+    >
+      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : <Trash2 className={cn("h-3.5 w-3.5", armed ? "text-accent" : "text-accent/80")} />}
+      <span className="flex-1 whitespace-nowrap">{busy ? "Clearing…" : armed ? armedLabel : label}</span>
+    </button>
   );
 }
 

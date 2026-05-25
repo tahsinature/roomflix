@@ -25,6 +25,10 @@ const collectionSchema = new Schema(
     // recomputed on read and the row is read-only.
     sourceConnectionId: { type: String, default: null },
     sourceFolderPrefix: { type: String, default: null },
+    // User-supplied cover image URL. Null = auto-pick (first image
+    // item, else placeholder). Always editable, even for synced
+    // collections — only items/title are derived for those.
+    coverUrl: { type: String, default: null },
     createdAt: { type: Number, required: true },
     updatedAt: { type: Number, required: true },
   },
