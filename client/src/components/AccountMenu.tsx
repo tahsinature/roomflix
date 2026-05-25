@@ -3,7 +3,6 @@ import { Link, useLocation } from "react-router-dom";
 import { ChevronDown, History as HistoryIcon, Link2, LogOut, Radio, SlidersHorizontal, Users2 } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 import { api } from "@/lib/api";
-import { BUILT_AT, SHA } from "@/lib/version";
 import { cn } from "@/lib/utils";
 
 // Identity menu in the top nav. Now strictly identity-shaped:
@@ -150,52 +149,41 @@ export function AccountMenu({ className }: { className?: string }) {
   );
 }
 
-// Tiny footer line with the build SHA + how long ago it was built.
-// Reads from the client bundle's stamped version constants directly so
-// it always renders even if /api/version is unreachable (e.g. when
-// the server hasn't been restarted since the last stamp). Also fetches
-// the server's version in the background to detect a stale tab —
-// surfaces a small "refresh" hint when the bundle's SHA doesn't match
-// what the server is now serving.
+// Footer line: app version (from package.json) + server uptime.
+// Fetched once when the menu first opens; cached for the session.
 function VersionRow() {
-  const built = new Date(BUILT_AT);
-  const isReal = SHA !== "dev" && Number.isFinite(built.getTime()) && built.getTime() > 1_000_000_000_000;
-  const [serverSha, setServerSha] = useState<string | null>(null);
+  const [info, setInfo] = useState<{ version: string; startedAt: string } | null>(null);
   useEffect(() => {
     let cancelled = false;
     api
       .getVersion()
       .then((v) => {
-        if (!cancelled) setServerSha(v.sha);
+        if (!cancelled) setInfo(v);
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
   }, []);
-  const stale = isReal && serverSha && serverSha !== SHA;
+  if (!info) return null;
+  const started = new Date(info.startedAt);
   return (
     <div
       className="flex items-baseline justify-between gap-2 border-t border-border px-3 py-1.5 font-mono text-[10px] text-text-dim"
-      title={isReal ? `Build ${SHA}\nBuilt: ${built.toLocaleString()}${stale ? `\nServer is on ${serverSha} — refresh for the latest.` : ""}` : "Local dev build"}
+      title={`Server started: ${started.toLocaleString()}`}
     >
-      <span>v {SHA}</span>
-      <span className="flex items-center gap-1.5">
-        {stale && <span className="border border-amber-300/40 bg-amber-300/10 px-1 text-amber-300">refresh</span>}
-        {isReal && <span>{relativeAge(built)}</span>}
-      </span>
+      <span>v {info.version}</span>
+      <span>up {uptime(started)}</span>
     </div>
   );
 }
 
-// "2m ago" / "3h ago" / "4d ago". Bigger units past a week so the
-// footer doesn't read "153d ago" — anything older than a week shows
-// the absolute month/day.
-function relativeAge(d: Date): string {
-  const diff = Date.now() - d.getTime();
+// Short uptime label — minutes / hours / days. The server tracks its
+// own start time; this just formats the diff against now.
+function uptime(startedAt: Date): string {
+  const diff = Date.now() - startedAt.getTime();
   if (diff < 60_000) return "just now";
-  if (diff < 60 * 60_000) return `${Math.round(diff / 60_000)}m ago`;
-  if (diff < 24 * 60 * 60_000) return `${Math.round(diff / 3_600_000)}h ago`;
-  if (diff < 7 * 24 * 60 * 60_000) return `${Math.round(diff / 86_400_000)}d ago`;
-  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  if (diff < 60 * 60_000) return `${Math.round(diff / 60_000)}m`;
+  if (diff < 24 * 60 * 60_000) return `${Math.round(diff / 3_600_000)}h`;
+  return `${Math.round(diff / 86_400_000)}d`;
 }

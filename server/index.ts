@@ -141,6 +141,16 @@ const app = new Hono();
 
 app.get("/healthz", (c) => c.text("ok"));
 
+// Version + uptime. Version is the root package.json's `version` field
+// — bump it manually when you cut a release. Uptime comes from the
+// process start, useful to see "did the container restart between now
+// and the last time I checked." Public, no auth — same as /healthz.
+const APP_VERSION = (JSON.parse(await Bun.file(join(import.meta.dir, "..", "package.json")).text()) as { version?: string }).version ?? "0.0.0";
+const STARTED_AT = new Date().toISOString();
+console.log(`[roomflix] starting v${APP_VERSION}`);
+
+app.get("/api/version", (c) => c.json({ version: APP_VERSION, startedAt: STARTED_AT }));
+
 app.route("/api/auth", buildAuthRouter(storage));
 // More-specific /api/spaces/:id/storage MUST come before the general
 // /api/spaces mount — otherwise Hono routes through the spaces router

@@ -8,9 +8,8 @@
     "dev": "bun run --filter '*' dev",
     "dev:server": "bun run --cwd server dev",
     "dev:client": "bun run --cwd client dev",
-    "stamp-version": "bun run scripts/stamp-version.ts",
-    "build": "bun run scripts/stamp-version.ts && bun run --cwd client build",
-    "start": "bun run scripts/stamp-version.ts && NODE_ENV=production bun run --cwd server start",
+    "build": "bun run --cwd client build",
+    "start": "NODE_ENV=production bun run --cwd server start",
     "format": "prettier --write \"{client,server}/**/*.{ts,tsx,json,md,css}\" \"!**/dist/**\" \"!**/node_modules/**\"",
     "format:check": "prettier --check \"{client,server}/**/*.{ts,tsx,json,md,css}\" \"!**/dist/**\" \"!**/node_modules/**\""
   },

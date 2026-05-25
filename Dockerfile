@@ -32,23 +32,6 @@ RUN bun install --frozen-lockfile
 COPY tsconfig.base.json ./
 COPY client ./client
 COPY server ./server
-# scripts/stamp-version.ts runs as part of `bun run build` to write the
-# git SHA + build timestamp into client/src/lib/version.ts and
-# server/version.ts. Has to live in the builder stage too.
-COPY scripts ./scripts
-
-# Inject the version stamp from the build context (.dockerignore strips
-# .git so the script can't read it from inside the container). The CI /
-# `docker build` invocation passes these:
-#   --build-arg BUILD_SHA=$(git rev-parse --short HEAD) \
-#   --build-arg BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-# When unset (e.g. a `docker build` with no args), the stamp script
-# falls back to "dev" / "now" — the build still succeeds, just without
-# meaningful version metadata.
-ARG BUILD_SHA=""
-ARG BUILD_TIME=""
-ENV BUILD_SHA=$BUILD_SHA
-ENV BUILD_TIME=$BUILD_TIME
 
 RUN bun run build
 
