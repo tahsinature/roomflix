@@ -56,3 +56,25 @@ const MEDIA_EXTS = /\.(mp4|webm|ogv|ogg|mkv|mov|m4v|avi|mpeg|mpg|3gp|mp3|m4a|aac
 export function isMediaKey(key: string): boolean {
   return MEDIA_EXTS.test(key);
 }
+
+// Per-kind allow-lists. The union of all three is exactly MEDIA_EXTS —
+// keep them in sync. Used by the synced-collection filter so a user
+// can scope a folder to "videos only" etc. Mirrors mediaKind on the
+// client (same kind buckets, just keyed off the object key here
+// instead of a URL).
+const AUDIO_EXTS = /\.(mp3|m4a|aac|flac|wav|opus|oga|weba)(\?|$)/i;
+const IMAGE_EXTS = /\.(jpg|jpeg|png|gif|webp|avif|heic|heif|bmp|tif|tiff)(\?|$)/i;
+const VIDEO_EXTS = /\.(mp4|webm|ogv|ogg|mkv|mov|m4v|avi|mpeg|mpg|3gp)(\?|$)/i;
+
+export type MediaKindKey = "video" | "audio" | "image";
+
+// Coarse kind label for a bucket key. Returns null when the key isn't
+// in the media allow-list at all — callers shouldn't see this for
+// items already gated by `isMediaKey`, but guarding makes the helper
+// safe to use anywhere.
+export function mediaKindOfKey(key: string): MediaKindKey | null {
+  if (AUDIO_EXTS.test(key)) return "audio";
+  if (IMAGE_EXTS.test(key)) return "image";
+  if (VIDEO_EXTS.test(key)) return "video";
+  return null;
+}

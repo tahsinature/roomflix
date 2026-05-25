@@ -60,6 +60,15 @@ export function isMediaUrl(url: string): boolean {
   return ext !== undefined && (IMAGE_EXTENSIONS.has(ext) || AUDIO_EXTENSIONS.has(ext) || VIDEO_EXTENSIONS.has(ext));
 }
 
+// True when the URL's media-kind is in the allow-set. Mirrors the
+// server-side filter used by synced collections so the client can
+// compute the "hidden" mask for the override view (which items the
+// saved filter is dropping) without an extra round trip.
+export function matchesMediaFilter(url: string, kinds: ReadonlyArray<MediaKind>): boolean {
+  if (kinds.length === 0 || kinds.length >= 3) return true;
+  return kinds.includes(mediaKind(url));
+}
+
 // mm:ss for tracks under an hour, hh:mm:ss otherwise. Used by the audio
 // player's scrubber readout.
 export function formatTime(seconds: number): string {

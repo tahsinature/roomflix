@@ -401,6 +401,15 @@ export type CollectionItem = {
 // — items are stored inline and the user can edit / reorder them.
 export type CollectionSource = { connectionId: string; folderPrefix: string };
 
+// Per-collection media-kind filter. Synced collections only — the
+// resolver drops items whose URL extension doesn't match one of the
+// listed kinds. Null (or an empty `kinds` array) means "all kinds"
+// — behavior identical to a collection without a filter, which keeps
+// pre-feature collections working without backfill.
+export type CollectionMediaFilter = {
+  kinds: ("video" | "audio" | "image")[];
+};
+
 export type Collection = {
   id: string;
   spaceId: string;
@@ -413,6 +422,11 @@ export type Collection = {
   // the collection doc, not the items). Null means "auto" (renderer
   // falls back to the first image item, then a placeholder).
   coverUrl: string | null;
+  // Optional media-kind filter — synced collections only. Server-side
+  // resolver drops non-matching items so the items array delivered to
+  // clients IS the canonical play list (sync stays consistent across
+  // viewers; no per-client divergence).
+  mediaFilter: CollectionMediaFilter | null;
   createdAt: number;
   updatedAt: number;
 };

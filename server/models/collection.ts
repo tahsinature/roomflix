@@ -29,6 +29,19 @@ const collectionSchema = new Schema(
     // item, else placeholder). Always editable, even for synced
     // collections — only items/title are derived for those.
     coverUrl: { type: String, default: null },
+    // Optional media-kind filter — synced-collection only. Stored as
+    // a sub-document so legacy docs (field absent) cleanly read back
+    // as null after the toCollection cast. Empty `kinds` array is
+    // treated the same as null (= no filter).
+    mediaFilter: {
+      type: new Schema(
+        {
+          kinds: { type: [String], default: [] },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
     createdAt: { type: Number, required: true },
     updatedAt: { type: Number, required: true },
   },

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 
-import type { Collection, CollectionHealth, CollectionItem, HealthStatus } from "@/protocol.ts";
+import type { Collection, CollectionHealth, CollectionItem, CollectionMediaFilter, HealthStatus } from "@/protocol.ts";
 import { mapWithConcurrency, probeHealth } from "@/probe.ts";
 import type { Storage } from "@/storage/index.ts";
 import { invalidateCollectionItems, resolveCollection } from "@/storage/collection-resolver.ts";
@@ -37,7 +37,9 @@ export function buildCollectionsRouter(storage: Storage) {
   app.post("/", async (c) => {
     const spaceId = c.get("space").id;
     const createdBy = c.get("user").id;
-    const body = (await c.req.json().catch(() => null)) as { title?: unknown; items?: unknown; source?: unknown; coverUrl?: unknown } | null;
+    const body = (await c.req.json().catch(() => null)) as
+      | { title?: unknown; items?: unknown; source?: unknown; coverUrl?: unknown; mediaFilter?: unknown }
+      | null;
     const title = typeof body?.title === "string" ? body.title : "";
     if (!title.trim()) return c.json({ error: "title is required" }, 400);
 
@@ -62,6 +64,7 @@ export function buildCollectionsRouter(storage: Storage) {
       items: parseItems(body?.items) ?? [],
       source,
       coverUrl: parseCoverUrl(body?.coverUrl),
+      mediaFilter: parseMediaFilter(body?.mediaFilter),
     });
     return c.json(await resolveCollection(created, storage), 201);
   });
@@ -70,7 +73,12 @@ export function buildCollectionsRouter(storage: Storage) {
     const collection = await storage.collections.get(c.get("space").id, c.req.param("id"));
     if (!collection) return c.json({ error: "not found" }, 404);
     const refresh = c.req.query("refresh") === "true";
-    return c.json(await resolveCollection(collection, storage, { refresh }));
+    // `?unfiltered=true` bypasses the saved mediaFilter. Powers the
+    // "Show filtered" view on CollectionEdit and the /watch panel
+    // override — the room's canonical play list is still the filtered
+    // resolve done at WS-load time; this is purely a read-only lens.
+    const unfiltered = c.req.query("unfiltered") === "true";
+    return c.json(await resolveCollection(collection, storage, { refresh, unfiltered }));
   });
 
   // GET /api/collections/:id/health[?refresh=true] — HEAD-probes every
@@ -108,29 +116,38 @@ export function buildCollectionsRouter(storage: Storage) {
       return c.json({ error: "only the collection creator or space owner can edit it" }, 403);
     }
 
-    const body = (await c.req.json().catch(() => null)) as { title?: unknown; items?: unknown; coverUrl?: unknown } | null;
+    const body = (await c.req.json().catch(() => null)) as
+      | { title?: unknown; items?: unknown; coverUrl?: unknown; mediaFilter?: unknown }
+      | null;
     if (!body) return c.json({ error: "invalid body" }, 400);
 
     // Synced collections track a folder — title and items are derived,
-    // so any edit attempt is a conceptual mistake. `coverUrl` is fair
-    // game on synced collections though — it's metadata, not content.
+    // so any edit attempt is a conceptual mistake. `coverUrl` and
+    // `mediaFilter` are fair game on synced collections — they're
+    // doc-level metadata, not content. (For synced collections,
+    // `mediaFilter` is actually the *primary* configuration surface.)
     if (existing.source) {
       if (typeof body.title === "string" || body.items !== undefined) {
         return c.json({ error: "this collection is synced to a storage folder; manage it there" }, 409);
       }
     }
 
-    const patch: { title?: string; items?: CollectionItem[]; coverUrl?: string | null } = {};
+    const patch: { title?: string; items?: CollectionItem[]; coverUrl?: string | null; mediaFilter?: CollectionMediaFilter | null } = {};
     if (typeof body.title === "string") patch.title = body.title;
     const items = parseItems(body.items);
     if (items !== null) patch.items = items;
     // Distinguish "omit" (leave alone) from "null" (clear it). The
-    // parser returns the sentinel `undefined` when the key is absent.
+    // parsers return undefined when the key is absent.
     if ("coverUrl" in body) patch.coverUrl = parseCoverUrl(body.coverUrl);
+    if ("mediaFilter" in body) patch.mediaFilter = parseMediaFilter(body.mediaFilter);
 
     const updated = await storage.collections.update(spaceId, c.req.param("id"), patch);
     if (!updated) return c.json({ error: "not found" }, 404);
     healthCache.delete(c.req.param("id"));
+    // No need to bust the resolver's listing cache for filter/cover
+    // edits — the cache holds the UNFILTERED bucket listing and the
+    // filter is applied after lookup. Items list rebuilds on next
+    // read with the new filter automatically.
     return c.json(await resolveCollection(updated, storage));
   });
 
@@ -180,6 +197,28 @@ function parseCoverUrl(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const trimmed = raw.trim();
   return trimmed || null;
+}
+
+const ALLOWED_FILTER_KINDS = new Set<"video" | "audio" | "image">(["video", "audio", "image"]);
+
+// Coerces unknown media-filter input. Accepts:
+//   null                                       → clear the filter
+//   { kinds: ["video", "audio", ...] }         → set the filter
+// Anything malformed reads as null (= no filter), matching the
+// repo's normalization. The repo also collapses "all three kinds"
+// and "empty kinds" to null, so we don't have to second-guess here.
+function parseMediaFilter(raw: unknown): CollectionMediaFilter | null {
+  if (raw === null) return null;
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as { kinds?: unknown };
+  if (!Array.isArray(r.kinds)) return null;
+  const kinds: CollectionMediaFilter["kinds"] = [];
+  for (const k of r.kinds) {
+    if (typeof k === "string" && ALLOWED_FILTER_KINDS.has(k as "video" | "audio" | "image")) {
+      kinds.push(k as "video" | "audio" | "image");
+    }
+  }
+  return { kinds };
 }
 
 // Coerces unknown input to a CollectionSource. Anything malformed → null.

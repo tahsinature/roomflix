@@ -6,6 +6,7 @@ import type {
   AuthUser,
   Collection,
   CollectionItem,
+  CollectionMediaFilter,
   InviteCode,
   ChatMessage,
   ChatMoment,
@@ -195,9 +196,22 @@ export interface CollectionRepo {
   // Used by the WS handler — the lookup must work for any space member
   // navigating a loaded collection, not just whoever loaded it.
   getById(id: string): Promise<Collection | null>;
-  create(input: { spaceId: string; createdBy: string; title: string; items: CollectionItem[]; source: CollectionSource | null; coverUrl?: string | null }): Promise<Collection>;
-  // `coverUrl: null` clears it (back to auto-pick); omit to leave alone.
-  update(spaceId: string, id: string, patch: { title?: string; items?: CollectionItem[]; coverUrl?: string | null }): Promise<Collection | null>;
+  create(input: {
+    spaceId: string;
+    createdBy: string;
+    title: string;
+    items: CollectionItem[];
+    source: CollectionSource | null;
+    coverUrl?: string | null;
+    mediaFilter?: CollectionMediaFilter | null;
+  }): Promise<Collection>;
+  // `coverUrl: null` / `mediaFilter: null` clear the field; omit to
+  // leave alone. Mirrors the rest of the partial-update convention.
+  update(
+    spaceId: string,
+    id: string,
+    patch: { title?: string; items?: CollectionItem[]; coverUrl?: string | null; mediaFilter?: CollectionMediaFilter | null },
+  ): Promise<Collection | null>;
   remove(spaceId: string, id: string): Promise<boolean>;
 }
 

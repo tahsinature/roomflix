@@ -4,6 +4,7 @@ import type {
   Collection,
   CollectionHealth,
   CollectionItem,
+  CollectionMediaFilter,
   GuestIdentity,
   InviteCode,
   JoinRequest,
@@ -209,16 +210,31 @@ export const api = {
   // Collections — ordered mixed-media lists. Items are stored inline, so
   // getCollection returns everything the player + editor need in one trip.
   listCollections: () => request<Collection[]>("/api/collections"),
-  getCollection: (id: string) => request<Collection>(`/api/collections/${encodeURIComponent(id)}`),
+  // `unfiltered: true` bypasses the saved mediaFilter — used by the
+  // "Show filtered" view on CollectionEdit and the /watch panel
+  // override so the user can see what's being hidden. The default
+  // call returns the canonical (filter-applied) play list.
+  getCollection: (id: string, opts: { unfiltered?: boolean } = {}) =>
+    request<Collection>(`/api/collections/${encodeURIComponent(id)}${opts.unfiltered ? "?unfiltered=true" : ""}`),
   getCollectionHealth: (id: string, opts: { refresh?: boolean } = {}) =>
     request<CollectionHealth>(`/api/collections/${encodeURIComponent(id)}/health${opts.refresh ? "?refresh=true" : ""}`),
-  createCollection: (input: { title: string; items?: CollectionItem[]; source?: { connectionId: string; folderPrefix: string }; coverUrl?: string | null }) =>
+  createCollection: (input: {
+    title: string;
+    items?: CollectionItem[];
+    source?: { connectionId: string; folderPrefix: string };
+    coverUrl?: string | null;
+    mediaFilter?: CollectionMediaFilter | null;
+  }) =>
     request<Collection>("/api/collections", {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  // `coverUrl: null` clears it (back to auto-pick); omit to leave alone.
-  updateCollection: (id: string, patch: { title?: string; items?: CollectionItem[]; coverUrl?: string | null }) =>
+  // `coverUrl: null` / `mediaFilter: null` clear those fields; omit
+  // to leave alone.
+  updateCollection: (
+    id: string,
+    patch: { title?: string; items?: CollectionItem[]; coverUrl?: string | null; mediaFilter?: CollectionMediaFilter | null },
+  ) =>
     request<Collection>(`/api/collections/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify(patch),

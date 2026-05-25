@@ -3,13 +3,13 @@ import { useNavigate, useParams } from "react-router-dom";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowLeft, Film, Layers, Loader2, Music, Plus, Trash2 } from "lucide-react";
-import type { Collection, CollectionItem } from "@shared/protocol";
+import { ArrowLeft, Eye, EyeOff, Film, Image as ImageIcon, Layers, Loader2, Music, Plus, Trash2 } from "lucide-react";
+import type { Collection, CollectionItem, CollectionMediaFilter } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, ApiError } from "@/lib/api";
 import { useToast } from "@/components/Toast";
-import { cn, mediaKind, urlFilename } from "@/lib/utils";
+import { cn, matchesMediaFilter, mediaKind, urlFilename, type MediaKind } from "@/lib/utils";
 
 // Full-page collection editor — built for collections with hundreds of
 // items, which the old modal couldn't handle. Items render as a sortable
@@ -146,54 +146,7 @@ export default function CollectionEdit() {
   const synced = original.source !== null;
 
   if (synced) {
-    return (
-      <main className="mx-auto max-w-5xl px-4 pb-10 sm:px-6">
-        <div className="sticky top-0 z-20 -mx-4 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={leave}
-              aria-label="Back to library"
-              title="Back to library"
-              className="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-bg-elevated/50 text-foreground transition hover:bg-bg-elevated/80"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-foreground">{original.title}</div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-dim">Synced with folder</div>
-            </div>
-            <span className="shrink-0 font-mono text-[11px] text-text-dim">
-              {items.length} {items.length === 1 ? "item" : "items"}
-            </span>
-          </div>
-        </div>
-
-        <div className="mt-4 border border-border bg-bg-elevated/40 p-4">
-          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <Layers className="h-3.5 w-3.5 text-accent" />
-            Synced with a storage folder
-          </div>
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            This collection mirrors <span className="font-mono text-foreground/80">/{original.source!.folderPrefix}</span> live. Add or remove files in that folder to change what
-            plays here — the items here aren't editable.
-          </p>
-        </div>
-
-        <div className="mt-3">
-          <div className="section-label muted mb-2">Items · {items.length}</div>
-          {items.length === 0 ? (
-            <div className="border border-border bg-bg-elevated/40 px-4 py-10 text-center font-mono text-[11px] text-text-dim">No media in the source folder.</div>
-          ) : (
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-              {items.map((it, i) => (
-                <ReadOnlyTile key={it.url} item={it} index={i} />
-              ))}
-            </ul>
-          )}
-        </div>
-      </main>
-    );
+    return <SyncedCollectionEditor original={original} onReplace={(next) => setOriginal(next)} leave={leave} />;
   }
 
   return (
@@ -267,13 +220,233 @@ export default function CollectionEdit() {
   );
 }
 
+// Synced-collection editor. The items list mirrors a storage folder
+// live, so most fields are read-only — what IS editable is the saved
+// mediaFilter (which kinds to show). Filter changes save immediately
+// on toggle. A "Show filtered" lens lets the user peek at the items
+// the saved filter is currently hiding without modifying the saved
+// configuration.
+function SyncedCollectionEditor({ original, onReplace, leave }: { original: Collection; onReplace: (next: Collection) => void; leave: () => void }) {
+  const toast = useToast();
+  // The canonical items (filter-applied) from the initial load. The
+  // override view fetches a parallel unfiltered list — both live here
+  // so toggling the override doesn't refetch unless we have to.
+  const [items, setItems] = useState<CollectionItem[]>(original.items);
+  const [unfilteredItems, setUnfilteredItems] = useState<CollectionItem[] | null>(null);
+  const [showFiltered, setShowFiltered] = useState(false);
+  const [overrideLoading, setOverrideLoading] = useState(false);
+  const [savingFilter, setSavingFilter] = useState(false);
+
+  // Re-seed local items when the parent replaces the collection (e.g.
+  // after we save a filter change).
+  useEffect(() => {
+    setItems(original.items);
+  }, [original.items]);
+
+  // Lazily fetch the unfiltered list the first time the user toggles
+  // the override on. After that we cache it locally — toggling off
+  // and back on is instant.
+  useEffect(() => {
+    if (!showFiltered || unfilteredItems !== null || overrideLoading) return;
+    let cancelled = false;
+    setOverrideLoading(true);
+    api
+      .getCollection(original.id, { unfiltered: true })
+      .then((c) => {
+        if (cancelled) return;
+        setUnfilteredItems(c.items);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        toast.error(`Couldn't load filtered items. ${(e as Error).message}`);
+        setShowFiltered(false);
+      })
+      .finally(() => {
+        if (!cancelled) setOverrideLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showFiltered, unfilteredItems, overrideLoading, original.id, toast]);
+
+  // The saved kinds — null/all-three reads as "all kinds allowed".
+  const savedKinds = useMemo<MediaKind[]>(() => {
+    const f = original.mediaFilter;
+    if (!f || f.kinds.length === 0 || f.kinds.length >= 3) return ["video", "audio", "image"];
+    return f.kinds as MediaKind[];
+  }, [original.mediaFilter]);
+
+  const toggleKind = async (kind: MediaKind) => {
+    if (savingFilter) return;
+    const next = new Set(savedKinds);
+    if (next.has(kind)) next.delete(kind);
+    else next.add(kind);
+    // Don't let the user save "nothing" — that would hide everything
+    // and turn the collection into a no-op. Re-add the kind and toast.
+    if (next.size === 0) {
+      toast.error("At least one kind must stay enabled.");
+      return;
+    }
+    // "All three" semantically equals "no filter" — send null to
+    // canonicalize so the DB doesn't carry a degenerate filter doc.
+    const patch: CollectionMediaFilter | null = next.size >= 3 ? null : { kinds: [...next] as CollectionMediaFilter["kinds"] };
+    setSavingFilter(true);
+    try {
+      const saved = await api.updateCollection(original.id, { mediaFilter: patch });
+      onReplace(saved);
+      // Invalidate cached override so the next "Show filtered" reread
+      // reflects the new filter.
+      setUnfilteredItems(null);
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : 0;
+      toast.error(status === 403 ? "You don't have permission to edit this collection." : `Couldn't update filter. ${(e as Error).message}`);
+    } finally {
+      setSavingFilter(false);
+    }
+  };
+
+  // Which items render. When the override is on we show the
+  // unfiltered list; otherwise the saved (canonical) list.
+  const displayItems = showFiltered && unfilteredItems ? unfilteredItems : items;
+  // For the override view, mark which items would be hidden by the
+  // saved filter — used to mute their tile and badge them "filtered".
+  const isHidden = (it: CollectionItem) => showFiltered && !matchesMediaFilter(it.url, savedKinds);
+  const hiddenCount = useMemo(() => {
+    if (!unfilteredItems) return 0;
+    return unfilteredItems.filter((it) => !matchesMediaFilter(it.url, savedKinds)).length;
+  }, [unfilteredItems, savedKinds]);
+
+  return (
+    <main className="mx-auto max-w-5xl px-4 pb-10 sm:px-6">
+      <div className="sticky top-0 z-20 -mx-4 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={leave}
+            aria-label="Back to library"
+            title="Back to library"
+            className="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-bg-elevated/50 text-foreground transition hover:bg-bg-elevated/80"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-medium text-foreground">{original.title}</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-dim">Synced with folder</div>
+          </div>
+          <span className="shrink-0 font-mono text-[11px] text-text-dim">
+            {items.length} {items.length === 1 ? "item" : "items"}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-4 border border-border bg-bg-elevated/40 p-4">
+        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <Layers className="h-3.5 w-3.5 text-accent" />
+          Synced with a storage folder
+        </div>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          This collection mirrors <span className="font-mono text-foreground/80">/{original.source!.folderPrefix}</span> live. Add or remove files in that folder to change what
+          plays here — the items here aren't editable.
+        </p>
+      </div>
+
+      {/* Saved filter — synced collections only. Toggling a chip saves
+          immediately (no "Save" button to forget). Always-on, can't
+          go to zero. */}
+      <div className="mt-3 border border-border bg-bg-elevated/40 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="section-label muted">Show in this collection</div>
+          {savingFilter && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <KindChip kind="video" label="Videos" icon={<Film className="h-3.5 w-3.5" />} enabled={savedKinds.includes("video")} disabled={savingFilter} onToggle={() => void toggleKind("video")} />
+          <KindChip kind="audio" label="Audio" icon={<Music className="h-3.5 w-3.5" />} enabled={savedKinds.includes("audio")} disabled={savingFilter} onToggle={() => void toggleKind("audio")} />
+          <KindChip kind="image" label="Images" icon={<ImageIcon className="h-3.5 w-3.5" />} enabled={savedKinds.includes("image")} disabled={savingFilter} onToggle={() => void toggleKind("image")} />
+        </div>
+        <p className="mt-2.5 font-mono text-[11px] text-text-dim">Files in the folder whose kind isn't checked are hidden from this collection. Playback skips them automatically.</p>
+      </div>
+
+      <div className="mt-3">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="section-label muted">
+            Items · {displayItems.length}
+            {showFiltered && hiddenCount > 0 && <span className="ml-1.5 text-text-dim">({hiddenCount} hidden)</span>}
+          </div>
+          {/* "Show filtered" override — read-only lens, doesn't change
+              the saved filter or the play list. Hides itself when
+              there's nothing being filtered (saved filter is "all
+              kinds"). */}
+          {original.mediaFilter && original.mediaFilter.kinds.length > 0 && original.mediaFilter.kinds.length < 3 && (
+            <button
+              type="button"
+              onClick={() => setShowFiltered((v) => !v)}
+              disabled={overrideLoading}
+              title={showFiltered ? "Hide filtered items" : "Show what the saved filter is hiding"}
+              className="inline-flex items-center gap-1.5 border border-border bg-bg-elevated/50 px-2 py-1 font-mono text-[11px] text-foreground transition hover:bg-bg-elevated disabled:opacity-60"
+            >
+              {overrideLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : showFiltered ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+              {showFiltered ? "Hide filtered" : "Show filtered"}
+            </button>
+          )}
+        </div>
+        {displayItems.length === 0 ? (
+          <div className="border border-border bg-bg-elevated/40 px-4 py-10 text-center font-mono text-[11px] text-text-dim">No media in the source folder.</div>
+        ) : (
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            {displayItems.map((it, i) => (
+              <ReadOnlyTile key={it.url} item={it} index={i} filtered={isHidden(it)} />
+            ))}
+          </ul>
+        )}
+      </div>
+    </main>
+  );
+}
+
+function KindChip({
+  kind,
+  label,
+  icon,
+  enabled,
+  disabled,
+  onToggle,
+}: {
+  kind: MediaKind;
+  label: string;
+  icon: React.ReactNode;
+  enabled: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={disabled}
+      aria-pressed={enabled}
+      title={enabled ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+      data-kind={kind}
+      className={cn(
+        "inline-flex items-center gap-1.5 border px-2.5 py-1.5 text-[12px] transition disabled:cursor-not-allowed",
+        enabled ? "border-accent/50 bg-accent/15 text-foreground" : "border-border bg-bg-elevated/40 text-text-dim hover:border-border-hover hover:text-foreground",
+      )}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
 // Read-only tile — no rename, no remove, no drag handle. Used by the
-// synced-collection view where the storage folder is the source of truth.
-function ReadOnlyTile({ item, index }: { item: CollectionItem; index: number }) {
+// synced-collection view where the storage folder is the source of
+// truth. `filtered` mutes the tile and adds a small "filtered" badge
+// so the override view can show what's being hidden without it
+// looking like a normal playable item.
+function ReadOnlyTile({ item, index, filtered = false }: { item: CollectionItem; index: number; filtered?: boolean }) {
   const kind = mediaKind(item.url);
   const label = item.name || urlFilename(item.url);
   return (
-    <li className="border border-border bg-bg-elevated/40">
+    <li className={cn("border border-border bg-bg-elevated/40 transition", filtered && "opacity-55")}>
       <div className="relative aspect-square w-full overflow-hidden bg-black">
         {kind === "image" ? (
           <img src={item.url} alt="" loading="lazy" className="h-full w-full object-cover" />
@@ -281,6 +454,14 @@ function ReadOnlyTile({ item, index }: { item: CollectionItem; index: number }) 
           <span className="flex h-full w-full items-center justify-center text-text-dim">{kind === "audio" ? <Music className="h-7 w-7" /> : <Film className="h-7 w-7" />}</span>
         )}
         <span className="absolute left-1 top-1 bg-black/70 px-1 font-mono text-[10px] text-white/80">{index + 1}</span>
+        {filtered && (
+          <span
+            className="absolute right-1 top-1 border border-border bg-black/80 px-1 py-0.5 font-mono text-[9px] uppercase tracking-wider text-text-dim backdrop-blur"
+            title="Hidden by the saved filter — change the filter above to include this kind"
+          >
+            Filtered
+          </span>
+        )}
       </div>
       <div className="block w-full truncate border-t border-border px-2 py-1.5 text-[11px] text-foreground" title={label}>
         {label}

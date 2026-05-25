@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Film, ImageIcon, Layers, Pencil, Play, Plus, Share2, Trash2 } from "lucide-react";
+import { Film, ImageIcon, Layers, Loader2, MoreVertical, Pencil, Play, Plus, Share2, Trash2 } from "lucide-react";
 import type { Collection } from "@shared/protocol";
 import { api, ApiError } from "@/lib/api";
 import { useToast } from "@/components/Toast";
@@ -79,6 +79,11 @@ function CollectionCard({ collection, onDelete, onReplace }: { collection: Colle
   const [busy, setBusy] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [coverOpen, setCoverOpen] = useState(false);
+  // Lifted from CardActionsMenu so we can raise the whole card above
+  // its siblings while the dropdown is open — without it, the next
+  // card's kebab paints on top of this card's menu (same z-index,
+  // later DOM wins the stacking contest).
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!armed) return;
@@ -115,7 +120,7 @@ function CollectionCard({ collection, onDelete, onReplace }: { collection: Colle
   const coverSrc = collection.coverUrl || collection.items.find((it) => isImageUrl(it.url))?.url || null;
 
   return (
-    <li className="group relative flex flex-col border border-border bg-bg-elevated/40 transition hover:border-border-hover">
+    <li className={cn("group relative flex flex-col border border-border bg-bg-elevated/40 transition hover:border-border-hover", menuOpen && "z-20")}>
       <button
         type="button"
         onClick={play}
@@ -147,61 +152,148 @@ function CollectionCard({ collection, onDelete, onReplace }: { collection: Colle
           </span>
         )}
       </button>
-      {/* Cover-edit overlay — top-right of the cover area. Sibling of
-          the play button (positioned against the li, which is the
-          `relative` container) so we don't end up with nested
-          interactive elements. Hover-only at rest, also surfaces on
-          keyboard focus. */}
-      <button
-        type="button"
-        aria-label="Set cover image"
-        title={collection.coverUrl ? "Change cover" : "Set cover"}
-        onClick={() => setCoverOpen(true)}
-        className="absolute right-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center border border-white/15 bg-black/65 text-white/85 opacity-0 backdrop-blur transition hover:text-white focus-visible:opacity-100 group-hover:opacity-100"
-      >
-        <ImageIcon className="h-3.5 w-3.5" />
-      </button>
+      {/* Always-visible kebab — opens a small menu with cover /
+          share / edit / delete. Lives on the cover (sibling of the
+          play button) so the title row keeps the full card width.
+          Always rendered (no hover-gating) so the affordance is
+          equally reachable on touch and pointer devices. */}
+      <CardActionsMenu
+        collection={collection}
+        armed={armed}
+        busy={busy}
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        onSetCover={() => setCoverOpen(true)}
+        onShare={() => setShareOpen(true)}
+        onEdit={() => navigate(`/collections/${collection.id}`)}
+        onDelete={() => void triggerDelete()}
+      />
 
-      <div className="flex items-center gap-2 px-3 py-2.5">
-        <div className="min-w-0 flex-1 truncate text-sm font-medium text-foreground" title={collection.title}>
+      <div className="px-3 py-2.5">
+        <div className="truncate text-sm font-medium text-foreground" title={collection.title}>
           {collection.title}
-        </div>
-        {/* Footer actions fade in on hover so the card reads as a cover +
-            title at rest; management surfaces only when you reach for it. */}
-        <div className="flex items-center gap-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-          <button
-            type="button"
-            aria-label="Share collection"
-            title="Create a share link"
-            onClick={() => setShareOpen(true)}
-            className="flex h-8 w-8 items-center justify-center text-text-dim transition hover:text-foreground"
-          >
-            <Share2 className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            aria-label="Edit collection"
-            title="Edit collection"
-            onClick={() => navigate(`/collections/${collection.id}`)}
-            className="flex h-8 w-8 items-center justify-center text-text-dim transition hover:text-foreground"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            aria-label={armed ? "Click again to confirm delete" : "Delete collection"}
-            title={armed ? "Click again to confirm" : "Delete"}
-            onClick={() => void triggerDelete()}
-            disabled={busy}
-            className={cn("flex h-8 w-8 items-center justify-center transition", armed ? "animate-pulse-soft bg-accent text-white" : "text-text-dim hover:text-accent")}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
         </div>
       </div>
       {shareOpen && <ShareDialog target={{ kind: "collection", collectionId: collection.id, title: collection.title }} onClose={() => setShareOpen(false)} />}
       <CoverEditDialog open={coverOpen} collection={collection} onClose={() => setCoverOpen(false)} onSaved={onReplace} />
     </li>
+  );
+}
+
+// Always-visible kebab + popover menu for the per-card actions. Same
+// affordance on desktop and touch — one tap/click opens, another
+// selects. Mirrors the click-outside + Escape close pattern used by
+// ExportMenu / ClearMenu so the three dropdowns in the app feel
+// identical.
+function CardActionsMenu({
+  collection,
+  armed,
+  busy,
+  open,
+  onOpenChange,
+  onSetCover,
+  onShare,
+  onEdit,
+  onDelete,
+}: {
+  collection: Collection;
+  armed: boolean;
+  busy: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSetCover: () => void;
+  onShare: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onOpenChange(false);
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onOpenChange(false);
+    };
+    window.addEventListener("mousedown", onClick);
+    window.addEventListener("keydown", onEsc);
+    return () => {
+      window.removeEventListener("mousedown", onClick);
+      window.removeEventListener("keydown", onEsc);
+    };
+  }, [open, onOpenChange]);
+
+  // Non-destructive items close the menu after firing — natural
+  // "did the thing" feedback. Delete is special: the first click
+  // arms (parent flips `armed`); we keep the menu open so the
+  // confirmation row stays reachable for the second click.
+  const choose = (fn: () => void) => {
+    fn();
+    onOpenChange(false);
+  };
+
+  return (
+    <div ref={ref} className="absolute right-1.5 top-1.5 z-10">
+      <button
+        type="button"
+        aria-label="Collection actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Actions"
+        onClick={() => onOpenChange(!open)}
+        className="flex h-7 w-7 items-center justify-center border border-white/15 bg-black/65 text-white/85 backdrop-blur transition hover:text-white"
+      >
+        <MoreVertical className="h-3.5 w-3.5" />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full mt-1.5 min-w-[10.5rem] border border-white/10 bg-[#16181f]/95 p-1 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)] backdrop-blur-xl"
+        >
+          <MenuItem icon={<ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />} onClick={() => choose(onSetCover)}>
+            {collection.coverUrl ? "Change cover" : "Set cover"}
+          </MenuItem>
+          <MenuItem icon={<Share2 className="h-3.5 w-3.5 text-muted-foreground" />} onClick={() => choose(onShare)}>
+            Share
+          </MenuItem>
+          <MenuItem icon={<Pencil className="h-3.5 w-3.5 text-muted-foreground" />} onClick={() => choose(onEdit)}>
+            Edit
+          </MenuItem>
+          <DeleteMenuItem armed={armed} busy={busy} onClick={onDelete} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MenuItem({ icon, onClick, children }: { icon: React.ReactNode; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" role="menuitem" onClick={onClick} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition hover:bg-white/[0.04]">
+      {icon}
+      {children}
+    </button>
+  );
+}
+
+// Destructive item — keeps its own arm-then-confirm visual state.
+// Stays inside the open menu between the two clicks; the parent's
+// 3-second arm timeout drops it back to idle on inaction.
+function DeleteMenuItem({ armed, busy, onClick }: { armed: boolean; busy: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      disabled={busy}
+      className={cn(
+        "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50",
+        armed ? "animate-pulse-soft bg-accent/15 text-accent" : "text-foreground hover:bg-white/[0.04]",
+      )}
+    >
+      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : <Trash2 className={cn("h-3.5 w-3.5", armed ? "text-accent" : "text-accent/80")} />}
+      <span className="flex-1 whitespace-nowrap">{busy ? "Deleting…" : armed ? "Click again to confirm" : "Delete"}</span>
+    </button>
   );
 }
 

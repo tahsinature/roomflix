@@ -5,6 +5,7 @@ import type {
   ChatMoment,
   Collection,
   CollectionItem,
+  CollectionMediaFilter,
   CollectionSource,
   InviteCode,
   JoinRequest,
@@ -529,7 +530,15 @@ class MongoCollectionRepo implements CollectionRepo {
     return doc ? toCollection(doc) : null;
   }
 
-  async create(input: { spaceId: string; createdBy: string; title: string; items: CollectionItem[]; source: CollectionSource | null; coverUrl?: string | null }): Promise<Collection> {
+  async create(input: {
+    spaceId: string;
+    createdBy: string;
+    title: string;
+    items: CollectionItem[];
+    source: CollectionSource | null;
+    coverUrl?: string | null;
+    mediaFilter?: CollectionMediaFilter | null;
+  }): Promise<Collection> {
     const now = Date.now();
     const doc = {
       _id: randomId(),
@@ -541,6 +550,7 @@ class MongoCollectionRepo implements CollectionRepo {
       sourceConnectionId: input.source?.connectionId ?? null,
       sourceFolderPrefix: input.source?.folderPrefix ?? null,
       coverUrl: normalizeCoverUrl(input.coverUrl ?? null),
+      mediaFilter: normalizeMediaFilter(input.mediaFilter ?? null),
       createdAt: now,
       updatedAt: now,
     };
@@ -548,11 +558,16 @@ class MongoCollectionRepo implements CollectionRepo {
     return toCollection(doc);
   }
 
-  async update(spaceId: string, id: string, patch: { title?: string; items?: CollectionItem[]; coverUrl?: string | null }): Promise<Collection | null> {
+  async update(
+    spaceId: string,
+    id: string,
+    patch: { title?: string; items?: CollectionItem[]; coverUrl?: string | null; mediaFilter?: CollectionMediaFilter | null },
+  ): Promise<Collection | null> {
     const set: Record<string, unknown> = { updatedAt: Date.now() };
     if (patch.title !== undefined) set.title = patch.title.trim() || "Untitled collection";
     if (patch.items !== undefined) set.items = normalizeCollectionItems(patch.items);
     if (patch.coverUrl !== undefined) set.coverUrl = normalizeCoverUrl(patch.coverUrl);
+    if (patch.mediaFilter !== undefined) set.mediaFilter = normalizeMediaFilter(patch.mediaFilter);
     const updated = await CollectionModel.findOneAndUpdate({ _id: id, spaceId }, { $set: set }, { returnDocument: "after" }).lean();
     return updated ? toCollection(updated) : null;
   }
@@ -1208,6 +1223,7 @@ type CollectionLean = {
   sourceConnectionId?: string | null;
   sourceFolderPrefix?: string | null;
   coverUrl?: string | null;
+  mediaFilter?: { kinds?: string[] } | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -1220,6 +1236,7 @@ function toCollection(doc: CollectionLean): Collection {
     items: (doc.items ?? []).map((it) => ({ url: it.url, name: it.name ?? "" })),
     source: doc.sourceConnectionId && doc.sourceFolderPrefix ? { connectionId: doc.sourceConnectionId, folderPrefix: doc.sourceFolderPrefix } : null,
     coverUrl: doc.coverUrl ?? null,
+    mediaFilter: readMediaFilter(doc.mediaFilter),
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -1232,6 +1249,33 @@ function normalizeCoverUrl(raw: string | null | undefined): string | null {
   if (raw === null || raw === undefined) return null;
   const trimmed = raw.trim();
   return trimmed || null;
+}
+
+const ALLOWED_KINDS = new Set<CollectionMediaFilter["kinds"][number]>(["video", "audio", "image"]);
+
+// Canonicalize an incoming filter: dedupe + drop unknown kinds. An
+// empty/null result is stored as `null` so the resolver's
+// "no filter" check is a single truthy test. Saving "all three kinds"
+// also collapses to null — semantically identical, and prevents the
+// DB row from looking like an opt-in filter when it's really the
+// default.
+function normalizeMediaFilter(raw: CollectionMediaFilter | null | undefined): CollectionMediaFilter | null {
+  if (!raw || !Array.isArray(raw.kinds)) return null;
+  const seen = new Set<CollectionMediaFilter["kinds"][number]>();
+  for (const k of raw.kinds) {
+    if (typeof k !== "string") continue;
+    if (ALLOWED_KINDS.has(k as CollectionMediaFilter["kinds"][number])) {
+      seen.add(k as CollectionMediaFilter["kinds"][number]);
+    }
+  }
+  if (seen.size === 0) return null;
+  if (seen.size === ALLOWED_KINDS.size) return null;
+  return { kinds: [...seen] };
+}
+
+function readMediaFilter(raw: { kinds?: string[] } | null | undefined): CollectionMediaFilter | null {
+  if (!raw || !Array.isArray(raw.kinds)) return null;
+  return normalizeMediaFilter({ kinds: raw.kinds as CollectionMediaFilter["kinds"] });
 }
 
 type SpaceLean = {
