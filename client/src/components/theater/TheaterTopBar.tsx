@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ExternalLink, PanelLeftOpen, PanelRight, Radio, Replace } from "lucide-react";
+import { Download, ExternalLink, PanelLeftOpen, PanelRight, Radio, Replace } from "lucide-react";
 import { LibraryPicker } from "@/components/LibraryPicker";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +22,12 @@ type Props = {
   // Only provided by Watch when a collection is loaded AND the panel
   // is currently hidden — keeps the button out of view otherwise.
   onShowCollectionPanel?: () => void;
+  // Download affordance for whatever's currently on screen. Omitted
+  // when nothing is loaded. The `download` attribute is a hint —
+  // cross-origin CDN URLs may navigate the tab instead of saving, so
+  // we add target="_blank" to fall back to "open in new tab".
+  downloadUrl?: string;
+  downloadFilename?: string;
 };
 
 // Auto-hiding top chrome for the theater: the now-playing summary plus
@@ -35,6 +41,8 @@ export function TheaterTopBar({
   onOpenRemote,
   remoteSidebarOpen,
   onShowCollectionPanel,
+  downloadUrl,
+  downloadFilename,
 }: Props) {
   return (
     <div className="relative">
@@ -70,6 +78,22 @@ export function TheaterTopBar({
               control bar. */}
           {onOpenRemote && (
             <RemoteLauncher onOpen={onOpenRemote} sidebarOpen={!!remoteSidebarOpen} />
+          )}
+          {/* Explicit download affordance — the URL is also reachable
+              via the browser's right-click / long-press menu, but a
+              visible button makes the path discoverable on touch. */}
+          {downloadUrl && (
+            <a
+              href={downloadUrl}
+              download={downloadFilename || ""}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Download"
+              title="Download"
+              className="flex h-9 w-9 shrink-0 items-center justify-center border border-white/15 bg-black/50 text-white/85 backdrop-blur transition hover:bg-black/70 hover:text-white"
+            >
+              <Download className="h-4 w-4" />
+            </a>
           )}
           <LibraryPicker onPick={onLoadUrl} onOpenChange={onLibraryOpenChange} />
         </div>

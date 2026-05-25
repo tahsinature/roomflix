@@ -352,7 +352,7 @@ function CollectionRow({
   );
 }
 
-function Thumb({ item }: { item: CollectionItem }) {
+export function Thumb({ item }: { item: CollectionItem }) {
   const kind = mediaKind(item.url);
   if (kind === "image") return <img src={item.url} alt="" loading="lazy" className="h-full w-full object-cover" />;
   return (

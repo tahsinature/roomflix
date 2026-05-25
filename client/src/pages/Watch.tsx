@@ -5,6 +5,7 @@ import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { AudioPlayer } from "@/components/player/AudioPlayer";
 import { PhotoPlayer } from "@/components/player/PhotoPlayer";
 import { CollectionPanel } from "@/components/CollectionPanel";
+import { MobileCollectionStrip } from "@/components/MobileCollectionStrip";
 import { TheaterTopBar } from "@/components/theater/TheaterTopBar";
 import { IdleScreen } from "@/components/theater/IdleScreen";
 import { UnavailableScreen } from "@/components/theater/UnavailableScreen";
@@ -489,9 +490,24 @@ export default function Watch() {
             // Only show the "show panel" button when there's actually
             // a collection loaded AND the panel is hidden.
             onShowCollectionPanel={!idle && state.collectionId && collectionPanelHidden ? () => setCollectionPanelHidden(false) : undefined}
+            downloadUrl={state.videoUrl || undefined}
+            downloadFilename={state.videoUrl ? urlFilename(state.videoUrl) : undefined}
           />
         </div>
       </div>
+
+      {/* Mobile-only thumbnail strip — the desktop CollectionPanel is
+          hidden under md, so this is the only way to see/jump items on
+          phone. Sits inside the content column so it doesn't compete
+          with the remote sidebar for horizontal space. */}
+      {!idle && state.collectionId && (
+        <MobileCollectionStrip
+          collection={collection}
+          health={collectionHealth}
+          currentIndex={state.collectionIndex}
+          onJumpTo={actions.collectionJumpTo}
+        />
+      )}
 
       </div>{/* /content column */}
 
