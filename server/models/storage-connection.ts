@@ -8,8 +8,9 @@ const storageConnectionSchema = new Schema(
     _id: { type: String, required: true },
     ownerId: { type: String, required: true, index: true },
     label: { type: String, required: true, trim: true },
-    provider: { type: String, required: true, enum: ["r2"] },
-    accountId: { type: String, required: true, trim: true },
+    provider: { type: String, required: true, enum: ["r2", "s3"] },
+    accountId: { type: String, trim: true },
+    region: { type: String, trim: true },
     bucket: { type: String, required: true, trim: true },
     accessKeyId: { type: String, required: true, trim: true },
     // Ciphertext only. See server/crypto.ts.

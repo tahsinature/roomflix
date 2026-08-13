@@ -38,9 +38,10 @@ services:
     # `bun install` runs every up so package.json changes are picked up;
     # subsequent runs are no-ops since node_modules is volume-persisted.
     command: sh -c "bun install && bun run dev:server"
+    env_file:
+      - ./server/.env
     environment:
       MONGO_URL: mongodb://mongo:27017/roomflix
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
       COOKIE_SECURE: "false"
       NODE_ENV: development

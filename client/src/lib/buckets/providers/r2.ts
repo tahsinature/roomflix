@@ -6,13 +6,13 @@
 // SigV4 signing code runs.
 import "@/lib/buckets/polyfill";
 import { S3Client } from "@aws-sdk/client-s3";
-import type { Connection } from "@/lib/buckets/types";
+import type { R2Connection } from "@/lib/buckets/types";
 
 export function r2Endpoint(accountId: string): string {
   return `https://${accountId}.r2.cloudflarestorage.com`;
 }
 
-export function createR2Client(conn: Connection): S3Client {
+export function createR2Client(conn: R2Connection): S3Client {
   return new S3Client({
     region: "auto",
     endpoint: r2Endpoint(conn.accountId),
@@ -21,20 +21,4 @@ export function createR2Client(conn: Connection): S3Client {
       secretAccessKey: conn.secretAccessKey,
     },
   });
-}
-
-// Recommended CORS document for a bucket the browser will talk to directly.
-// Surfaced from CorsHint when a LIST fails with a CORS-shaped error so the
-// user can copy-paste it into the R2 dashboard.
-export function recommendedCorsForOrigin(origin: string): string {
-  const doc = [
-    {
-      AllowedOrigins: [origin],
-      AllowedMethods: ["GET", "PUT", "DELETE", "HEAD"],
-      AllowedHeaders: ["*"],
-      ExposeHeaders: ["ETag", "Content-Length"],
-      MaxAgeSeconds: 3000,
-    },
-  ];
-  return JSON.stringify(doc, null, 2);
 }

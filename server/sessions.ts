@@ -8,6 +8,7 @@ import {
   type ServerMessage,
   type SessionState,
   type SpaceMember,
+  type Video,
   type Viewer,
   type Volume,
 } from "@/protocol.ts";
@@ -258,6 +259,22 @@ export async function closeHistoryEntry(spaceId: string, completed: boolean): Pr
 
 export function getSession(spaceId: string): Session | undefined {
   return sessions.get(spaceId);
+}
+
+// Library edits happen over REST while playback state is synchronized over
+// WebSocket. If the edited entry is currently loaded, refresh the metadata in
+// the live session immediately so every viewer sees title/subtitle changes
+// without having to unload and reload the video. Playback timing is left
+// untouched because this is metadata-only.
+export function syncActiveLibraryEntry(spaceId: string, entry: Pick<Video, "url" | "title" | "subtitles">): boolean {
+  const session = sessions.get(spaceId);
+  if (!session || session.state.videoUrl !== entry.url) return false;
+
+  session.state.videoTitle = entry.title;
+  session.state.subtitles = [...entry.subtitles];
+  broadcastState(spaceId);
+  schedulePersist(spaceId);
+  return true;
 }
 
 export function removeSocket(session: Session, ws: ServerWebSocket<WsData>) {

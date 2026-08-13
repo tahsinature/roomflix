@@ -13,12 +13,13 @@ export function r2Endpoint(accountId: string): string {
   return `https://${accountId}.r2.cloudflarestorage.com`;
 }
 
-export function makeBucketClient(creds: { accountId: string; accessKeyId: string; secretAccessKey: string }): S3Client {
-  return new S3Client({
-    region: "auto",
-    endpoint: r2Endpoint(creds.accountId),
-    credentials: { accessKeyId: creds.accessKeyId, secretAccessKey: creds.secretAccessKey },
-  });
+type BucketCredentials =
+  | { provider: "r2"; accountId: string; accessKeyId: string; secretAccessKey: string }
+  | { provider: "s3"; region: string; accessKeyId: string; secretAccessKey: string };
+
+export function makeBucketClient(creds: BucketCredentials): S3Client {
+  const credentials = { accessKeyId: creds.accessKeyId, secretAccessKey: creds.secretAccessKey };
+  return creds.provider === "r2" ? new S3Client({ region: "auto", endpoint: r2Endpoint(creds.accountId), credentials }) : new S3Client({ region: creds.region, credentials });
 }
 
 const MAX_PAGES = 50;

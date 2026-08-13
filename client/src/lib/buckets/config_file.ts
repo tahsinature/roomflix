@@ -46,10 +46,10 @@ export function parseConfigText(text: string): ParsedConfig {
   if (r.version !== 1) {
     return { ok: false, reason: `Unsupported config version: ${String(r.version)}.` };
   }
-  if (r.provider !== "r2") {
+  if (r.provider !== "r2" && r.provider !== "s3") {
     return { ok: false, reason: `Unsupported provider: ${String(r.provider)}.` };
   }
-  const required = ["accountId", "accessKeyId", "secretAccessKey", "bucket"] as const;
+  const required = ["accessKeyId", "secretAccessKey", "bucket"] as const;
   for (const k of required) {
     if (typeof r[k] !== "string" || !(r[k] as string).trim()) {
       return { ok: false, reason: `Missing or empty field: ${k}.` };
@@ -59,9 +59,7 @@ export function parseConfigText(text: string): ParsedConfig {
     return { ok: false, reason: "Missing or invalid maxBytes." };
   }
 
-  const conn: Connection = {
-    provider: "r2",
-    accountId: (r.accountId as string).trim(),
+  const common = {
     accessKeyId: (r.accessKeyId as string).trim(),
     secretAccessKey: (r.secretAccessKey as string).trim(),
     bucket: (r.bucket as string).trim(),
@@ -69,5 +67,17 @@ export function parseConfigText(text: string): ParsedConfig {
     maxBytes: r.maxBytes,
     label: typeof r.label === "string" ? r.label.trim() || undefined : undefined,
   };
+  let conn: Connection;
+  if (r.provider === "r2") {
+    if (typeof r.accountId !== "string" || !r.accountId.trim()) {
+      return { ok: false, reason: "Missing or empty field: accountId." };
+    }
+    conn = { ...common, provider: "r2", accountId: r.accountId.trim() };
+  } else {
+    if (typeof r.region !== "string" || !r.region.trim()) {
+      return { ok: false, reason: "Missing or empty field: region." };
+    }
+    conn = { ...common, provider: "s3", region: r.region.trim() };
+  }
   return { ok: true, connection: conn };
 }

@@ -366,7 +366,7 @@ export function VideoPlayer({
           // browser doesn't reject cross-origin fetches when the user's
           // CDN doesn't return CORS headers (most don't, by default).
           // The proxy normalizes everything to VTT regardless of source.
-          <Track key={s.id} id={s.id} src={`/api/library/subtitle?url=${encodeURIComponent(s.url)}`} type="vtt" kind="subtitles" label={s.label} lang={s.lang} />
+          <Track key={`${s.id}:${s.url}`} id={s.id} src={`/api/library/subtitle?url=${encodeURIComponent(s.url)}`} type="vtt" kind="subtitles" label={s.label} lang={s.lang} />
         ))}
       </MediaProvider>
 

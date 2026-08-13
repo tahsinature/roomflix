@@ -2,16 +2,18 @@ import { useState } from "react";
 import { Check, ChevronDown, Copy, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { recommendedCorsForOrigin } from "@/lib/buckets/providers/r2";
+import { recommendedCorsForOrigin } from "@/lib/buckets/cors";
+import type { ProviderId } from "@/lib/buckets/types";
 
-// Shown when a request fails with a CORS-shaped error. R2 requires explicit
-// CORS rules per bucket; the user has to set them once in the dashboard
-// before browser-direct access works. We hand them the exact JSON.
-export function CorsHint({ origin }: { origin?: string }) {
+// Shown when a request fails with a CORS-shaped error. Browser-direct R2 and
+// S3 access both require a per-bucket rule; we provide the correct dashboard
+// path and a ready-to-paste policy document.
+export function CorsHint({ provider, origin }: { provider: ProviderId; origin?: string }) {
   const [expanded, setExpanded] = useState(true);
   const [copied, setCopied] = useState(false);
   const safeOrigin = origin ?? (typeof window !== "undefined" ? window.location.origin : "https://your-site.example");
   const json = recommendedCorsForOrigin(safeOrigin);
+  const isAws = provider === "s3";
 
   const copy = async () => {
     try {
@@ -29,7 +31,7 @@ export function CorsHint({ origin }: { origin?: string }) {
         <ShieldAlert className="h-4 w-4 shrink-0 text-amber-300" />
         <div className="min-w-0 flex-1">
           <div className="font-medium text-amber-200">Connection blocked — your bucket needs CORS</div>
-          <div className="text-amber-100/70">R2 requires a CORS rule that allows this site to talk to your bucket. One-time setup per bucket.</div>
+          <div className="text-amber-100/70">{isAws ? "S3" : "R2"} requires a CORS rule that allows this site to talk to your bucket. One-time setup per bucket.</div>
         </div>
         <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", expanded && "rotate-180")} />
       </button>
@@ -38,7 +40,15 @@ export function CorsHint({ origin }: { origin?: string }) {
         <div className="mt-3 space-y-2.5">
           <ol className="list-decimal space-y-1 pl-5 text-amber-100/80">
             <li>
-              Open the Cloudflare dashboard → R2 → your bucket → <span className="font-mono">Settings</span> → <span className="font-mono">CORS Policy</span>.
+              {isAws ? (
+                <>
+                  Open the AWS console → S3 → your bucket → <span className="font-mono">Permissions</span> → <span className="font-mono">CORS</span>.
+                </>
+              ) : (
+                <>
+                  Open the Cloudflare dashboard → R2 → your bucket → <span className="font-mono">Settings</span> → <span className="font-mono">CORS Policy</span>.
+                </>
+              )}
             </li>
             <li>Paste the JSON below and save.</li>
             <li>Come back here and click Connect again.</li>

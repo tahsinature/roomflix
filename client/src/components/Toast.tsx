@@ -11,10 +11,9 @@ import { cn } from "@/lib/utils";
 
 export type ToastVariant = "error" | "success" | "info";
 
-// Optional inline action — renders as a small accent-coloured button
-// between the message and the dismiss "×". Used by "added to library"
-// style toasts to give the user a one-click way to view what just
-// happened. Clicking the action also dismisses the toast.
+// Optional action rendered below the message. Keeping it in the content
+// column prevents long filenames and URLs from squeezing the action or
+// dismiss controls out of place.
 export type ToastAction = { label: string; onClick: () => void };
 
 type Toast = {
@@ -104,24 +103,26 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
     <div
       role={toast.variant === "error" ? "alert" : "status"}
       className={cn(
-        "pointer-events-auto flex w-[min(22rem,calc(100vw-1.5rem))] items-start gap-3 border px-3 py-2.5 text-foreground shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl animate-fade-in",
+        "pointer-events-auto grid w-[min(22rem,calc(100vw-1.5rem))] grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 border px-3 py-2.5 text-foreground shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl animate-fade-in",
         variantStyles,
       )}
     >
       <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", iconStyles)} />
-      <p className="min-w-0 flex-1 text-sm leading-relaxed">{toast.message}</p>
-      {toast.action && (
-        <button
-          type="button"
-          onClick={() => {
-            toast.action?.onClick();
-            onDismiss();
-          }}
-          className="mt-0.5 shrink-0 border border-accent/40 bg-accent/10 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.16em] text-accent transition hover:border-accent/70 hover:bg-accent/15"
-        >
-          {toast.action.label}
-        </button>
-      )}
+      <div className="min-w-0">
+        <p className="max-h-[min(40vh,12rem)] overflow-y-auto whitespace-pre-wrap [overflow-wrap:anywhere] text-sm leading-relaxed">{toast.message}</p>
+        {toast.action && (
+          <button
+            type="button"
+            onClick={() => {
+              toast.action?.onClick();
+              onDismiss();
+            }}
+            className="mt-2 max-w-full border border-accent/40 bg-accent/10 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.16em] text-accent transition [overflow-wrap:anywhere] hover:border-accent/70 hover:bg-accent/15"
+          >
+            {toast.action.label}
+          </button>
+        )}
+      </div>
       <button type="button" onClick={onDismiss} aria-label="Dismiss" className="flex h-5 w-5 shrink-0 items-center justify-center text-text-dim transition hover:text-foreground">
         <X className="h-3.5 w-3.5" />
       </button>

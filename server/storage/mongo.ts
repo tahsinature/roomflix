@@ -403,24 +403,24 @@ class MongoStorageConnectionRepo implements StorageConnectionRepo {
     return decrypt(doc.secretAccessKeyEnc);
   }
 
-  async create(input: {
-    ownerId: string;
-    label: string;
-    provider: StorageProvider;
-    accountId: string;
-    bucket: string;
-    accessKeyId: string;
-    secretAccessKey: string;
-    publicBaseUrl?: string;
-    maxBytes: number;
-  }): Promise<StorageConnection> {
+  async create(
+    input: {
+      ownerId: string;
+      label: string;
+      bucket: string;
+      accessKeyId: string;
+      secretAccessKey: string;
+      publicBaseUrl?: string;
+      maxBytes: number;
+    } & ({ provider: "r2"; accountId: string } | { provider: "s3"; region: string }),
+  ): Promise<StorageConnection> {
     const now = Date.now();
     const doc = {
       _id: randomId(),
       ownerId: input.ownerId,
       label: input.label.trim(),
       provider: input.provider,
-      accountId: input.accountId.trim(),
+      ...(input.provider === "r2" ? { accountId: input.accountId.trim() } : { region: input.region.trim() }),
       bucket: input.bucket.trim(),
       accessKeyId: input.accessKeyId.trim(),
       // Encrypt at the repo boundary; the model never sees plaintext.
@@ -439,6 +439,7 @@ class MongoStorageConnectionRepo implements StorageConnectionRepo {
     patch: {
       label?: string;
       accountId?: string;
+      region?: string;
       bucket?: string;
       accessKeyId?: string;
       secretAccessKey?: string;
@@ -449,6 +450,7 @@ class MongoStorageConnectionRepo implements StorageConnectionRepo {
     const set: Record<string, unknown> = { updatedAt: Date.now() };
     if (patch.label !== undefined) set.label = patch.label.trim();
     if (patch.accountId !== undefined) set.accountId = patch.accountId.trim();
+    if (patch.region !== undefined) set.region = patch.region.trim();
     if (patch.bucket !== undefined) set.bucket = patch.bucket.trim();
     if (patch.accessKeyId !== undefined) set.accessKeyId = patch.accessKeyId.trim();
     if (patch.secretAccessKey !== undefined) set.secretAccessKeyEnc = encrypt(patch.secretAccessKey);
@@ -1173,7 +1175,8 @@ type StorageConnectionLean = {
   ownerId: string;
   label: string;
   provider: StorageProvider;
-  accountId: string;
+  accountId?: string | null;
+  region?: string | null;
   bucket: string;
   accessKeyId: string;
   secretAccessKeyEnc: string;
@@ -1183,12 +1186,10 @@ type StorageConnectionLean = {
   updatedAt: number;
 };
 function toStorageConnection(doc: StorageConnectionLean): StorageConnection {
-  return {
+  const base = {
     id: doc._id,
     ownerId: doc.ownerId,
     label: doc.label,
-    provider: doc.provider,
-    accountId: doc.accountId,
     bucket: doc.bucket,
     accessKeyId: doc.accessKeyId,
     publicBaseUrl: doc.publicBaseUrl ?? undefined,
@@ -1196,6 +1197,7 @@ function toStorageConnection(doc: StorageConnectionLean): StorageConnection {
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
+  return doc.provider === "s3" ? { ...base, provider: "s3", region: doc.region ?? "" } : { ...base, provider: "r2", accountId: doc.accountId ?? "" };
 }
 
 type StorageActivationLean = {

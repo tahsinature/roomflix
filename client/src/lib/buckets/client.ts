@@ -2,15 +2,16 @@
 // directly. Covers browse + usage + upload + delete + create-folder.
 import { CopyObjectCommand, DeleteObjectCommand, ListObjectsV2Command, PutObjectCommand, type S3Client } from "@aws-sdk/client-s3";
 import { createR2Client } from "@/lib/buckets/providers/r2";
+import { createS3Client } from "@/lib/buckets/providers/s3";
 import type { BrowseResult, Connection, FileEntry, Usage } from "@/lib/buckets/types";
 
 export function buildClient(conn: Connection): S3Client {
-  // Only R2 is supported in v1; the conn.provider check is here so a future
-  // provider doesn't silently fall through to R2.
-  if (conn.provider !== "r2") {
-    throw new Error(`Unsupported provider: ${conn.provider}`);
+  switch (conn.provider) {
+    case "r2":
+      return createR2Client(conn);
+    case "s3":
+      return createS3Client(conn);
   }
-  return createR2Client(conn);
 }
 
 // Single LIST at a given prefix using "/" as a delimiter — gives us folders

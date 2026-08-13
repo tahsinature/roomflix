@@ -233,18 +233,16 @@ export type StorageConfig = {
 // In a space S, a member sees a connection iff
 //   (S.ownerId === connection.ownerId) ∧ (activation exists for [conn, S])
 //   ∧ (caller === connection.ownerId ∨ grant exists for [conn, caller])
-export type StorageProvider = "r2";
+export type StorageProvider = "r2" | "s3";
 
 // Wire shape. secretAccessKey is intentionally absent — clients fetch
 // the cleartext separately via the ECDH endpoint when (and only when)
 // they're about to do a management op. Browsing the connection list
 // never reveals secrets.
-export type StorageConnection = {
+type StorageConnectionBase = {
   id: string;
   ownerId: string;
   label: string;
-  provider: StorageProvider;
-  accountId: string;
   bucket: string;
   accessKeyId: string;
   publicBaseUrl?: string;
@@ -258,6 +256,8 @@ export type StorageConnection = {
   ownerUsername?: string;
   ownerDisplayName?: string | null;
 };
+
+export type StorageConnection = StorageConnectionBase & ({ provider: "r2"; accountId: string; region?: never } | { provider: "s3"; region: string; accountId?: never });
 
 // One row per (connection, space). Always implies space.ownerId ===
 // connection.ownerId (enforced at insert time).

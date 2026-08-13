@@ -25,7 +25,6 @@ import type {
   StorageActivation,
   StorageConfig,
   StorageConnection,
-  StorageProvider,
   Subtitle,
   Video,
 } from "@/protocol.ts";
@@ -142,17 +141,17 @@ export interface StorageConnectionRepo {
   // checks (owner or has a grant). Separate from get() so casual list
   // routes never accidentally surface it.
   getSecret(id: string): Promise<string | null>;
-  create(input: {
-    ownerId: string;
-    label: string;
-    provider: StorageProvider;
-    accountId: string;
-    bucket: string;
-    accessKeyId: string;
-    secretAccessKey: string;
-    publicBaseUrl?: string;
-    maxBytes: number;
-  }): Promise<StorageConnection>;
+  create(
+    input: {
+      ownerId: string;
+      label: string;
+      bucket: string;
+      accessKeyId: string;
+      secretAccessKey: string;
+      publicBaseUrl?: string;
+      maxBytes: number;
+    } & ({ provider: "r2"; accountId: string } | { provider: "s3"; region: string }),
+  ): Promise<StorageConnection>;
   // Partial update. Pass secretAccessKey to rotate the cred; omit to
   // keep the existing encrypted value.
   update(
@@ -160,6 +159,7 @@ export interface StorageConnectionRepo {
     patch: {
       label?: string;
       accountId?: string;
+      region?: string;
       bucket?: string;
       accessKeyId?: string;
       secretAccessKey?: string;

@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import type { Subtitle, Video, VideoHealth } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/CopyButton";
 import { HealthDot } from "@/components/HealthDot";
 import { Modal } from "@/components/Modal";
+import { useToast } from "@/components/Toast";
+import { copyJsonToClipboard } from "@/lib/jsonExport";
+import { toMediaBundle } from "@/lib/mediaBundle";
 
 // Centralized edit surface for a single library entry. Hosts title editing,
 // URL display + copy, and subtitle management. Shared between the Library
@@ -27,6 +30,7 @@ export function EditVideoDialog({
   onClose: () => void;
   onUpdate: (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => Promise<void>;
 }) {
+  const toast = useToast();
   const [draftTitle, setDraftTitle] = useState(video.title);
   const [savingTitle, setSavingTitle] = useState(false);
   const [titleErr, setTitleErr] = useState("");
@@ -51,8 +55,24 @@ export function EditVideoDialog({
     }
   };
 
+  const copyMediaJson = async () => {
+    const copied = await copyJsonToClipboard(toMediaBundle(video));
+    if (copied) toast.success("Media JSON copied.");
+    else toast.error("Clipboard access was blocked by the browser.");
+  };
+
   return (
-    <Modal open={open} onClose={onClose} title="Edit video">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Edit media"
+      headerAction={
+        <Button type="button" variant="outline" size="sm" onClick={copyMediaJson} aria-label="Copy media JSON" title="Copy media JSON">
+          <Copy className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Copy JSON</span>
+        </Button>
+      }
+    >
       <div className="space-y-6">
         <section>
           <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Title</label>
@@ -78,7 +98,7 @@ export function EditVideoDialog({
           <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">URL</label>
           <div className="mt-2 flex items-center gap-2">
             <p className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">{video.url}</p>
-            <CopyButton text={video.url} label="video URL" />
+            <CopyButton text={video.url} label="media URL" />
           </div>
         </section>
 
@@ -104,8 +124,9 @@ function SubtitlesPanel({
 }) {
   const [url, setUrl] = useState("");
   const [label, setLabel] = useState("");
-  const [lang, setLang] = useState("");
   const [busy, setBusy] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const addSubtitle = async (e: React.FormEvent) => {
@@ -115,11 +136,10 @@ function SubtitlesPanel({
     setBusy(true);
     setError("");
     try {
-      const next: Subtitle[] = [...video.subtitles, { id: "", url: trimmed, label: label.trim(), lang: lang.trim() }];
+      const next: Subtitle[] = [...video.subtitles, { id: "", url: trimmed, label: label.trim(), lang: "" }];
       await onUpdate(video.id, { subtitles: next });
       setUrl("");
       setLabel("");
-      setLang("");
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -136,30 +156,37 @@ function SubtitlesPanel({
     }
   };
 
+  const saveSubtitle = async (next: Subtitle) => {
+    setSavingId(next.id);
+    setError("");
+    try {
+      await onUpdate(video.id, {
+        subtitles: video.subtitles.map((subtitle) => (subtitle.id === next.id ? next : subtitle)),
+      });
+      setEditingId(null);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSavingId(null);
+    }
+  };
+
   return (
     <div className="mt-2 space-y-2 border border-border bg-white/[0.02] p-3">
       {video.subtitles.length > 0 && (
         <ul className="flex flex-col gap-1.5">
           {video.subtitles.map((s) => (
-            <li key={s.id} className="flex items-center gap-2 border border-border bg-bg-elevated/50 px-2.5 py-1.5">
-              <HealthDot status={health?.subtitles?.[s.id]} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-xs font-medium text-foreground/90">{s.label || s.url}</span>
-                  {s.lang && <span className="border border-cyan/30 bg-cyan/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-cyan">{s.lang}</span>}
-                </div>
-                <p className="truncate font-mono text-[10px] text-text-dim">{s.url}</p>
-              </div>
-              <CopyButton text={s.url} label="subtitle URL" />
-              <button
-                type="button"
-                onClick={() => remove(s.id)}
-                aria-label={`Remove ${s.label || s.url}`}
-                className="shrink-0 p-1 text-muted-foreground transition hover:bg-white/[0.05] hover:text-accent"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </li>
+            <SubtitleRow
+              key={s.id}
+              subtitle={s}
+              health={health?.subtitles?.[s.id]}
+              editing={editingId === s.id}
+              busy={savingId === s.id}
+              onEdit={() => setEditingId(s.id)}
+              onCancel={() => setEditingId(null)}
+              onSave={saveSubtitle}
+              onRemove={() => remove(s.id)}
+            />
           ))}
         </ul>
       )}
@@ -174,8 +201,7 @@ function SubtitlesPanel({
           autoCorrect="off"
           spellCheck={false}
         />
-        <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label (e.g. English)" className="h-10 sm:w-40" />
-        <Input value={lang} onChange={(e) => setLang(e.target.value)} placeholder="Lang (e.g. en)" className="h-10 sm:w-28" autoCapitalize="off" />
+        <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label (e.g. English)" className="h-10 sm:w-48" />
         <Button type="submit" variant="outline" disabled={!url.trim() || busy} className="h-10 shrink-0">
           <Plus className="h-4 w-4" />
           Add
@@ -184,5 +210,102 @@ function SubtitlesPanel({
 
       {error && <p className="text-xs text-accent">{error}</p>}
     </div>
+  );
+}
+
+function SubtitleRow({
+  subtitle,
+  health,
+  editing,
+  busy,
+  onEdit,
+  onCancel,
+  onSave,
+  onRemove,
+}: {
+  subtitle: Subtitle;
+  health: VideoHealth["subtitles"][string] | undefined;
+  editing: boolean;
+  busy: boolean;
+  onEdit: () => void;
+  onCancel: () => void;
+  onSave: (subtitle: Subtitle) => Promise<void>;
+  onRemove: () => void;
+}) {
+  const [url, setUrl] = useState(subtitle.url);
+  const [label, setLabel] = useState(subtitle.label);
+  const dirty = url.trim() !== subtitle.url || label.trim() !== subtitle.label;
+
+  const startEditing = () => {
+    setUrl(subtitle.url);
+    setLabel(subtitle.label);
+    onEdit();
+  };
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const nextUrl = url.trim();
+    if (!nextUrl || busy) return;
+    await onSave({ ...subtitle, url: nextUrl, label: label.trim() });
+  };
+
+  if (editing) {
+    return (
+      <li className="border border-accent/35 bg-accent/[0.045] p-2.5 shadow-[inset_2px_0_0_hsl(var(--accent))]">
+        <form onSubmit={submit} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:items-center">
+          <Input
+            autoFocus
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+            placeholder="Subtitle URL (.vtt or .srt)"
+            aria-label="Subtitle URL"
+            className="h-9 min-w-0 font-mono text-xs"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            disabled={busy}
+          />
+          <Input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Label" aria-label="Subtitle label" className="h-9" disabled={busy} />
+          <div className="flex justify-end gap-1">
+            <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="accent" size="sm" disabled={!url.trim() || !dirty || busy}>
+              {busy ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </form>
+      </li>
+    );
+  }
+
+  return (
+    <li className="flex items-center gap-2 border border-border bg-bg-elevated/50 px-2.5 py-1.5">
+      <HealthDot status={health} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-xs font-medium text-foreground/90">{subtitle.label || subtitle.url}</span>
+        </div>
+        <p className="truncate font-mono text-[10px] text-text-dim">{subtitle.url}</p>
+      </div>
+      <button
+        type="button"
+        onClick={startEditing}
+        aria-label={`Edit ${subtitle.label || subtitle.url}`}
+        title="Edit subtitle"
+        className="shrink-0 p-1 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground"
+      >
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+      <CopyButton text={subtitle.url} label="subtitle URL" />
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove ${subtitle.label || subtitle.url}`}
+        className="shrink-0 p-1 text-muted-foreground transition hover:bg-white/[0.05] hover:text-accent"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </li>
   );
 }

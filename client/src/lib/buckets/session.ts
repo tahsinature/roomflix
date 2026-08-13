@@ -37,9 +37,7 @@ export function clearAllSecrets(): void {
 }
 
 function summaryToConnection(s: StorageConnection, secret: string): Connection {
-  return {
-    provider: s.provider,
-    accountId: s.accountId,
+  const common = {
     accessKeyId: s.accessKeyId,
     secretAccessKey: secret,
     bucket: s.bucket,
@@ -47,4 +45,5 @@ function summaryToConnection(s: StorageConnection, secret: string): Connection {
     maxBytes: s.maxBytes,
     label: s.label,
   };
+  return s.provider === "r2" ? { ...common, provider: "r2", accountId: s.accountId } : { ...common, provider: "s3", region: s.region };
 }

@@ -5,6 +5,7 @@ import type { Storage } from "@/storage/index.ts";
 import { invalidateHealthCache } from "@/api/health.ts";
 import { normalizeUrl } from "@/probe.ts";
 import { requireSpaceMember } from "@/auth.ts";
+import { syncActiveLibraryEntry } from "@/sessions.ts";
 
 // REST routes for video library entries. All routes require a current
 // space; entries belong to the space — any member sees the list. Edit
@@ -65,6 +66,7 @@ export function buildVideosRouter(storage: Storage) {
     const updated = await storage.videos.update(spaceId, c.req.param("id"), patch);
     if (!updated) return c.json({ error: "not found" }, 404);
     invalidateHealthCache(spaceId);
+    syncActiveLibraryEntry(spaceId, updated);
     return c.json(updated);
   });
 

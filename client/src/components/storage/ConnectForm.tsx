@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ConfigFileDialog } from "@/components/ConfigFileDialog";
 import { parseConfigFile, parseConfigText } from "@/lib/buckets/config_file";
-import type { Connection } from "@/lib/buckets/types";
+import type { Connection, ProviderId } from "@/lib/buckets/types";
 
 type DraftFields = {
   accountId: string;
+  region: string;
   accessKeyId: string;
   secretAccessKey: string;
   bucket: string;
@@ -18,6 +19,7 @@ type DraftFields = {
 
 const EMPTY: DraftFields = {
   accountId: "",
+  region: "",
   accessKeyId: "",
   secretAccessKey: "",
   bucket: "",
@@ -29,6 +31,7 @@ const EMPTY: DraftFields = {
 const GB = 1024 ** 3;
 
 export function ConnectForm({
+  provider,
   initial,
   busy,
   error,
@@ -38,6 +41,7 @@ export function ConnectForm({
   onImportError,
   onCancel,
 }: {
+  provider: ProviderId;
   initial?: Connection;
   busy: boolean;
   error: string;
@@ -61,7 +65,7 @@ export function ConnectForm({
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const built = buildConnection(fields);
+    const built = buildConnection(fields, provider, isEdit);
     if (built.ok) onConnect(built.connection);
     else onImportError(built.reason);
   };
@@ -70,6 +74,10 @@ export function ConnectForm({
     const parsed = typeof input === "string" ? parseConfigText(input) : await parseConfigFile(input);
     if (!parsed.ok) {
       onImportError(parsed.reason);
+      return;
+    }
+    if (parsed.connection.provider !== provider) {
+      onImportError(`That config is for ${providerName(parsed.connection.provider)}, not ${providerName(provider)}.`);
       return;
     }
     setFields(toDraftFromConnection(parsed.connection));
@@ -96,11 +104,30 @@ export function ConnectForm({
         onSubmit={handleImport}
       />
 
+      {provider === "s3" && (
+        <div className="border border-amber-300/25 bg-amber-300/[0.05] px-3 py-2.5 font-mono text-[11px] leading-relaxed text-amber-100/75">
+          Use a dedicated IAM access key restricted to this bucket. Anyone you activate this connection for can use its file-management permissions through Roomflix.
+        </div>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Account ID" hint="From R2 dashboard → Overview">
-          <Input value={fields.accountId} onChange={(e) => set("accountId", e.target.value)} placeholder="e.g. 8f3c9e…" autoCapitalize="off" autoCorrect="off" spellCheck={false} />
-        </Field>
-        <Field label="Bucket" hint="The bucket name, exactly as in R2">
+        {provider === "r2" ? (
+          <Field label="Account ID" hint="From R2 dashboard → Overview">
+            <Input
+              value={fields.accountId}
+              onChange={(e) => set("accountId", e.target.value)}
+              placeholder="e.g. 8f3c9e…"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+            />
+          </Field>
+        ) : (
+          <Field label="AWS region" hint="The region containing this bucket">
+            <Input value={fields.region} onChange={(e) => set("region", e.target.value)} placeholder="e.g. us-east-1" autoCapitalize="off" autoCorrect="off" spellCheck={false} />
+          </Field>
+        )}
+        <Field label="Bucket" hint={provider === "r2" ? "The bucket name, exactly as in R2" : "The bucket name, exactly as in S3"}>
           <Input value={fields.bucket} onChange={(e) => set("bucket", e.target.value)} placeholder="e.g. videos" autoCapitalize="off" autoCorrect="off" spellCheck={false} />
         </Field>
         <Field label="Access Key ID">
@@ -143,11 +170,11 @@ export function ConnectForm({
         <Field label="Max bucket size (GB)" hint="Refuses uploads that would exceed this cap">
           <Input type="number" inputMode="decimal" min="0.1" step="0.1" value={fields.maxGb} onChange={(e) => set("maxGb", e.target.value)} placeholder="e.g. 10" />
         </Field>
-        <Field label="Public base URL" hint="Optional — enables Library matching">
+        <Field label="Public base URL" hint={provider === "s3" ? "Optional — public S3 or CloudFront URL" : "Optional — enables Library matching"}>
           <Input
             value={fields.publicBaseUrl}
             onChange={(e) => set("publicBaseUrl", e.target.value)}
-            placeholder="https://pub-….r2.dev"
+            placeholder={provider === "s3" ? "https://media.example.com" : "https://pub-….r2.dev"}
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
@@ -191,7 +218,8 @@ function toDraft(conn: Connection | undefined): DraftFields | null {
 
 function toDraftFromConnection(conn: Connection): DraftFields {
   return {
-    accountId: conn.accountId,
+    accountId: conn.provider === "r2" ? conn.accountId : "",
+    region: conn.provider === "s3" ? conn.region : "",
     accessKeyId: conn.accessKeyId,
     secretAccessKey: conn.secretAccessKey,
     bucket: conn.bucket,
@@ -203,15 +231,17 @@ function toDraftFromConnection(conn: Connection): DraftFields {
 
 type Built = { ok: true; connection: Connection } | { ok: false; reason: string };
 
-function buildConnection(f: DraftFields): Built {
+function buildConnection(f: DraftFields, provider: ProviderId, allowEmptySecret: boolean): Built {
   const accountId = f.accountId.trim();
+  const region = f.region.trim();
   const accessKeyId = f.accessKeyId.trim();
   const secretAccessKey = f.secretAccessKey.trim();
   const bucket = f.bucket.trim();
 
-  if (!accountId) return { ok: false, reason: "Account ID is required." };
+  if (provider === "r2" && !accountId) return { ok: false, reason: "Account ID is required." };
+  if (provider === "s3" && !region) return { ok: false, reason: "AWS region is required." };
   if (!accessKeyId) return { ok: false, reason: "Access Key ID is required." };
-  if (!secretAccessKey) return { ok: false, reason: "Secret Access Key is required." };
+  if (!secretAccessKey && !allowEmptySecret) return { ok: false, reason: "Secret Access Key is required." };
   if (!bucket) return { ok: false, reason: "Bucket is required." };
 
   const maxGb = Number(f.maxGb);
@@ -224,17 +254,20 @@ function buildConnection(f: DraftFields): Built {
   const rawPublicBase = f.publicBaseUrl.trim();
   const publicBaseUrl = rawPublicBase ? (/^[a-z][a-z0-9+\-.]*:\/\//i.test(rawPublicBase) ? rawPublicBase : `https://${rawPublicBase}`) : undefined;
 
+  const common = {
+    accessKeyId,
+    secretAccessKey,
+    bucket,
+    publicBaseUrl,
+    maxBytes: Math.round(maxGb * GB),
+    label: f.label.trim() || undefined,
+  };
   return {
     ok: true,
-    connection: {
-      provider: "r2",
-      accountId,
-      accessKeyId,
-      secretAccessKey,
-      bucket,
-      publicBaseUrl,
-      maxBytes: Math.round(maxGb * GB),
-      label: f.label.trim() || undefined,
-    },
+    connection: provider === "r2" ? { ...common, provider, accountId } : { ...common, provider, region },
   };
+}
+
+function providerName(provider: ProviderId): string {
+  return provider === "r2" ? "Cloudflare R2" : "AWS S3";
 }

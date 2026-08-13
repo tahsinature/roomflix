@@ -58,10 +58,7 @@ export function SubtitleToggle({ subtitles, activeId, onSelect }: Props) {
           </button>
           {subtitles.map((s) => (
             <button key={s.id} type="button" className={cn(RADIO_ITEM, activeId === s.id && "bg-accent/15 text-white")} onClick={() => pick(s.id)}>
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate">{s.label}</span>
-                {s.lang && <span className="text-[10px] uppercase tracking-wider text-white/40">{s.lang}</span>}
-              </span>
+              <span className="truncate">{s.label}</span>
               {activeId === s.id && <Dot />}
             </button>
           ))}

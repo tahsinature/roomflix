@@ -65,7 +65,7 @@ export function buildAccountStorageRouter(storage: Storage) {
     if ("error" in owned) return c.json({ error: owned.error }, owned.status);
 
     const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
-    const validated = validatePatch(body);
+    const validated = validatePatch(body, owned.value.provider);
     if (!validated.ok) return c.json({ error: validated.error }, 400);
 
     const updated = await storage.storageConnections.update(cid, validated.value);
@@ -124,10 +124,8 @@ export function buildAccountStorageRouter(storage: Storage) {
 // case (a union would force every consumer to narrow per-field).
 type ValidateResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
-type CreateInput = {
+type CreateInputBase = {
   label: string;
-  provider: "r2";
-  accountId: string;
   bucket: string;
   accessKeyId: string;
   secretAccessKey: string;
@@ -135,9 +133,12 @@ type CreateInput = {
   maxBytes: number;
 };
 
+type CreateInput = CreateInputBase & ({ provider: "r2"; accountId: string } | { provider: "s3"; region: string });
+
 type PatchInput = {
   label?: string;
   accountId?: string;
+  region?: string;
   bucket?: string;
   accessKeyId?: string;
   secretAccessKey?: string;
@@ -150,27 +151,30 @@ function validateCreate(body: Record<string, unknown> | null): ValidateResult<Cr
   const str = (k: string) => (typeof body[k] === "string" ? (body[k] as string).trim() : "");
   const num = (k: string) => (typeof body[k] === "number" ? (body[k] as number) : undefined);
 
-  if (body.provider !== "r2") return { ok: false, error: "provider must be 'r2'" };
+  if (body.provider !== "r2" && body.provider !== "s3") return { ok: false, error: "provider must be 'r2' or 's3'" };
   const label = str("label");
-  const accountId = str("accountId");
   const bucket = str("bucket");
   const accessKeyId = str("accessKeyId");
   const secretAccessKey = str("secretAccessKey");
   if (!label) return { ok: false, error: "label is required" };
-  if (!accountId) return { ok: false, error: "accountId is required" };
   if (!bucket) return { ok: false, error: "bucket is required" };
   if (!accessKeyId) return { ok: false, error: "accessKeyId is required" };
   if (!secretAccessKey) return { ok: false, error: "secretAccessKey is required" };
   const publicBaseUrl = str("publicBaseUrl") || undefined;
   const maxBytes = num("maxBytes");
   if (maxBytes === undefined || maxBytes <= 0) return { ok: false, error: "maxBytes must be a positive number" };
-  return {
-    ok: true,
-    value: { label, provider: "r2", accountId, bucket, accessKeyId, secretAccessKey, publicBaseUrl, maxBytes },
-  };
+  const common = { label, bucket, accessKeyId, secretAccessKey, publicBaseUrl, maxBytes };
+  if (body.provider === "r2") {
+    const accountId = str("accountId");
+    if (!accountId) return { ok: false, error: "accountId is required for R2" };
+    return { ok: true, value: { ...common, provider: "r2", accountId } };
+  }
+  const region = str("region");
+  if (!region) return { ok: false, error: "region is required for AWS S3" };
+  return { ok: true, value: { ...common, provider: "s3", region } };
 }
 
-function validatePatch(body: Record<string, unknown> | null): ValidateResult<PatchInput> {
+function validatePatch(body: Record<string, unknown> | null, provider: StorageConnection["provider"]): ValidateResult<PatchInput> {
   if (!body) return { ok: false, error: "invalid body" };
   const str = (k: string) => (typeof body[k] === "string" ? (body[k] as string).trim() : "");
   const num = (k: string) => (typeof body[k] === "number" ? (body[k] as number) : undefined);
@@ -181,7 +185,18 @@ function validatePatch(body: Record<string, unknown> | null): ValidateResult<Pat
     if (!v) return { ok: false, error: "label cannot be empty" };
     patch.label = v;
   }
-  if (body.accountId !== undefined) patch.accountId = str("accountId");
+  if (body.accountId !== undefined) {
+    if (provider !== "r2") return { ok: false, error: "accountId only applies to R2" };
+    const v = str("accountId");
+    if (!v) return { ok: false, error: "accountId cannot be empty" };
+    patch.accountId = v;
+  }
+  if (body.region !== undefined) {
+    if (provider !== "s3") return { ok: false, error: "region only applies to AWS S3" };
+    const v = str("region");
+    if (!v) return { ok: false, error: "region cannot be empty" };
+    patch.region = v;
+  }
   if (body.bucket !== undefined) patch.bucket = str("bucket");
   if (body.accessKeyId !== undefined) patch.accessKeyId = str("accessKeyId");
   if (body.secretAccessKey !== undefined) patch.secretAccessKey = str("secretAccessKey");

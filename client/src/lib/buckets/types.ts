@@ -1,12 +1,9 @@
 // Shared types for the storage/buckets feature. Credentials live in the
 // browser only — see session.ts. The rest of the UI imports these.
 
-export type ProviderId = "r2";
+export type ProviderId = "r2" | "s3";
 
-export interface Connection {
-  provider: ProviderId;
-  // R2 endpoint is derived from accountId.
-  accountId: string;
+interface ConnectionBase {
   accessKeyId: string;
   secretAccessKey: string;
   bucket: string;
@@ -19,6 +16,21 @@ export interface Connection {
   // User-facing label so multiple exported JSON configs are recognizable.
   label?: string;
 }
+
+export type R2Connection = ConnectionBase & {
+  provider: "r2";
+  // R2 endpoint is derived from accountId.
+  accountId: string;
+  region?: never;
+};
+
+export type S3Connection = ConnectionBase & {
+  provider: "s3";
+  region: string;
+  accountId?: never;
+};
+
+export type Connection = R2Connection | S3Connection;
 
 export interface FileEntry {
   // Full object key, e.g. "videos/movie.mp4".
@@ -49,7 +61,7 @@ export interface Usage {
 
 // Exported JSON file shape. Same fields as Connection plus an envelope so we
 // can refuse files from other apps or future schema versions.
-export interface ConfigFileV1 extends Connection {
+export type ConfigFileV1 = Connection & {
   version: 1;
   kind: "roomflix-storage-connection";
-}
+};

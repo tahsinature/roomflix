@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ChevronDown, HelpCircle, Library as LibraryIcon, Loader2, Pencil, Plus, Share2, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, ChevronDown, HelpCircle, Library as LibraryIcon, Loader2, Pencil, Plus, Share2, Trash2, Upload, XCircle } from "lucide-react";
 import type { Collection, LibraryHealth, ProbeResult, Subtitle, Video, VideoHealth } from "@shared/protocol";
 import { CollectionsSection } from "@/components/CollectionsSection";
 import { useAuth } from "@/auth/AuthContext";
@@ -10,11 +10,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { HealthDot } from "@/components/HealthDot";
 import { Modal } from "@/components/Modal";
+import { ConfigFileDialog } from "@/components/ConfigFileDialog";
 import { EditVideoDialog } from "@/components/EditVideoDialog";
 import { PlayButton } from "@/components/PlayButton";
 import { ShareDialog } from "@/components/ShareDialog";
 import { SubtitleBadge } from "@/components/SubtitleBadge";
+import { parseMediaBundleInput, toCreateSubtitles } from "@/lib/mediaBundle";
 import { cn, formatBytes, urlFilename } from "@/lib/utils";
+
+type AddMediaInput = { url: string; title?: string; subtitles?: Subtitle[] };
+type AddMediaResult = { video: Video; alreadyExists: boolean };
 
 export default function Library() {
   const toast = useToast();
@@ -71,13 +76,15 @@ export default function Library() {
     }
   };
 
-  const handleAdd = async (input: { url: string; title?: string }) => {
+  const handleAdd = async (input: AddMediaInput): Promise<AddMediaResult> => {
+    const alreadyExists = videos.some((video) => video.url === input.url.trim());
     const created = await api.createVideo(input);
     setVideos((prev) => {
       const without = prev.filter((v) => v.id !== created.id);
       return [created, ...without];
     });
     void reverify();
+    return { video: created, alreadyExists };
   };
 
   const handleUpdate = async (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => {
@@ -88,6 +95,7 @@ export default function Library() {
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 0;
       toast.error(status === 403 ? "You don't have permission to edit this video." : `Couldn't update video. ${(e as Error).message}`);
+      throw e;
     }
   };
 
@@ -418,9 +426,11 @@ type AddPhase = { kind: "idle" } | { kind: "probing" } | { kind: "review"; probe
 // server side and renamable via the per-row pencil, so a single input is
 // all the form needs. Calls onSuccess after a clean add so the host can
 // close the modal.
-function AddVideoForm({ onAdd, onSuccess }: { onAdd: (input: { url: string; title?: string }) => Promise<void>; onSuccess?: () => void }) {
+function AddVideoForm({ onAdd, onSuccess }: { onAdd: (input: AddMediaInput) => Promise<AddMediaResult>; onSuccess?: () => void }) {
+  const toast = useToast();
   const [url, setUrl] = useState("");
   const [phase, setPhase] = useState<AddPhase>({ kind: "idle" });
+  const [importOpen, setImportOpen] = useState(false);
 
   const reset = () => {
     setUrl("");
@@ -434,6 +444,29 @@ function AddVideoForm({ onAdd, onSuccess }: { onAdd: (input: { url: string; titl
       onSuccess?.();
     } catch (err) {
       setPhase({ kind: "error", message: (err as Error).message });
+    }
+  };
+
+  const importBundle = async (input: File | string) => {
+    const parsed = await parseMediaBundleInput(input);
+    if (!parsed.ok) {
+      toast.error(parsed.reason);
+      return;
+    }
+
+    try {
+      const result = await onAdd({
+        url: parsed.media.url,
+        title: parsed.media.title,
+        subtitles: toCreateSubtitles(parsed.media.subtitles),
+      });
+      setImportOpen(false);
+      reset();
+      if (result.alreadyExists) toast.info(`“${result.video.title}” is already in this library.`);
+      else toast.success(`Imported “${result.video.title}”.`);
+      onSuccess?.();
+    } catch (err) {
+      toast.error(`Couldn't import media. ${(err as Error).message}`);
     }
   };
 
@@ -461,38 +494,57 @@ function AddVideoForm({ onAdd, onSuccess }: { onAdd: (input: { url: string; titl
   const probing = phase.kind === "probing";
 
   return (
-    <form onSubmit={submit} className="space-y-2">
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Input
-          autoFocus
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="Paste a public media URL…"
-          className="sm:flex-1"
-          autoCapitalize="off"
-          autoCorrect="off"
-          spellCheck={false}
-          disabled={probing}
-        />
-        <Button type="submit" variant="accent" disabled={!url.trim() || probing} className="h-11">
-          {probing ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Checking…
-            </>
-          ) : (
-            <>
-              <Plus className="h-4 w-4" />
-              Add
-            </>
-          )}
+    <>
+      <div className="mb-3 flex justify-end">
+        <Button type="button" variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+          <Upload className="h-3.5 w-3.5" />
+          Import JSON
         </Button>
       </div>
 
-      {phase.kind === "review" && <ProbeReview probe={phase.probe} onConfirm={create} onCancel={() => setPhase({ kind: "idle" })} />}
+      <ConfigFileDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        title="Import media JSON"
+        description="Paste media JSON copied from Roomflix, or choose a saved JSON file. The title, media URL, and subtitles will be added to this library."
+        placeholder='{"kind":"roomflix-media","version":1,"media":{…}}'
+        submitLabel="Import media"
+        onSubmit={importBundle}
+      />
 
-      {phase.kind === "error" && <p className="text-xs text-accent">{phase.message}</p>}
-    </form>
+      <form onSubmit={submit} className="space-y-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            autoFocus
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="Paste a public media URL…"
+            className="sm:flex-1"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            disabled={probing}
+          />
+          <Button type="submit" variant="accent" disabled={!url.trim() || probing} className="h-11">
+            {probing ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Checking…
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4" />
+                Add
+              </>
+            )}
+          </Button>
+        </div>
+
+        {phase.kind === "review" && <ProbeReview probe={phase.probe} onConfirm={create} onCancel={() => setPhase({ kind: "idle" })} />}
+
+        {phase.kind === "error" && <p className="text-xs text-accent">{phase.message}</p>}
+      </form>
+    </>
   );
 }
 

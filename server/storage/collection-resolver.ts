@@ -33,11 +33,7 @@ export function invalidateCollectionItems(collectionId?: string): void {
 // the filter so the items array returned IS the canonical play list
 // — never two viewers seeing different items for the same collection
 // in a room.
-export async function resolveCollection(
-  collection: Collection,
-  storage: Storage,
-  options: { refresh?: boolean; unfiltered?: boolean } = {},
-): Promise<Collection> {
+export async function resolveCollection(collection: Collection, storage: Storage, options: { refresh?: boolean; unfiltered?: boolean } = {}): Promise<Collection> {
   if (!collection.source) return collection;
   let items: CollectionItem[];
   if (!options.refresh) {
@@ -76,7 +72,11 @@ async function fetchFolderItems(source: CollectionSource, storage: Storage): Pro
   if (!conn || !conn.publicBaseUrl) return [];
   const secret = await storage.storageConnections.getSecret(source.connectionId);
   if (!secret) return [];
-  const client = makeBucketClient({ accountId: conn.accountId, accessKeyId: conn.accessKeyId, secretAccessKey: secret });
+  const client = makeBucketClient(
+    conn.provider === "r2"
+      ? { provider: "r2", accountId: conn.accountId, accessKeyId: conn.accessKeyId, secretAccessKey: secret }
+      : { provider: "s3", region: conn.region, accessKeyId: conn.accessKeyId, secretAccessKey: secret },
+  );
   try {
     const entries = await listFolder(client, conn.bucket, source.folderPrefix);
     // Same filter the client's "New collection from folder" used — media

@@ -44,14 +44,25 @@ export async function fetchProbe(url: string): Promise<FetchProbe> {
     }
   })();
   try {
+    // S3 presigned download URLs are signed for GET specifically. Reusing
+    // one for the usual HEAD probe changes the signed HTTP method, so S3
+    // answers 403 even though the URL plays correctly in a browser. Fetch a
+    // single byte instead; Range is not part of the usual presigned headers,
+    // and cancelling the body keeps a range-ignoring host from streaming the
+    // full media file into the probe.
+    const presignedGet = isAwsPresignedUrl(safeUrl);
     const res = await fetch(safeUrl, {
-      method: "HEAD",
+      method: presignedGet ? "GET" : "HEAD",
+      headers: presignedGet ? { Range: "bytes=0-0" } : undefined,
       redirect: "follow",
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     });
+    if (presignedGet) {
+      await res.body?.cancel().catch(() => undefined);
+    }
     const contentType = res.headers.get("content-type") ?? undefined;
     const lenHdr = res.headers.get("content-length");
-    const contentLength = lenHdr ? Number(lenHdr) : undefined;
+    const contentLength = presignedGet ? (rangedObjectLength(res.headers.get("content-range")) ?? numberHeader(lenHdr)) : numberHeader(lenHdr);
 
     if (res.status === 405 || res.status === 501) {
       return { kind: "head-disallowed", status: res.status };
@@ -63,6 +74,26 @@ export async function fetchProbe(url: string): Promise<FetchProbe> {
   } catch (err) {
     return { kind: "network-error", reason: errMessage(err) };
   }
+}
+
+function isAwsPresignedUrl(url: string): boolean {
+  try {
+    const params = new URL(url).searchParams;
+    return params.get("X-Amz-Algorithm") === "AWS4-HMAC-SHA256" && params.has("X-Amz-Credential") && params.has("X-Amz-Signature");
+  } catch {
+    return false;
+  }
+}
+
+function rangedObjectLength(contentRange: string | null): number | undefined {
+  const match = contentRange?.match(/^bytes \d+-\d+\/(\d+)$/i);
+  return match ? numberHeader(match[1]) : undefined;
+}
+
+function numberHeader(value: string | null | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
 // Strip the constructor name prefix that `String(err)` adds (e.g. "TypeError: …").

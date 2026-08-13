@@ -5,6 +5,7 @@ import type { Collection, CollectionItem, Subtitle, Video } from "@shared/protoc
 import { FileBrowser, LibraryHintBanner, publicUrlForKey, type CollectionTarget } from "@/components/storage/FileBrowser";
 import { UploadQueuePanel, type UploadQueueItem } from "@/components/storage/UploadQueuePanel";
 import { UsageBar } from "@/components/storage/UsageBar";
+import { CorsHint } from "@/components/storage/CorsHint";
 import { EditVideoDialog } from "@/components/EditVideoDialog";
 import {
   browse,
@@ -187,7 +188,7 @@ export function StorageWorkspace({ connection, connectionId }: { connection: Con
         setBrowseResult(result);
         void refreshUsage(client, connection.bucket);
       } catch (err) {
-        if (!cancelled) setConnectError(classifyError(err));
+        if (!cancelled) setConnectError(classifyError(err, connection.provider));
       } finally {
         if (!cancelled) setBusy(false);
       }
@@ -197,7 +198,7 @@ export function StorageWorkspace({ connection, connectionId }: { connection: Con
       clientRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connection.bucket, connection.accountId, connection.accessKeyId, connection.secretAccessKey]);
+  }, [connection.provider, connection.bucket, connection.accountId, connection.region, connection.accessKeyId, connection.secretAccessKey]);
 
   // Refresh the library URL set whenever the connection changes — used
   // for the "In Library" badge.
@@ -248,7 +249,7 @@ export function StorageWorkspace({ connection, connectionId }: { connection: Con
       const result = await browse(client, connection.bucket, prefix);
       setBrowseResult(result);
     } catch (err) {
-      setConnectError(classifyError(err));
+      setConnectError(classifyError(err, connection.provider));
     } finally {
       setBrowseLoading(false);
     }
@@ -281,7 +282,7 @@ export function StorageWorkspace({ connection, connectionId }: { connection: Con
       await new Promise((r) => setTimeout(r, ANIMATION_DELAY_MS));
       setBrowseResult((prev) => (prev ? { ...prev, files: prev.files.filter((f) => f.key !== key) } : prev));
     } catch (err) {
-      setMutationError(classifyError(err).message);
+      setMutationError(classifyError(err, connection.provider).message);
       throw err;
     } finally {
       unmarkDeleting([key]);
@@ -301,7 +302,7 @@ export function StorageWorkspace({ connection, connectionId }: { connection: Con
       await new Promise((r) => setTimeout(r, ANIMATION_DELAY_MS));
       setBrowseResult((prev) => (prev ? { ...prev, folders: prev.folders.filter((f) => f.prefix !== prefix) } : prev));
     } catch (err) {
-      setMutationError(classifyError(err).message);
+      setMutationError(classifyError(err, connection.provider).message);
       throw err;
     } finally {
       unmarkDeleting([prefix]);
@@ -340,7 +341,7 @@ export function StorageWorkspace({ connection, connectionId }: { connection: Con
           : prev,
       );
     } catch (err) {
-      setMutationError(classifyError(err).message);
+      setMutationError(classifyError(err, connection.provider).message);
       throw err;
     } finally {
       unmarkDeleting(ids);
@@ -393,7 +394,7 @@ export function StorageWorkspace({ connection, connectionId }: { connection: Con
         await updateLibraryUrlIfNeeded(oldUrl, newUrl);
       }
     } catch (err) {
-      setMutationError(classifyError(err).message);
+      setMutationError(classifyError(err, connection.provider).message);
       throw err;
     }
   };
@@ -425,7 +426,7 @@ export function StorageWorkspace({ connection, connectionId }: { connection: Con
         }
       }
     } catch (err) {
-      setMutationError(classifyError(err).message);
+      setMutationError(classifyError(err, connection.provider).message);
       throw err;
     }
   };
@@ -550,6 +551,9 @@ export function StorageWorkspace({ connection, connectionId }: { connection: Con
     );
   }
   if (connectError) {
+    if (connectError.kind === "cors") {
+      return <CorsHint provider={connection.provider} />;
+    }
     return (
       <div className="flex flex-col gap-2 border border-accent/30 bg-accent/10 p-3 text-xs text-accent">
         <div className="flex items-start gap-2">
@@ -612,7 +616,7 @@ function MutationErrorBanner({ message, onDismiss }: { message: string; onDismis
   );
 }
 
-function classifyError(err: unknown): ConnectError {
+function classifyError(err: unknown, provider: Connection["provider"]): ConnectError {
   if (looksLikeCorsError(err)) {
     return { kind: "cors", message: "Browser blocked the request — bucket CORS isn't configured." };
   }
@@ -622,7 +626,7 @@ function classifyError(err: unknown): ConnectError {
     return { kind: "auth", message: "Auth rejected — check your Access Key ID and Secret." };
   }
   if (name === "NoSuchBucket") {
-    return { kind: "auth", message: "Bucket not found — check the bucket name and Account ID." };
+    return { kind: "auth", message: `Bucket not found — check the bucket name and ${provider === "r2" ? "Account ID" : "AWS region"}.` };
   }
   return { kind: "other", message: e?.message || String(err) };
 }

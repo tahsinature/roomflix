@@ -145,8 +145,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  validatePasswordResetToken: (token: string) =>
-    request<{ username: string }>(`/api/auth/password-reset/validate?token=${encodeURIComponent(token)}`),
+  validatePasswordResetToken: (token: string) => request<{ username: string }>(`/api/auth/password-reset/validate?token=${encodeURIComponent(token)}`),
   confirmPasswordReset: (input: { token: string; newPassword: string }) =>
     request<void>("/api/auth/password-reset/confirm", {
       method: "POST",
@@ -161,16 +160,16 @@ export const api = {
   // Account-level storage connections. The "Settings" UI manages these.
   // Secrets are NEVER returned by these calls — fetch via fetchSecret.
   listStorageConnections: () => request<StorageConnectionDetail[]>("/api/account/storage"),
-  createStorageConnection: (input: {
-    label: string;
-    provider: "r2";
-    accountId: string;
-    bucket: string;
-    accessKeyId: string;
-    secretAccessKey: string;
-    publicBaseUrl?: string;
-    maxBytes: number;
-  }) =>
+  createStorageConnection: (
+    input: {
+      label: string;
+      bucket: string;
+      accessKeyId: string;
+      secretAccessKey: string;
+      publicBaseUrl?: string;
+      maxBytes: number;
+    } & ({ provider: "r2"; accountId: string } | { provider: "s3"; region: string }),
+  ) =>
     request<StorageConnectionDetail>("/api/account/storage", {
       method: "POST",
       body: JSON.stringify(input),
@@ -180,6 +179,7 @@ export const api = {
     patch: {
       label?: string;
       accountId?: string;
+      region?: string;
       bucket?: string;
       accessKeyId?: string;
       secretAccessKey?: string;
@@ -214,8 +214,7 @@ export const api = {
   // "Show filtered" view on CollectionEdit and the /watch panel
   // override so the user can see what's being hidden. The default
   // call returns the canonical (filter-applied) play list.
-  getCollection: (id: string, opts: { unfiltered?: boolean } = {}) =>
-    request<Collection>(`/api/collections/${encodeURIComponent(id)}${opts.unfiltered ? "?unfiltered=true" : ""}`),
+  getCollection: (id: string, opts: { unfiltered?: boolean } = {}) => request<Collection>(`/api/collections/${encodeURIComponent(id)}${opts.unfiltered ? "?unfiltered=true" : ""}`),
   getCollectionHealth: (id: string, opts: { refresh?: boolean } = {}) =>
     request<CollectionHealth>(`/api/collections/${encodeURIComponent(id)}/health${opts.refresh ? "?refresh=true" : ""}`),
   createCollection: (input: {
@@ -231,10 +230,7 @@ export const api = {
     }),
   // `coverUrl: null` / `mediaFilter: null` clear those fields; omit
   // to leave alone.
-  updateCollection: (
-    id: string,
-    patch: { title?: string; items?: CollectionItem[]; coverUrl?: string | null; mediaFilter?: CollectionMediaFilter | null },
-  ) =>
+  updateCollection: (id: string, patch: { title?: string; items?: CollectionItem[]; coverUrl?: string | null; mediaFilter?: CollectionMediaFilter | null }) =>
     request<Collection>(`/api/collections/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify(patch),
@@ -329,11 +325,8 @@ export const api = {
   // Persistent chat history for the current space — used by the remote
   // control page to backfill what was said before it opened.
   chatHistory: (spaceId: string, limit = 100) => request<ChatMessage[]>(`/api/spaces/${encodeURIComponent(spaceId)}/chat?limit=${limit}`),
-  clearChat: (spaceId: string) =>
-    request<{ deleted: number }>(`/api/spaces/${encodeURIComponent(spaceId)}/chat`, { method: "DELETE" }),
+  clearChat: (spaceId: string) => request<{ deleted: number }>(`/api/spaces/${encodeURIComponent(spaceId)}/chat`, { method: "DELETE" }),
   getVersion: () => request<{ version: string; startedAt: string }>("/api/version"),
-  watchHistory: (spaceId: string, limit = 100) =>
-    request<WatchHistoryEntry[]>(`/api/spaces/${encodeURIComponent(spaceId)}/history?limit=${limit}`),
-  clearWatchHistory: (spaceId: string) =>
-    request<{ deleted: number }>(`/api/spaces/${encodeURIComponent(spaceId)}/history`, { method: "DELETE" }),
+  watchHistory: (spaceId: string, limit = 100) => request<WatchHistoryEntry[]>(`/api/spaces/${encodeURIComponent(spaceId)}/history?limit=${limit}`),
+  clearWatchHistory: (spaceId: string) => request<{ deleted: number }>(`/api/spaces/${encodeURIComponent(spaceId)}/history`, { method: "DELETE" }),
 };

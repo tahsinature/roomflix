@@ -7,7 +7,7 @@ import { Modal } from "@/components/Modal";
 import { useAuth } from "@/auth/AuthContext";
 import { api } from "@/lib/api";
 import { invalidateSecret } from "@/lib/buckets/session";
-import type { Connection } from "@/lib/buckets/types";
+import type { Connection, ProviderId } from "@/lib/buckets/types";
 import { cn } from "@/lib/utils";
 
 // Account-level storage CRUD. Lives under /settings/storage. The
@@ -23,12 +23,12 @@ const PROVIDERS: Array<{
   icon: React.ReactNode;
 }> = [
   { id: "r2", name: "Cloudflare R2", enabled: true, icon: <Cloud className="h-4 w-4" /> },
-  { id: "s3", name: "AWS S3", enabled: false, icon: <Cloud className="h-4 w-4" /> },
+  { id: "s3", name: "AWS S3", enabled: true, icon: <Cloud className="h-4 w-4" /> },
   { id: "b2", name: "Backblaze B2", enabled: false, icon: <HardDrive className="h-4 w-4" /> },
   { id: "wasabi", name: "Wasabi", enabled: false, icon: <HardDrive className="h-4 w-4" /> },
 ];
 
-type FormState = { kind: "create"; provider: "r2" } | { kind: "edit"; detail: StorageConnectionDetail } | null;
+type FormState = { kind: "create"; provider: ProviderId } | { kind: "edit"; detail: StorageConnectionDetail } | null;
 
 export default function SettingsStorage() {
   const [details, setDetails] = useState<StorageConnectionDetail[] | null>(null);
@@ -85,7 +85,15 @@ export default function SettingsStorage() {
         </header>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {PROVIDERS.map((p) => (
-            <ProviderButton key={p.id} icon={p.icon} name={p.name} enabled={p.enabled} onClick={() => p.enabled && p.id === "r2" && setForm({ kind: "create", provider: "r2" })} />
+            <ProviderButton
+              key={p.id}
+              icon={p.icon}
+              name={p.name}
+              enabled={p.enabled}
+              onClick={() => {
+                if (p.id === "r2" || p.id === "s3") setForm({ kind: "create", provider: p.id });
+              }}
+            />
           ))}
         </div>
       </section>
@@ -172,7 +180,7 @@ function ConnectionFormModal({
   onUpdated: (d: StorageConnectionDetail) => void;
 }) {
   const isEdit = state?.kind === "edit";
-  const title = !state ? "" : state.kind === "create" ? "New Cloudflare R2 connection" : `Edit ${state.detail.connection.label}`;
+  const title = !state ? "" : state.kind === "create" ? `New ${providerName(state.provider)} connection` : `Edit ${state.detail.connection.label}`;
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -190,41 +198,30 @@ function ConnectionFormModal({
       </Modal>
     );
 
-  const initial: Connection | undefined = isEdit
-    ? {
-        provider: state.detail.connection.provider,
-        accountId: state.detail.connection.accountId,
-        accessKeyId: state.detail.connection.accessKeyId,
-        // Empty cleartext on edit — the server's PATCH treats missing
-        // secretAccessKey as "leave existing key alone."
-        secretAccessKey: "",
-        bucket: state.detail.connection.bucket,
-        publicBaseUrl: state.detail.connection.publicBaseUrl,
-        maxBytes: state.detail.connection.maxBytes,
-        label: state.detail.connection.label,
-      }
-    : undefined;
+  const provider = state.kind === "create" ? state.provider : state.detail.connection.provider;
+  const initial = isEdit ? connectionForEdit(state.detail.connection) : undefined;
 
   const handleConnect = async (conn: Connection) => {
     setError("");
     setBusy(true);
     try {
       if (state.kind === "create") {
-        const detail = await api.createStorageConnection({
+        const common = {
           label: conn.label?.trim() || `${conn.provider}/${conn.bucket}`,
-          provider: conn.provider,
-          accountId: conn.accountId,
           bucket: conn.bucket,
           accessKeyId: conn.accessKeyId,
           secretAccessKey: conn.secretAccessKey,
           publicBaseUrl: conn.publicBaseUrl,
           maxBytes: conn.maxBytes,
-        });
+        };
+        const detail = await api.createStorageConnection(
+          conn.provider === "r2" ? { ...common, provider: "r2", accountId: conn.accountId } : { ...common, provider: "s3", region: conn.region },
+        );
         onCreated(detail);
       } else {
         const next = await api.updateStorageConnection(state.detail.connection.id, {
           label: conn.label,
-          accountId: conn.accountId,
+          ...(conn.provider === "r2" ? { accountId: conn.accountId } : { region: conn.region }),
           bucket: conn.bucket,
           accessKeyId: conn.accessKeyId,
           ...(conn.secretAccessKey ? { secretAccessKey: conn.secretAccessKey } : {}),
@@ -243,6 +240,7 @@ function ConnectionFormModal({
     <Modal open title={title} onClose={onClose} className="max-w-3xl">
       {isEdit && <p className="mb-3 font-mono text-[11px] text-text-dim">Leave the secret key blank to keep the existing one. Fill it in to rotate.</p>}
       <ConnectForm
+        provider={provider}
         initial={initial}
         busy={busy}
         error={error}
@@ -254,6 +252,24 @@ function ConnectionFormModal({
       />
     </Modal>
   );
+}
+
+function connectionForEdit(summary: StorageConnectionDetail["connection"]): Connection {
+  const common = {
+    accessKeyId: summary.accessKeyId,
+    // Empty cleartext on edit — the server's PATCH treats a missing
+    // secretAccessKey as "leave the existing key alone."
+    secretAccessKey: "",
+    bucket: summary.bucket,
+    publicBaseUrl: summary.publicBaseUrl,
+    maxBytes: summary.maxBytes,
+    label: summary.label,
+  };
+  return summary.provider === "r2" ? { ...common, provider: "r2", accountId: summary.accountId } : { ...common, provider: "s3", region: summary.region };
+}
+
+function providerName(provider: ProviderId): string {
+  return provider === "r2" ? "Cloudflare R2" : "AWS S3";
 }
 
 function ConnectionCard({
