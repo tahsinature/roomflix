@@ -523,10 +523,13 @@ export function StorageWorkspace({ connection, connectionId }: { connection: Con
     [libraryByUrl],
   );
 
-  const handleUpdateVideo = useCallback(async (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => {
+  const handleUpdateVideo = useCallback(async (id: string, patch: { url?: string; title?: string; subtitles?: Subtitle[] }) => {
     const updated = await api.updateVideo(id, patch);
     setLibraryByUrl((prev) => {
       const next = new Map(prev ?? []);
+      for (const [url, video] of next) {
+        if (video.id === updated.id) next.delete(url);
+      }
       next.set(canonicalUrl(updated.url), updated);
       return next;
     });

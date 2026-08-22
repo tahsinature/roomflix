@@ -87,7 +87,7 @@ export default function Library() {
     return { video: created, alreadyExists };
   };
 
-  const handleUpdate = async (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => {
+  const handleUpdate = async (id: string, patch: { url?: string; title?: string; subtitles?: Subtitle[] }) => {
     try {
       const updated = await api.updateVideo(id, patch);
       setVideos((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
@@ -590,7 +590,7 @@ function VideoRow({
   video: Video;
   health: VideoHealth | undefined;
   collections: Collection[];
-  onUpdate: (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => Promise<void>;
+  onUpdate: (id: string, patch: { url?: string; title?: string; subtitles?: Subtitle[] }) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
   onAddToCollection: (collectionId: string) => Promise<void>;
 }) {

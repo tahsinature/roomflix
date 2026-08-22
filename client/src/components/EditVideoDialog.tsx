@@ -28,22 +28,33 @@ export function EditVideoDialog({
   health?: VideoHealth | undefined;
   open: boolean;
   onClose: () => void;
-  onUpdate: (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => Promise<void>;
+  onUpdate: (id: string, patch: { url?: string; title?: string; subtitles?: Subtitle[] }) => Promise<void>;
 }) {
   const toast = useToast();
   const [draftTitle, setDraftTitle] = useState(video.title);
   const [savingTitle, setSavingTitle] = useState(false);
   const [titleErr, setTitleErr] = useState("");
+  const [editingUrl, setEditingUrl] = useState(false);
+  const [draftUrl, setDraftUrl] = useState(video.url);
+  const [savingUrl, setSavingUrl] = useState(false);
+  const [urlErr, setUrlErr] = useState("");
 
   useEffect(() => {
     setDraftTitle(video.title);
     setTitleErr("");
   }, [video.id, video.title, open]);
 
-  const dirty = draftTitle.trim() !== video.title && draftTitle.trim() !== "";
+  useEffect(() => {
+    setEditingUrl(false);
+    setDraftUrl(video.url);
+    setUrlErr("");
+  }, [video.id, video.url, open]);
+
+  const titleDirty = draftTitle.trim() !== video.title && draftTitle.trim() !== "";
+  const urlDirty = draftUrl.trim() !== video.url && draftUrl.trim() !== "";
 
   const saveTitle = async () => {
-    if (savingTitle || !dirty) return;
+    if (savingTitle || !titleDirty) return;
     setSavingTitle(true);
     setTitleErr("");
     try {
@@ -52,6 +63,21 @@ export function EditVideoDialog({
       setTitleErr((err as Error).message);
     } finally {
       setSavingTitle(false);
+    }
+  };
+
+  const saveUrl = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (savingUrl || !urlDirty) return;
+    setSavingUrl(true);
+    setUrlErr("");
+    try {
+      await onUpdate(video.id, { url: draftUrl.trim() });
+      setEditingUrl(false);
+    } catch (err) {
+      setUrlErr((err as Error).message);
+    } finally {
+      setSavingUrl(false);
     }
   };
 
@@ -87,7 +113,7 @@ export function EditVideoDialog({
               autoFocus
               className="h-10"
             />
-            <Button variant={dirty ? "accent" : "outline"} onClick={saveTitle} disabled={!dirty || savingTitle} className="h-10 shrink-0">
+            <Button variant={titleDirty ? "accent" : "outline"} onClick={saveTitle} disabled={!titleDirty || savingTitle} className="h-10 shrink-0">
               {savingTitle ? "Saving…" : "Save"}
             </Button>
           </div>
@@ -96,10 +122,62 @@ export function EditVideoDialog({
 
         <section>
           <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">URL</label>
-          <div className="mt-2 flex items-center gap-2">
-            <p className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">{video.url}</p>
-            <CopyButton text={video.url} label="media URL" />
-          </div>
+          {editingUrl ? (
+            <form onSubmit={saveUrl} className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <Input
+                autoFocus
+                value={draftUrl}
+                onChange={(event) => setDraftUrl(event.target.value)}
+                placeholder="Media URL"
+                aria-label="Media URL"
+                className="h-10 min-w-0 flex-1 font-mono text-xs"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                disabled={savingUrl}
+              />
+              <div className="flex justify-end gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setDraftUrl(video.url);
+                    setUrlErr("");
+                    setEditingUrl(false);
+                  }}
+                  disabled={savingUrl}
+                  className="h-10"
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" variant="accent" size="sm" disabled={!urlDirty || savingUrl} className="h-10">
+                  {savingUrl ? "Saving…" : "Save"}
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="mt-2 flex items-center gap-2">
+              <p className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground" title={video.url}>
+                {video.url}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setDraftUrl(video.url);
+                  setUrlErr("");
+                  setEditingUrl(true);
+                }}
+                aria-label="Edit media URL"
+                title="Edit media URL"
+                className="shrink-0 p-1 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <CopyButton text={video.url} label="media URL" />
+            </div>
+          )}
+          {urlErr && <p className="mt-1 text-xs text-accent">{urlErr}</p>}
         </section>
 
         <section>
@@ -120,7 +198,7 @@ function SubtitlesPanel({
 }: {
   video: Video;
   health: VideoHealth | undefined;
-  onUpdate: (id: string, patch: { title?: string; subtitles?: Subtitle[] }) => Promise<void>;
+  onUpdate: (id: string, patch: { url?: string; title?: string; subtitles?: Subtitle[] }) => Promise<void>;
 }) {
   const [url, setUrl] = useState("");
   const [label, setLabel] = useState("");

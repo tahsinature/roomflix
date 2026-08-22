@@ -13,7 +13,7 @@ import { syncActiveLibraryEntry } from "@/sessions.ts";
 //   GET    /api/videos              list all (in current space)
 //   POST   /api/videos              { url, title?, subtitles? } → create (idempotent on url)
 //   GET    /api/videos/:id          fetch one
-//   PATCH  /api/videos/:id          { title?, subtitles? } → patch (owner only)
+//   PATCH  /api/videos/:id          { url?, title?, subtitles? } → patch (owner only)
 //   DELETE /api/videos/:id          remove (owner only)
 export function buildVideosRouter(storage: Storage) {
   const app = new Hono();
@@ -62,6 +62,13 @@ export function buildVideosRouter(storage: Storage) {
     if (typeof body.title === "string") patch.title = body.title;
     const subs = parseSubtitles(body.subtitles);
     if (subs !== undefined) patch.subtitles = subs;
+
+    if (patch.url) {
+      const existing = await storage.videos.findByUrl(spaceId, patch.url);
+      if (existing && existing.id !== c.req.param("id")) {
+        return c.json({ error: "that URL already belongs to another library item" }, 409);
+      }
+    }
 
     const updated = await storage.videos.update(spaceId, c.req.param("id"), patch);
     if (!updated) return c.json({ error: "not found" }, 404);
