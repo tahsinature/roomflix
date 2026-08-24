@@ -129,6 +129,8 @@ export type DiscoverTitleDetails = DiscoverSearchResult & {
   numberOfEpisodes: number | null;
   trailers: DiscoverTrailer[];
   watchProviders: Record<string, DiscoverRegionProviders>;
+  /** Regional age certification, e.g. { CA: "14A", US: "PG-13" }. */
+  certifications: Record<string, string>;
 };
 
 export type DiscoverPersonDetails = {

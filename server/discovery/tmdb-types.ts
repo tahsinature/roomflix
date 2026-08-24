@@ -49,6 +49,12 @@ export type RawRegionProviders = {
   buy?: RawWatchProvider[];
 };
 
+export type RawCertificationResult = {
+  iso_3166_1?: string;
+  release_dates?: Array<{ certification?: string }>;
+  rating?: string;
+};
+
 export type RawTitleDetails = RawSearchItem & {
   runtime?: number | null;
   episode_run_time?: number[];
@@ -65,6 +71,8 @@ export type RawTitleDetails = RawSearchItem & {
   recommendations?: { results?: RawSearchItem[] };
   videos?: { results?: RawVideo[] };
   "watch/providers"?: { results?: Record<string, RawRegionProviders> };
+  release_dates?: { results?: RawCertificationResult[] };
+  content_ratings?: { results?: RawCertificationResult[] };
 };
 
 export type RawPersonDetails = {

@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -10,30 +10,44 @@ type Props = {
   children: ReactNode;
   headerAction?: ReactNode;
   className?: string;
+  overlayClassName?: string;
 };
+
+const openModalStack: symbol[] = [];
 
 // Lightweight modal: portal to <body>, backdrop click + Esc to close, body
 // scroll locked while open, fade-in. No focus trap (intentional simplicity —
 // the use case is small forms, not full-screen workflows).
-export function Modal({ open, title, onClose, children, headerAction, className }: Props) {
+export function Modal({ open, title, onClose, children, headerAction, className, overlayClassName }: Props) {
+  const modalId = useRef(Symbol(title));
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!open) return;
+    const id = modalId.current;
+    openModalStack.push(id);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && openModalStack.at(-1) === id) onCloseRef.current();
     };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", onKey);
+      const stackIndex = openModalStack.lastIndexOf(id);
+      if (stackIndex >= 0) openModalStack.splice(stackIndex, 1);
       document.body.style.overflow = prev;
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+    <div className={cn("fixed inset-0 z-[100] overflow-y-auto bg-black/70 backdrop-blur-sm animate-fade-in", overlayClassName)} onClick={onClose}>
       <div className="flex min-h-full items-center justify-center p-4 sm:p-8">
         <div
           role="dialog"

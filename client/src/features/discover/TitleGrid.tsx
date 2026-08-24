@@ -17,10 +17,10 @@ export function TitleGrid({
   const libraryByTitle = new Map((library ?? []).map((item) => [titleIdentity(item), item]));
 
   return (
-    <div className={cn("grid gap-3", compact ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6")}>
+    <div className={cn("grid gap-3", compact ? "grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))]" : "grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(8rem,1fr))]")}>
       {titles.map((title) => {
         const saved = libraryByTitle.get(titleIdentity(title));
-        const image = posterUrl(title.posterPath);
+        const image = posterUrl(title.posterPath, compact ? "w185" : "w342");
         const MediaIcon = title.mediaType === "tv" ? Tv : Clapperboard;
         return (
           <button
@@ -54,7 +54,7 @@ export function TitleGrid({
                 </span>
               ) : null}
             </div>
-            <div className="min-h-[4.5rem] p-2.5">
+            <div className="min-h-[4rem] p-2">
               <p className="line-clamp-2 text-xs font-semibold leading-snug text-foreground">{title.title}</p>
               <p className="mt-1 text-[10px] text-text-dim">{title.year || "Date unknown"}</p>
             </div>

@@ -65,7 +65,7 @@ export function buildDiscoverTmdbRouter(storage: Storage) {
     const tmdbId = parsePositiveInt(c.req.param("tmdbId"));
     if (!mediaType || !tmdbId) return c.json({ error: "invalid TMDB title identity" }, 400);
     const data = await tmdbRequest<RawTitleDetails>(`/${mediaType}/${tmdbId}`, {
-      append_to_response: "credits,external_ids,recommendations,videos,watch/providers",
+      append_to_response: `credits,external_ids,recommendations,videos,watch/providers,${mediaType === "movie" ? "release_dates" : "content_ratings"}`,
     });
     return c.json(toTitleDetails(data, mediaType));
   });

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Bookmark, CheckCircle2, GitCompareArrows, Loader2, Search } from "lucide-react";
 import type { DiscoverPersonResult, DiscoverSearchResult, TitleLibraryItem } from "@shared/protocol";
 import { useToast } from "@/components/Toast";
@@ -12,9 +13,12 @@ import { TitleGrid } from "@/features/discover/TitleGrid";
 import { WatchlistCompareModal } from "@/features/discover/WatchlistCompareModal";
 import { libraryItemToSearchResult, type TitleSelection } from "@/features/discover/discover-utils";
 import { EmptyLibrary, LoadingGrid, PersonResult, ViewButton, type DiscoverView } from "@/features/discover/DiscoverPageParts";
+import { useCommandPalette } from "@/features/command-palette/CommandPaletteProvider";
 
 export default function Discover() {
   const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { libraryRevision } = useCommandPalette();
   const [view, setView] = useState<DiscoverView>("search");
   const [query, setQuery] = useState("");
   const [titles, setTitles] = useState<DiscoverSearchResult[]>([]);
@@ -40,7 +44,22 @@ export default function Discover() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [libraryRevision]);
+
+  useEffect(() => {
+    const title = searchParams.get("title")?.match(/^(movie|tv):(\d+)$/);
+    const person = Number(searchParams.get("person"));
+    if (title) {
+      setSelectedPerson(null);
+      setSelectedTitle({ mediaType: title[1] as TitleSelection["mediaType"], tmdbId: Number(title[2]) });
+    } else if (Number.isInteger(person) && person > 0) {
+      setSelectedTitle(null);
+      setSelectedPerson(person);
+    } else {
+      setSelectedTitle(null);
+      setSelectedPerson(null);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -106,10 +125,12 @@ export default function Discover() {
   const openPerson = (tmdbId: number) => {
     setSelectedTitle(null);
     setSelectedPerson(tmdbId);
+    setSearchParams({ person: String(tmdbId) });
   };
   const openTitle = (selection: TitleSelection) => {
     setSelectedPerson(null);
     setSelectedTitle(selection);
+    setSearchParams({ title: `${selection.mediaType}:${selection.tmdbId}` });
   };
 
   return (
@@ -201,13 +222,13 @@ export default function Discover() {
       <DiscoverTitleModal
         selection={selectedTitle}
         library={library}
-        onClose={() => setSelectedTitle(null)}
+        onClose={() => setSearchParams({})}
         onSelectTitle={openTitle}
         onSelectPerson={openPerson}
         onSave={saveItem}
         onRemove={removeItem}
       />
-      <DiscoverPersonModal tmdbId={selectedPerson} library={library} onClose={() => setSelectedPerson(null)} onSelectTitle={openTitle} />
+      <DiscoverPersonModal tmdbId={selectedPerson} library={library} onClose={() => setSearchParams({})} onSelectTitle={openTitle} />
       <WatchlistCompareModal open={compareOpen} items={shortlist} onClose={() => setCompareOpen(false)} />
     </main>
   );

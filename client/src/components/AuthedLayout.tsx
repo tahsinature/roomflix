@@ -2,6 +2,7 @@ import { Loader2 } from "lucide-react";
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 import { AppNav } from "@/components/AppNav";
+import { CommandPaletteProvider } from "@/features/command-palette/CommandPaletteProvider";
 
 // Wraps every authenticated route. AppNav is mounted once at this
 // level so it never re-renders during in-app navigation — Library →
@@ -29,7 +30,7 @@ export function AuthedLayout() {
   if (!user && !guest) return <Navigate to="/welcome" replace />;
 
   return (
-    <>
+    <CommandPaletteProvider enabled={Boolean(user)}>
       {!embedded && <AppNav />}
       {/* Scrolling lives inside this container rather than on the
           body so the page scrollbar sits BELOW the fixed nav instead
@@ -48,6 +49,6 @@ export function AuthedLayout() {
       <div className={embedded ? "h-[100dvh] overflow-y-auto overflow-x-hidden" : "h-[100dvh] overflow-y-auto pt-[60px] sm:pt-[68px]"}>
         <Outlet />
       </div>
-    </>
+    </CommandPaletteProvider>
   );
 }

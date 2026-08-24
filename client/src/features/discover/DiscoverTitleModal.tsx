@@ -8,7 +8,9 @@ import { TitleGrid } from "./TitleGrid";
 import { SectionLabel, TitleCast, TitleFacts, TitleHero } from "./TitleDetailSections";
 import { TitleMediaSections } from "./TitleMediaSections";
 import { TitleWatchState } from "./TitleWatchState";
+import { TitleActionBar } from "./TitleActions";
 import { titleIdentity, type TitleSelection } from "./discover-utils";
+import { useCommandPalette } from "@/features/command-palette/CommandPaletteProvider";
 
 type LibraryPayload = Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt">;
 
@@ -31,6 +33,7 @@ export function DiscoverTitleModal({
 }) {
   const [details, setDetails] = useState<DiscoverTitleDetails | null>(null);
   const [error, setError] = useState("");
+  const { setCurrentTitle } = useCommandPalette();
   const existing = useMemo(() => library.find((item) => selection && titleIdentity(item) === titleIdentity(selection)), [library, selection]);
 
   useEffect(() => {
@@ -51,6 +54,11 @@ export function DiscoverTitleModal({
     };
   }, [selection]);
 
+  useEffect(() => {
+    setCurrentTitle(details);
+    return () => setCurrentTitle(null);
+  }, [details, setCurrentTitle]);
+
   return (
     <Modal open={selection !== null} title={details?.title ?? selection?.title ?? "Title details"} onClose={onClose} className="max-w-6xl">
       {error ? <div className="border border-accent/30 bg-accent/10 p-4 text-sm text-accent">{error}</div> : null}
@@ -69,6 +77,7 @@ export function DiscoverTitleModal({
             ) : null}
             <TitleCast details={details} onSelectPerson={onSelectPerson} />
             <TitleWatchState details={details} existing={existing} onSave={onSave} onRemove={onRemove} />
+            <TitleActionBar details={details} />
             <TitleMediaSections details={details} />
             {details.recommendations.length ? (
               <section>

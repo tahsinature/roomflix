@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { Compass, Database, HelpCircle, Library as LibraryIcon, Link2, LogOut, Menu, Radio, SlidersHorizontal, Users2, X } from "lucide-react";
+import { Compass, Database, HelpCircle, Library as LibraryIcon, Link2, LogOut, Menu, Radio, Search, SlidersHorizontal, Users2, X } from "lucide-react";
 import { AccountMenu } from "@/components/AccountMenu";
 import { SpaceChip } from "@/components/SpaceChip";
 import { ViewerPill } from "@/components/ViewerPill";
 import { useAuth } from "@/auth/AuthContext";
 import { cn } from "@/lib/utils";
+import { useCommandPalette } from "@/features/command-palette/CommandPaletteProvider";
 
 // className helper for desktop top-level nav links. Active = accent
 // color so the user sees at a glance which page they're on.
@@ -25,6 +26,7 @@ export function AppNav() {
   const location = useLocation();
   const onHome = location.pathname === "/";
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { openPalette } = useCommandPalette();
 
   const username = user?.username ?? null;
   const displayName = user?.displayName ?? null;
@@ -55,6 +57,19 @@ export function AppNav() {
             <ViewerPill meId={meId} align="right" />
             <div className="hidden items-center gap-5 sm:flex">
               {!isGuest && (
+                <button
+                  type="button"
+                  onClick={openPalette}
+                  aria-label="Open quick find"
+                  title="Quick find · ⌘/Ctrl K or /"
+                  className="flex h-8 w-8 items-center justify-center gap-1.5 border border-border text-[11px] text-muted-foreground transition hover:border-border-hover hover:text-foreground lg:w-auto lg:px-2.5"
+                >
+                  <Search className="h-3.5 w-3.5" />
+                  <span className="hidden lg:inline">Quick find</span>
+                  <kbd className="ml-1 hidden border-l border-border pl-2 text-[9px] text-text-dim xl:inline">⌘K</kbd>
+                </button>
+              )}
+              {!isGuest && (
                 <NavLink to="/discover" className={navLinkClass}>
                   Discover
                 </NavLink>
@@ -84,6 +99,19 @@ export function AppNav() {
             inline since a nested dropdown at phone widths is awkward. */}
         {mobileOpen && (
           <div className="flex flex-col border-t border-border bg-bg-elevated px-5 py-3 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.85)] sm:hidden">
+            {!isGuest && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileOpen(false);
+                  openPalette();
+                }}
+                className="flex items-center gap-2 border-b border-border py-3 text-left text-sm text-foreground transition hover:text-accent"
+              >
+                <Search className="h-4 w-4 text-accent" />
+                Quick find
+              </button>
+            )}
             {!isGuest && (
               <MobileNavLink to="/discover" onClick={() => setMobileOpen(false)}>
                 <Compass className="h-4 w-4 text-accent" />

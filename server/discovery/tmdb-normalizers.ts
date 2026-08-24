@@ -8,7 +8,7 @@ import type {
   DiscoverTrailer,
   DiscoverWatchProvider,
 } from "@/protocol.ts";
-import type { RawPersonDetails, RawRegionProviders, RawSearchItem, RawTitleDetails, RawVideo, RawWatchProvider } from "./tmdb-types.ts";
+import type { RawCertificationResult, RawPersonDetails, RawRegionProviders, RawSearchItem, RawTitleDetails, RawVideo, RawWatchProvider } from "./tmdb-types.ts";
 
 export const SEARCHABLE_DEPARTMENTS = new Set(["Acting", "Directing", "Production"]);
 
@@ -72,6 +72,10 @@ export function toTitleDetails(item: RawTitleDetails, mediaType: DiscoverMediaTy
     numberOfEpisodes: item.number_of_episodes ?? null,
     trailers: normalizeTrailers(item.videos?.results),
     watchProviders: normalizeWatchProviders(item["watch/providers"]?.results),
+    certifications: normalizeCertifications(
+      mediaType === "movie" ? item.release_dates?.results : item.content_ratings?.results,
+      mediaType,
+    ),
   };
 }
 
@@ -134,4 +138,16 @@ function normalizeWatchProviders(raw: Record<string, RawRegionProviders> = {}): 
 
 function normalizeProviderList(providers: RawWatchProvider[] = []): DiscoverWatchProvider[] {
   return providers.map((provider) => ({ providerId: provider.provider_id, name: provider.provider_name, logoPath: provider.logo_path ?? null }));
+}
+
+function normalizeCertifications(results: RawCertificationResult[] = [], mediaType: DiscoverMediaType): Record<string, string> {
+  const entries = results.flatMap((result) => {
+    const region = result.iso_3166_1?.trim();
+    const certification =
+      mediaType === "movie"
+        ? result.release_dates?.find((release) => release.certification?.trim())?.certification?.trim()
+        : result.rating?.trim();
+    return region && certification ? [[region, certification] as const] : [];
+  });
+  return Object.fromEntries(entries);
 }

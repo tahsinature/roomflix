@@ -58,7 +58,7 @@ export function PersonResult({ person, onSelect, onSelectTitle }: { person: Disc
 
 export function LoadingGrid() {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-3 sm:grid-cols-[repeat(auto-fill,minmax(8rem,1fr))]">
       {Array.from({ length: 12 }, (_, index) => (
         <div key={index} className="aspect-[2/3] animate-pulse border border-border bg-card/60" />
       ))}
