@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { Database, HelpCircle, Library as LibraryIcon, Link2, LogOut, Menu, Radio, SlidersHorizontal, Users2, X } from "lucide-react";
+import { Compass, Database, HelpCircle, Library as LibraryIcon, Link2, LogOut, Menu, Radio, SlidersHorizontal, Users2, X } from "lucide-react";
 import { AccountMenu } from "@/components/AccountMenu";
 import { SpaceChip } from "@/components/SpaceChip";
 import { ViewerPill } from "@/components/ViewerPill";
@@ -54,6 +54,11 @@ export function AppNav() {
           <div className="flex items-center gap-2 sm:gap-5">
             <ViewerPill meId={meId} align="right" />
             <div className="hidden items-center gap-5 sm:flex">
+              {!isGuest && (
+                <NavLink to="/discover" className={navLinkClass}>
+                  Discover
+                </NavLink>
+              )}
               <NavLink to="/library" className={navLinkClass}>
                 Library
               </NavLink>
@@ -79,6 +84,12 @@ export function AppNav() {
             inline since a nested dropdown at phone widths is awkward. */}
         {mobileOpen && (
           <div className="flex flex-col border-t border-border bg-bg-elevated px-5 py-3 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.85)] sm:hidden">
+            {!isGuest && (
+              <MobileNavLink to="/discover" onClick={() => setMobileOpen(false)}>
+                <Compass className="h-4 w-4 text-accent" />
+                Discover
+              </MobileNavLink>
+            )}
             <MobileNavLink to="/library" onClick={() => setMobileOpen(false)}>
               <LibraryIcon className="h-4 w-4 text-accent" />
               Library

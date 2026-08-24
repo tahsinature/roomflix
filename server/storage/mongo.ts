@@ -25,6 +25,9 @@ import type {
   StorageConnection,
   StorageProvider,
   Subtitle,
+  TitleLibraryItem,
+  TitleLibraryStatus,
+  DiscoverMediaType,
   Video,
 } from "@/protocol.ts";
 import type {
@@ -47,6 +50,8 @@ import type {
   StorageConnectionRepo,
   StoredShareLink,
   StoredUser,
+  TitleLibraryInput,
+  TitleLibraryRepo,
   UserRepo,
   VideoRepo,
 } from "@/storage/types.ts";
@@ -66,6 +71,7 @@ import {
   StorageActivationModel,
   StorageConfigModel,
   StorageConnectionModel,
+  TitleLibraryItemModel,
   UserModel,
   VideoModel,
 } from "@/models/index.ts";
@@ -100,6 +106,7 @@ export async function createMongoStorage(mongoUrl: string): Promise<Storage> {
 
   return {
     videos: new MongoVideoRepo(),
+    titleLibrary: new MongoTitleLibraryRepo(),
     users: new MongoUserRepo(),
     sessions: new MongoSessionRepo(),
     storageConfigs: new MongoStorageConfigRepo(),
@@ -120,6 +127,70 @@ export async function createMongoStorage(mongoUrl: string): Promise<Storage> {
       await mongoose.disconnect();
     },
   };
+}
+
+class MongoTitleLibraryRepo implements TitleLibraryRepo {
+  async list(userId: string, status?: TitleLibraryStatus): Promise<TitleLibraryItem[]> {
+    const filter = status ? { userId, status } : { userId };
+    const docs = await TitleLibraryItemModel.find(filter).sort({ updatedAt: -1 }).lean();
+    return docs.map(toTitleLibraryItem);
+  }
+
+  async get(userId: string, mediaType: DiscoverMediaType, tmdbId: number): Promise<TitleLibraryItem | null> {
+    const doc = await TitleLibraryItemModel.findOne({
+      userId,
+      mediaType,
+      tmdbId,
+    }).lean();
+    return doc ? toTitleLibraryItem(doc) : null;
+  }
+
+  async upsert(userId: string, input: TitleLibraryInput): Promise<TitleLibraryItem> {
+    const existing = await this.get(userId, input.mediaType, input.tmdbId);
+    const now = Date.now();
+    const addedAt = existing?.addedAt ?? now;
+    const watchedAt = input.status === "watched" ? (input.watchedAt ?? existing?.watchedAt ?? now) : null;
+    const id = existing?.id ?? randomId() + randomId();
+    const fields = {
+      userId,
+      tmdbId: input.tmdbId,
+      mediaType: input.mediaType,
+      title: input.title.trim() || "Untitled",
+      year: input.year,
+      posterPath: input.posterPath,
+      backdropPath: input.backdropPath,
+      overview: input.overview,
+      voteAverage: input.voteAverage,
+      voteCount: input.voteCount,
+      genres: input.genres,
+      runtime: input.runtime,
+      imdbId: input.imdbId,
+      status: input.status,
+      userRating: input.userRating,
+      notes: input.notes,
+      watchedAt,
+      updatedAt: now,
+    };
+
+    const doc = await TitleLibraryItemModel.findOneAndUpdate(
+      { userId, mediaType: input.mediaType, tmdbId: input.tmdbId },
+      {
+        $set: fields,
+        $setOnInsert: { _id: id, addedAt },
+      },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
+    ).lean();
+    return toTitleLibraryItem(doc ?? { _id: id, addedAt, ...fields });
+  }
+
+  async remove(userId: string, mediaType: DiscoverMediaType, tmdbId: number): Promise<boolean> {
+    const result = await TitleLibraryItemModel.deleteOne({
+      userId,
+      mediaType,
+      tmdbId,
+    });
+    return result.deletedCount > 0;
+  }
 }
 
 class MongoVideoRepo implements VideoRepo {
@@ -1075,6 +1146,54 @@ function generateShareCode(): string {
 // Doc → wire converters. The repo never returns Mongoose documents
 // directly; this is where _id becomes id, encrypted blobs get hidden,
 // and missing fields on legacy rows get coerced to their wire defaults.
+
+type TitleLibraryItemLean = {
+  _id: string;
+  userId: string;
+  tmdbId: number;
+  mediaType: DiscoverMediaType;
+  title: string;
+  year?: string;
+  posterPath?: string | null;
+  backdropPath?: string | null;
+  overview?: string;
+  voteAverage?: number;
+  voteCount?: number;
+  genres?: string[];
+  runtime?: number | null;
+  imdbId?: string | null;
+  status: TitleLibraryStatus;
+  userRating?: number | null;
+  notes?: string;
+  addedAt: number;
+  watchedAt?: number | null;
+  updatedAt: number;
+};
+
+function toTitleLibraryItem(doc: TitleLibraryItemLean): TitleLibraryItem {
+  return {
+    id: doc._id,
+    userId: doc.userId,
+    tmdbId: doc.tmdbId,
+    mediaType: doc.mediaType,
+    title: doc.title,
+    year: doc.year ?? "",
+    posterPath: doc.posterPath ?? null,
+    backdropPath: doc.backdropPath ?? null,
+    overview: doc.overview ?? "",
+    voteAverage: doc.voteAverage ?? 0,
+    voteCount: doc.voteCount ?? 0,
+    genres: doc.genres ?? [],
+    runtime: doc.runtime ?? null,
+    imdbId: doc.imdbId ?? null,
+    status: doc.status,
+    userRating: doc.userRating ?? null,
+    notes: doc.notes ?? "",
+    addedAt: doc.addedAt,
+    watchedAt: doc.watchedAt ?? null,
+    updatedAt: doc.updatedAt,
+  };
+}
 
 type VideoLean = {
   _id: string;

@@ -21,6 +21,7 @@ import Settings from "@/pages/Settings";
 import SettingsProfile from "@/pages/SettingsProfile";
 import SettingsSpace from "@/pages/SettingsSpace";
 import SettingsStorage from "@/pages/SettingsStorage";
+import SettingsData from "@/pages/SettingsData";
 import { AuthedLayout } from "@/components/AuthedLayout";
 import { TheaterLayout } from "@/components/TheaterLayout";
 import { RedirectIfAuthenticated, RequireRealUser } from "@/auth/RequireAuth";
@@ -28,6 +29,7 @@ import { RedirectIfAuthenticated, RequireRealUser } from "@/auth/RequireAuth";
 // Storage carries the @aws-sdk/client-s3 dep (~250KB gz). Lazy-load so
 // users who never open /storage don't pay for it on first paint.
 const Storage = lazy(() => import("@/pages/Storage"));
+const Discover = lazy(() => import("@/pages/Discover"));
 
 export default function App() {
   return (
@@ -99,6 +101,16 @@ export default function App() {
       <Route element={<AuthedLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/library" element={<Library />} />
+        <Route
+          path="/discover"
+          element={
+            <RequireRealUser redirectTo="/library">
+              <Suspense fallback={<RouteFallback />}>
+                <Discover />
+              </Suspense>
+            </RequireRealUser>
+          }
+        />
         <Route path="/collections/:id" element={<CollectionEdit />} />
         <Route path="/shares" element={<Shares />} />
         <Route path="/remote" element={<Remote />} />
@@ -131,6 +143,7 @@ export default function App() {
           <Route path="profile" element={<SettingsProfile />} />
           <Route path="space" element={<SettingsSpace />} />
           <Route path="storage" element={<SettingsStorage />} />
+          <Route path="data" element={<SettingsData />} />
         </Route>
       </Route>
     </Routes>

@@ -1,17 +1,42 @@
 # Roomflix
 
-Synced video playback for any public URL. Create a room, share the link, paste
-a video URL — play/pause/seek/mute are mirrored to everyone in the room.
+Roomflix combines synchronized playback with personal movie discovery. Search
+TMDB titles and people, keep an account-backed watchlist, inspect the Pulse Lab
+prototype, then organize playable media into shared spaces and collections.
 
-Bun-powered WebSocket server + Vite/React/TypeScript frontend in a single repo.
-The server serves the built frontend in production, so one process ships both.
+Bun-powered HTTP/WebSocket server + MongoDB + Vite/React/TypeScript frontend in
+a single repo. The server serves the built frontend in production, so one
+process ships both.
 
 ## Stack
 
-- **Server**: Bun HTTP + native WebSocket, in-memory room registry
+- **Server**: Bun HTTP, Hono APIs + native WebSocket
 - **Client**: React 18, Vite, TypeScript, Tailwind, shadcn-style primitives
-- **Routing**: React Router (`/` for home, `/room/:id` for rooms)
-- **No auth, no DB** — rooms live in server memory and are swept after 5 min idle
+- **Database**: MongoDB/Mongoose for accounts, spaces, personal discovery data,
+  libraries, collections, chat, history, and session snapshots
+- **Routing**: React Router (`/discover`, `/library`, `/watch`, settings and shares)
+- **Authentication**: persistent accounts plus invite-based guest sessions
+
+## Discovery configuration
+
+The TMDB credential stays on the server:
+
+```bash
+TMDB_API_KEY=your-api-key
+```
+
+Discovery includes typo-tolerant search backed by a compact index generated
+from TMDB's official daily exports, genre exploration, regional watch-provider
+availability, trailers, and personal watchlist comparison. Refresh the bundled
+index manually when needed:
+
+```bash
+bun run search-index:build
+```
+
+WatchBridge JSON backups can be imported from **Settings → Data migration**.
+Only personal title records are imported; browser settings, custom actions,
+recent searches and API keys are deliberately excluded.
 
 ## Getting started
 
@@ -55,12 +80,12 @@ Healthcheck: `GET /healthz`. For Kubernetes, point both `livenessProbe` and
 `readinessProbe` at the same endpoint.
 
 **Operational notes:**
-- **In-memory data is volatile.** Rooms, library entries, and uploaded
-  subtitle files all live in process memory and are lost on pod restart.
-  Swap the storage layer (`server/storage/index.ts`) for a DB-backed impl
-  before treating this as durable.
-- **Single replica only.** WebSocket sync state lives in one process's
-  memory; multiple replicas would split rooms across pods.
+
+- **MongoDB is required.** Account, space, library, discovery, collection,
+  chat, history and playback snapshot data is durable.
+- **Single replica for live sockets.** Current WebSocket connections live in
+  one process; multiple replicas require sticky routing or a shared pub/sub
+  layer. Persisted playback state is restored after a restart.
 
 ## How sync works
 
@@ -95,16 +120,20 @@ HLS/DASH manifests aren't supported in v1 (would need hls.js).
 ```
 roomflix/
 ├── server/
+│   ├── api/           # Hono REST routers
+│   ├── data/          # generated TMDB fuzzy-search index
+│   ├── discovery/     # typo-tolerant search ranking
+│   ├── models/        # Mongoose schemas
+│   ├── storage/       # repository interfaces + Mongo implementation
 │   ├── index.ts       # Bun.serve + WebSocket handler
-│   ├── rooms.ts       # in-memory registry + TTL sweep
-│   └── protocol.ts    # shared message types
+│   └── protocol.ts    # shared client/server types
 └── client/
     ├── src/
-    │   ├── pages/{Home,Room}.tsx
-    │   ├── components/VideoPlayer.tsx
+    │   ├── pages/      # Discover, Library, Watch, Settings, …
+    │   ├── features/discover/
+    │   ├── components/player/
     │   ├── components/ui/{button,input,card}.tsx
-    │   ├── hooks/useRoomSync.ts
-    │   └── lib/utils.ts
+    │   └── lib/api.ts
     └── vite.config.ts
 ```
 

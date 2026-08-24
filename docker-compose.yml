@@ -107,6 +107,8 @@ services:
       - ENCRYPTION_KEY
       - ALLOW_REGISTRATION
       - COOKIE_SECURE
+      - TMDB_API_KEY
+      - OPENAI_API_KEY
       - NODE_ENV
     depends_on:
       mongo:

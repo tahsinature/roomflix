@@ -22,6 +22,132 @@ export type Video = {
   updatedAt: number;
 };
 
+// Personal discovery library. Unlike Video (a playable URL shared with a
+// space), these rows belong to one real user and represent intent around a
+// TMDB title: something they want to watch or have already watched.
+export type DiscoverMediaType = "movie" | "tv";
+export type TitleLibraryStatus = "shortlist" | "watched";
+
+export type TitleLibraryItem = {
+  id: string;
+  userId: string;
+  tmdbId: number;
+  mediaType: DiscoverMediaType;
+  title: string;
+  year: string;
+  posterPath: string | null;
+  backdropPath: string | null;
+  overview: string;
+  voteAverage: number;
+  voteCount: number;
+  genres: string[];
+  runtime: number | null;
+  imdbId: string | null;
+  status: TitleLibraryStatus;
+  userRating: number | null;
+  notes: string;
+  addedAt: number;
+  watchedAt: number | null;
+  updatedAt: number;
+};
+
+export type DiscoverSearchResult = {
+  tmdbId: number;
+  mediaType: DiscoverMediaType;
+  title: string;
+  year: string;
+  releaseDate: string;
+  overview: string;
+  posterPath: string | null;
+  backdropPath: string | null;
+  voteAverage: number;
+  voteCount: number;
+  adult: boolean;
+};
+
+export type DiscoverPersonResult = {
+  tmdbId: number;
+  name: string;
+  profilePath: string | null;
+  knownForDepartment: string;
+  knownFor: DiscoverSearchResult[];
+};
+
+export type DiscoverCastMember = {
+  tmdbId: number;
+  name: string;
+  character: string;
+  profilePath: string | null;
+};
+
+export type DiscoverPersonCredit = {
+  tmdbId: number;
+  name: string;
+};
+
+export type DiscoverGenre = {
+  id: number;
+  name: string;
+};
+
+export type DiscoverTrailer = {
+  id: string;
+  youtubeKey: string;
+  name: string;
+  type: string;
+  official: boolean;
+};
+
+export type DiscoverWatchProvider = {
+  providerId: number;
+  name: string;
+  logoPath: string | null;
+};
+
+export type DiscoverRegionProviders = {
+  link: string;
+  stream: DiscoverWatchProvider[];
+  free: DiscoverWatchProvider[];
+  ads: DiscoverWatchProvider[];
+  rent: DiscoverWatchProvider[];
+  buy: DiscoverWatchProvider[];
+};
+
+export type DiscoverTitleDetails = DiscoverSearchResult & {
+  originalTitle: string;
+  tagline: string;
+  runtime: number | null;
+  genres: string[];
+  spokenLanguages: string[];
+  originalLanguage: string;
+  status: string;
+  imdbId: string | null;
+  directors: DiscoverPersonCredit[];
+  cast: DiscoverCastMember[];
+  recommendations: DiscoverSearchResult[];
+  numberOfSeasons: number | null;
+  numberOfEpisodes: number | null;
+  trailers: DiscoverTrailer[];
+  watchProviders: Record<string, DiscoverRegionProviders>;
+};
+
+export type DiscoverPersonDetails = {
+  tmdbId: number;
+  name: string;
+  profilePath: string | null;
+  knownForDepartment: string;
+  biography: string;
+  actingCredits: DiscoverSearchResult[];
+  creativeCredits: DiscoverSearchResult[];
+  productionCredits: DiscoverSearchResult[];
+};
+
+export type DiscoverSearchResponse = {
+  titles: DiscoverSearchResult[];
+  people: DiscoverPersonResult[];
+  usedFuzzyFallback: boolean;
+};
+
 // Wire shape for the current user. The password hash is never serialized.
 // displayName is the friendly label other people see — falls back to
 // `@username` everywhere when null.

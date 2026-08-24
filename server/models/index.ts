@@ -16,6 +16,7 @@ export { SpaceMemberModel } from "@/models/space-member.ts";
 export { StorageActivationModel } from "@/models/storage-activation.ts";
 export { StorageConfigModel } from "@/models/storage-config.ts";
 export { StorageConnectionModel } from "@/models/storage-connection.ts";
+export { TitleLibraryItemModel } from "@/models/title-library-item.ts";
 export { UserModel } from "@/models/user.ts";
 export { VideoModel } from "@/models/video.ts";
 export { WatchHistoryModel } from "@/models/watch-history.ts";

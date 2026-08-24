@@ -26,6 +26,9 @@ import type {
   StorageConfig,
   StorageConnection,
   Subtitle,
+  TitleLibraryItem,
+  TitleLibraryStatus,
+  DiscoverMediaType,
   Video,
 } from "@/protocol.ts";
 
@@ -45,6 +48,15 @@ export interface VideoRepo {
   // (legacy field) to the given spaceId. Used once during Phase-4 boot
   // migration. Returns the count of docs touched.
   reparent(oldOwnerId: string, spaceId: string): Promise<number>;
+}
+
+export type TitleLibraryInput = Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt">;
+
+export interface TitleLibraryRepo {
+  list(userId: string, status?: TitleLibraryStatus): Promise<TitleLibraryItem[]>;
+  get(userId: string, mediaType: DiscoverMediaType, tmdbId: number): Promise<TitleLibraryItem | null>;
+  upsert(userId: string, input: TitleLibraryInput): Promise<TitleLibraryItem>;
+  remove(userId: string, mediaType: DiscoverMediaType, tmdbId: number): Promise<boolean>;
 }
 
 // Persisted user record. passwordHash never leaves the server; AuthUser is
@@ -337,6 +349,7 @@ export interface ChatRepo {
 
 export type Storage = {
   videos: VideoRepo;
+  titleLibrary: TitleLibraryRepo;
   users: UserRepo;
   sessions: SessionRepo;
   // Legacy — only the boot migration reads from this. Use storageConnections

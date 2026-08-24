@@ -40,6 +40,8 @@ import { buildSharesRouter } from "@/api/shares.ts";
 import { buildPublicShareRouter } from "@/api/public_share.ts";
 import { buildChatRouter } from "@/api/chat.ts";
 import { buildWatchHistoryRouter } from "@/api/history.ts";
+import { buildDiscoverTmdbRouter } from "@/api/discover_tmdb.ts";
+import { buildTitleLibraryRouter } from "@/api/title_library.ts";
 import { buildInvitesRouter, buildJoinRequestsRouter, buildSessionSpaceRouter, buildSpacesRouter } from "@/api/spaces.ts";
 import { buildSessionMembersRouter, buildSessionStateRouter } from "@/api/session_state.ts";
 import { getCurrentPrincipalFromRequest } from "@/auth.ts";
@@ -184,6 +186,8 @@ app.route("/api/shares", buildSharesRouter(storage));
 app.route("/api/share", buildPublicShareRouter(storage));
 app.route("/api/spaces/:id/chat", buildChatRouter(storage));
 app.route("/api/spaces/:id/history", buildWatchHistoryRouter(storage));
+app.route("/api/discover", buildDiscoverTmdbRouter(storage));
+app.route("/api/title-library", buildTitleLibraryRouter(storage));
 
 // SPA fallback.
 //
