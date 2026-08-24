@@ -11,4 +11,4 @@ export async function createStorage(mongoUrl: string): Promise<Storage> {
   return cached;
 }
 
-export type { Storage, VideoRepo, UserRepo, SessionRepo, StoredUser, Session } from "@/storage/types.ts";
+export type { Storage, VideoRepo, TitleLibraryRepo, UserRepo, SessionRepo, StoredUser, Session } from "@/storage/types.ts";

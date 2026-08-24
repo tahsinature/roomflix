@@ -5,6 +5,12 @@ import type {
   CollectionHealth,
   CollectionItem,
   CollectionMediaFilter,
+  DiscoverMediaType,
+  DiscoverGenre,
+  DiscoverPersonDetails,
+  DiscoverSearchResponse,
+  DiscoverSearchResult,
+  DiscoverTitleDetails,
   GuestIdentity,
   InviteCode,
   JoinRequest,
@@ -23,6 +29,8 @@ import type {
   StorageConnection,
   StorageConnectionDetail,
   Subtitle,
+  TitleLibraryItem,
+  TitleLibraryStatus,
   Video,
   WatchHistoryEntry,
 } from "@shared/protocol";
@@ -94,6 +102,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  // Discover — TMDB requests are made by the Roomflix server so its
+  // credential never enters the browser bundle.
+  discoverSearch: (query: string) => request<DiscoverSearchResponse>(`/api/discover/search?q=${encodeURIComponent(query)}`),
+  discoverTrending: () => request<DiscoverSearchResult[]>("/api/discover/trending"),
+  discoverGenres: (mediaType: DiscoverMediaType) => request<DiscoverGenre[]>(`/api/discover/genres/${mediaType}`),
+  discoverByGenre: (mediaType: DiscoverMediaType, genreId: number, minimumVotes = 0) =>
+    request<DiscoverSearchResult[]>(`/api/discover/genre/${mediaType}/${genreId}?minimumVotes=${minimumVotes}`),
+  discoverTitle: (mediaType: DiscoverMediaType, tmdbId: number) => request<DiscoverTitleDetails>(`/api/discover/title/${mediaType}/${tmdbId}`),
+  discoverPerson: (tmdbId: number) => request<DiscoverPersonDetails>(`/api/discover/person/${tmdbId}`),
+
+  // Personal title intent — account-scoped, deliberately separate from the
+  // space-scoped playable video library below.
+  listTitleLibrary: (status?: TitleLibraryStatus) => request<TitleLibraryItem[]>(`/api/title-library${status ? `?status=${status}` : ""}`),
+  saveTitleLibraryItem: (mediaType: DiscoverMediaType, tmdbId: number, item: Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt">) =>
+    request<TitleLibraryItem>(`/api/title-library/${mediaType}/${tmdbId}`, {
+      method: "PUT",
+      body: JSON.stringify(item),
+    }),
+  removeTitleLibraryItem: (mediaType: DiscoverMediaType, tmdbId: number) => request<void>(`/api/title-library/${mediaType}/${tmdbId}`, { method: "DELETE" }),
+
   listVideos: () => request<Video[]>("/api/videos"),
   createVideo: (input: { url: string; title?: string; subtitles?: Subtitle[] }) =>
     request<Video>("/api/videos", {

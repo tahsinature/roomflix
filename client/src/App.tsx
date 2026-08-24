@@ -28,6 +28,7 @@ import { RedirectIfAuthenticated, RequireRealUser } from "@/auth/RequireAuth";
 // Storage carries the @aws-sdk/client-s3 dep (~250KB gz). Lazy-load so
 // users who never open /storage don't pay for it on first paint.
 const Storage = lazy(() => import("@/pages/Storage"));
+const Discover = lazy(() => import("@/pages/Discover"));
 
 export default function App() {
   return (
@@ -99,6 +100,16 @@ export default function App() {
       <Route element={<AuthedLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/library" element={<Library />} />
+        <Route
+          path="/discover"
+          element={
+            <RequireRealUser redirectTo="/library">
+              <Suspense fallback={<RouteFallback />}>
+                <Discover />
+              </Suspense>
+            </RequireRealUser>
+          }
+        />
         <Route path="/collections/:id" element={<CollectionEdit />} />
         <Route path="/shares" element={<Shares />} />
         <Route path="/remote" element={<Remote />} />
