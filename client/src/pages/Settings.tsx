@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { ArchiveRestore, Database, UserCircle2, Users } from "lucide-react";
+import { Database, UserCircle2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Account-level settings shell. Left rail lists section links; the
@@ -28,9 +28,6 @@ export default function Settings() {
             </SectionLink>
             <SectionLink to="/settings/storage" icon={<Database className="h-3.5 w-3.5" />}>
               Storage
-            </SectionLink>
-            <SectionLink to="/settings/data" icon={<ArchiveRestore className="h-3.5 w-3.5" />}>
-              Data migration
             </SectionLink>
           </nav>
         </aside>

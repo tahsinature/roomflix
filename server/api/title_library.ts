@@ -1,13 +1,12 @@
 import { Hono } from "hono";
 
 import { requireUser } from "@/auth.ts";
-import type { DiscoverMediaType, TitleLibraryItem, TitleLibraryStatus } from "@/protocol.ts";
+import type { DiscoverMediaType, TitleLibraryStatus } from "@/protocol.ts";
 import type { Storage } from "@/storage/index.ts";
 import type { TitleLibraryInput } from "@/storage/types.ts";
 
 const VALID_STATUSES = new Set<TitleLibraryStatus>(["shortlist", "watched"]);
 const VALID_MEDIA_TYPES = new Set<DiscoverMediaType>(["movie", "tv"]);
-const MAX_IMPORT_ITEMS = 2_000;
 
 export function buildTitleLibraryRouter(storage: Storage) {
   const app = new Hono();
@@ -35,32 +34,6 @@ export function buildTitleLibraryRouter(storage: Storage) {
     if (!identity) return c.json({ error: "invalid TMDB title identity" }, 400);
     const removed = await storage.titleLibrary.remove(c.get("user").id, identity.mediaType, identity.tmdbId);
     return removed ? c.body(null, 204) : c.json({ error: "not found" }, 404);
-  });
-
-  app.post("/import", async (c) => {
-    const body = (await c.req.json().catch(() => null)) as { items?: unknown } | null;
-    if (!Array.isArray(body?.items)) {
-      return c.json({ error: "items must be an array" }, 400);
-    }
-    if (body.items.length > MAX_IMPORT_ITEMS) {
-      return c.json({ error: `imports are limited to ${MAX_IMPORT_ITEMS} titles` }, 413);
-    }
-
-    const valid: TitleLibraryInput[] = [];
-    let skipped = 0;
-    for (const raw of body.items) {
-      const record = asRecord(raw);
-      const identity = parseIdentity(record?.mediaType, record?.tmdbId ?? record?.id);
-      const parsed = identity ? parseTitleLibraryInput(raw, identity) : null;
-      if (parsed) valid.push(parsed);
-      else skipped++;
-    }
-
-    const imported: TitleLibraryItem[] = [];
-    for (const item of valid) {
-      imported.push(await storage.titleLibrary.upsert(c.get("user").id, item));
-    }
-    return c.json({ imported: imported.length, skipped, items: imported });
   });
 
   return app;

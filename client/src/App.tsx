@@ -21,7 +21,6 @@ import Settings from "@/pages/Settings";
 import SettingsProfile from "@/pages/SettingsProfile";
 import SettingsSpace from "@/pages/SettingsSpace";
 import SettingsStorage from "@/pages/SettingsStorage";
-import SettingsData from "@/pages/SettingsData";
 import { AuthedLayout } from "@/components/AuthedLayout";
 import { TheaterLayout } from "@/components/TheaterLayout";
 import { RedirectIfAuthenticated, RequireRealUser } from "@/auth/RequireAuth";
@@ -143,7 +142,6 @@ export default function App() {
           <Route path="profile" element={<SettingsProfile />} />
           <Route path="space" element={<SettingsSpace />} />
           <Route path="storage" element={<SettingsStorage />} />
-          <Route path="data" element={<SettingsData />} />
         </Route>
       </Route>
     </Routes>

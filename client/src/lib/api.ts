@@ -121,11 +121,6 @@ export const api = {
       body: JSON.stringify(item),
     }),
   removeTitleLibraryItem: (mediaType: DiscoverMediaType, tmdbId: number) => request<void>(`/api/title-library/${mediaType}/${tmdbId}`, { method: "DELETE" }),
-  importTitleLibrary: (items: unknown[]) =>
-    request<{ imported: number; skipped: number; items: TitleLibraryItem[] }>("/api/title-library/import", {
-      method: "POST",
-      body: JSON.stringify({ items }),
-    }),
 
   listVideos: () => request<Video[]>("/api/videos"),
   createVideo: (input: { url: string; title?: string; subtitles?: Subtitle[] }) =>

@@ -34,10 +34,6 @@ index manually when needed:
 bun run search-index:build
 ```
 
-WatchBridge JSON backups can be imported from **Settings → Data migration**.
-Only personal title records are imported; browser settings, custom actions,
-recent searches and API keys are deliberately excluded.
-
 ## Getting started
 
 Requires [Bun](https://bun.sh) ≥ 1.3.
