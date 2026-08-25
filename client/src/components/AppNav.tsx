@@ -12,9 +12,9 @@ import { useCommandPalette } from "@/features/command-palette/CommandPaletteProv
 // color so the user sees at a glance which page they're on.
 const navLinkClass = ({ isActive }: { isActive: boolean }) => cn("text-[13px] transition hover:text-foreground", isActive ? "text-accent" : "text-muted-foreground");
 
-// Single, app-wide top nav. Mounted once via AuthedLayout above the
-// router outlet so it doesn't re-mount during navigation — width and
-// state stay stable as you move between pages. Anything page-specific
+// Single, app-wide top nav. Mounted by each authenticated layout while
+// its shared command-palette context lives above the route tree. Width
+// and state stay stable as you move within a layout. Anything page-specific
 // (titles, contextual actions) belongs in a per-page secondary header
 // below the body.
 //

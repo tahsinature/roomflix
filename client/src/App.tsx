@@ -23,7 +23,9 @@ import SettingsSpace from "@/pages/SettingsSpace";
 import SettingsStorage from "@/pages/SettingsStorage";
 import { AuthedLayout } from "@/components/AuthedLayout";
 import { TheaterLayout } from "@/components/TheaterLayout";
+import { useAuth } from "@/auth/AuthContext";
 import { RedirectIfAuthenticated, RequireRealUser } from "@/auth/RequireAuth";
+import { CommandPaletteProvider } from "@/features/command-palette/CommandPaletteProvider";
 
 // Storage carries the @aws-sdk/client-s3 dep (~250KB gz). Lazy-load so
 // users who never open /storage don't pay for it on first paint.
@@ -31,8 +33,11 @@ const Storage = lazy(() => import("@/pages/Storage"));
 const Discover = lazy(() => import("@/pages/Discover"));
 
 export default function App() {
+  const { user } = useAuth();
+
   return (
-    <Routes>
+    <CommandPaletteProvider enabled={Boolean(user)}>
+      <Routes>
       <Route
         path="/login"
         element={
@@ -86,9 +91,8 @@ export default function App() {
           entirely outside the authed shell. */}
       <Route path="/share/:code" element={<PublicShare />} />
 
-      {/* /watch is the theater — a full-bleed, chrome-free home-theater
-          surface. Its own layout gates auth but renders no AppNav; the
-          page owns the entire viewport. */}
+      {/* /watch uses its own authenticated theater layout while sharing
+          the app-wide navigation and command-palette provider. */}
       <Route element={<TheaterLayout />}>
         <Route path="/watch" element={<Watch />} />
       </Route>
@@ -144,7 +148,8 @@ export default function App() {
           <Route path="storage" element={<SettingsStorage />} />
         </Route>
       </Route>
-    </Routes>
+      </Routes>
+    </CommandPaletteProvider>
   );
 }
 
