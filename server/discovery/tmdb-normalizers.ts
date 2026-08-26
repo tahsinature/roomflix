@@ -1,5 +1,8 @@
 import type {
   DiscoverMediaType,
+  DiscoverImage,
+  DiscoverImageGallery,
+  DiscoverImageKind,
   DiscoverPersonDetails,
   DiscoverPersonResult,
   DiscoverRegionProviders,
@@ -8,7 +11,17 @@ import type {
   DiscoverTrailer,
   DiscoverWatchProvider,
 } from "@/protocol.ts";
-import type { RawCertificationResult, RawPersonDetails, RawRegionProviders, RawSearchItem, RawTitleDetails, RawVideo, RawWatchProvider } from "./tmdb-types.ts";
+import type {
+  RawCertificationResult,
+  RawImage,
+  RawImageCollection,
+  RawPersonDetails,
+  RawRegionProviders,
+  RawSearchItem,
+  RawTitleDetails,
+  RawVideo,
+  RawWatchProvider,
+} from "./tmdb-types.ts";
 
 export const SEARCHABLE_DEPARTMENTS = new Set(["Acting", "Directing", "Production"]);
 
@@ -72,10 +85,7 @@ export function toTitleDetails(item: RawTitleDetails, mediaType: DiscoverMediaTy
     numberOfEpisodes: item.number_of_episodes ?? null,
     trailers: normalizeTrailers(item.videos?.results),
     watchProviders: normalizeWatchProviders(item["watch/providers"]?.results),
-    certifications: normalizeCertifications(
-      mediaType === "movie" ? item.release_dates?.results : item.content_ratings?.results,
-      mediaType,
-    ),
+    certifications: normalizeCertifications(mediaType === "movie" ? item.release_dates?.results : item.content_ratings?.results, mediaType),
   };
 }
 
@@ -106,6 +116,32 @@ export function toPersonDetails(person: RawPersonDetails): DiscoverPersonDetails
     creativeCredits: uniqueTitles(crew.filter((credit) => credit.job === "Director" || credit.job === "Creator")),
     productionCredits: uniqueTitles(crew.filter((credit) => credit.department === "Production" || credit.job?.includes("Producer"))),
   };
+}
+
+export function toImageGallery(subjectName: string, subjectType: DiscoverMediaType | "person", collection: RawImageCollection | undefined): DiscoverImageGallery {
+  const images = [...normalizeImages(collection?.profiles, "profile"), ...normalizeImages(collection?.backdrops, "backdrop"), ...normalizeImages(collection?.posters, "poster")];
+
+  return { subjectName, subjectType, images };
+}
+
+function normalizeImages(images: RawImage[] = [], kind: DiscoverImageKind): DiscoverImage[] {
+  const seenPaths = new Set<string>();
+  const normalized: DiscoverImage[] = [];
+  for (const image of images) {
+    if (!image.file_path || seenPaths.has(image.file_path)) continue;
+    seenPaths.add(image.file_path);
+    normalized.push({
+      filePath: image.file_path,
+      kind,
+      width: image.width ?? 0,
+      height: image.height ?? 0,
+      aspectRatio: image.aspect_ratio ?? (image.width && image.height ? image.width / image.height : 0),
+      voteAverage: image.vote_average ?? 0,
+      voteCount: image.vote_count ?? 0,
+    });
+    if (normalized.length === 200) break;
+  }
+  return normalized;
 }
 
 function normalizeTrailers(videos: RawVideo[] = []): DiscoverTrailer[] {
@@ -143,10 +179,7 @@ function normalizeProviderList(providers: RawWatchProvider[] = []): DiscoverWatc
 function normalizeCertifications(results: RawCertificationResult[] = [], mediaType: DiscoverMediaType): Record<string, string> {
   const entries = results.flatMap((result) => {
     const region = result.iso_3166_1?.trim();
-    const certification =
-      mediaType === "movie"
-        ? result.release_dates?.find((release) => release.certification?.trim())?.certification?.trim()
-        : result.rating?.trim();
+    const certification = mediaType === "movie" ? result.release_dates?.find((release) => release.certification?.trim())?.certification?.trim() : result.rating?.trim();
     return region && certification ? [[region, certification] as const] : [];
   });
   return Object.fromEntries(entries);

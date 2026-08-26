@@ -105,7 +105,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/library" element={<Library />} />
           <Route
-            path="/discover/:entityType?/:tmdbId?"
+            path="/discover/:entityType?/:tmdbId?/:subview?"
             element={
               <RequireRealUser redirectTo="/library">
                 <Suspense fallback={<RouteFallback />}>

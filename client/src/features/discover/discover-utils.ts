@@ -2,12 +2,16 @@ import type { DiscoverSearchResult, DiscoverTitleDetails, TitleLibraryItem, Titl
 
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
 
+export function tmdbImageUrl(path: string, size = "original"): string {
+  return `${TMDB_IMAGE_BASE}/${size}${path}`;
+}
+
 export function posterUrl(path: string | null, size = "w500"): string | null {
-  return path ? `${TMDB_IMAGE_BASE}/${size}${path}` : null;
+  return path ? tmdbImageUrl(path, size) : null;
 }
 
 export function backdropUrl(path: string | null): string | null {
-  return path ? `${TMDB_IMAGE_BASE}/w1280${path}` : null;
+  return path ? tmdbImageUrl(path, "w1280") : null;
 }
 
 export function formatVotes(value: number): string {
@@ -31,8 +35,16 @@ export function discoverTitlePath(item: Pick<DiscoverSearchResult, "mediaType" |
   return `/discover/${item.mediaType}/${item.tmdbId}`;
 }
 
+export function discoverTitlePhotosPath(item: Pick<DiscoverSearchResult, "mediaType" | "tmdbId">): string {
+  return `${discoverTitlePath(item)}/photos`;
+}
+
 export function discoverPersonPath(tmdbId: number): string {
   return `/discover/person/${tmdbId}`;
+}
+
+export function discoverPersonPhotosPath(tmdbId: number): string {
+  return `${discoverPersonPath(tmdbId)}/photos`;
 }
 
 export function parseDiscoverTitleRoute(mediaType?: string, tmdbId?: string): TitleSelection | null {

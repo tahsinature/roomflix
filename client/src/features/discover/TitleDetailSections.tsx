@@ -1,16 +1,19 @@
-import { Clapperboard, Copy, ExternalLink, Shield, Star, Tv, UserRound } from "lucide-react";
-import type { DiscoverTitleDetails } from "@shared/protocol";
+import { Clapperboard, Copy, ExternalLink, Images, Shield, Star, Tv, UserRound } from "lucide-react";
+import type { DiscoverImageKind, DiscoverTitleDetails } from "@shared/protocol";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/Toast";
 import { backdropUrl, formatRuntime, formatVotes, posterUrl } from "./discover-utils";
 import { prefetchPersonDetails } from "./person-details-cache";
+import { prefetchImageGallery } from "./image-gallery-cache";
 import { certificationFor, parentsGuideUrl } from "./title-actions";
 import { TitlePosterActions } from "./TitleActions";
 
-export function TitleHero({ details }: { details: DiscoverTitleDetails }) {
+export function TitleHero({ details, onOpenGallery }: { details: DiscoverTitleDetails; onOpenGallery: (kind: DiscoverImageKind) => void }) {
   const backdrop = backdropUrl(details.backdropPath);
   const poster = posterUrl(details.posterPath, "w342");
   const MediaIcon = details.mediaType === "tv" ? Tv : Clapperboard;
+  const gallerySubject = { type: details.mediaType, tmdbId: details.tmdbId } as const;
+  const preferredGalleryKind: DiscoverImageKind = details.backdropPath ? "backdrop" : "poster";
   return (
     <div className="relative overflow-hidden border-b border-border">
       <div className="absolute inset-0">
@@ -18,13 +21,45 @@ export function TitleHero({ details }: { details: DiscoverTitleDetails }) {
         <div className="absolute inset-0 bg-gradient-to-r from-card via-card/90 to-card/55" />
         <div className="absolute inset-0 bg-gradient-to-t from-card via-transparent to-black/30" />
       </div>
+      {backdrop || poster ? (
+        <button
+          type="button"
+          onClick={() => onOpenGallery(preferredGalleryKind)}
+          onPointerEnter={() => prefetchImageGallery(gallerySubject)}
+          onFocus={() => prefetchImageGallery(gallerySubject)}
+          className="absolute right-4 top-4 z-20 inline-flex h-9 items-center gap-2 border border-white/15 bg-black/40 px-3 text-[9px] uppercase tracking-[0.12em] text-white/65 backdrop-blur-md transition-colors hover:border-white/30 hover:text-white"
+        >
+          <Images className="h-3.5 w-3.5" /> Photos
+        </button>
+      ) : null}
       <div className="relative flex min-w-0 gap-4 p-5 sm:gap-6 sm:p-7">
         <div className="w-28 shrink-0 sm:w-36">
-          <div className="aspect-[2/3] overflow-hidden border border-white/10 bg-bg-elevated shadow-2xl">
+          <button
+            type="button"
+            disabled={!poster}
+            onClick={() => onOpenGallery("poster")}
+            onPointerEnter={() => prefetchImageGallery(gallerySubject)}
+            onFocus={() => prefetchImageGallery(gallerySubject)}
+            aria-label={`View ${details.title} photos`}
+            className="group relative block aspect-[2/3] w-full overflow-hidden border border-white/10 bg-bg-elevated text-left shadow-2xl disabled:cursor-default"
+          >
             {poster ? (
-              <img src={poster} alt={`${details.title} poster`} width={342} height={513} fetchPriority="high" decoding="async" className="h-full w-full object-cover" />
+              <>
+                <img
+                  src={poster}
+                  alt={`${details.title} poster`}
+                  width={342}
+                  height={513}
+                  fetchPriority="high"
+                  decoding="async"
+                  className="h-full w-full object-cover transition-[filter,transform] duration-300 group-hover:scale-[1.02] group-hover:brightness-75"
+                />
+                <span className="absolute inset-x-2 bottom-2 flex translate-y-1 items-center justify-center gap-1.5 border border-white/15 bg-black/55 px-2 py-1.5 text-[8px] uppercase tracking-[0.12em] text-white opacity-0 backdrop-blur-sm transition-[opacity,transform] group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
+                  <Images className="h-3 w-3" /> View photos
+                </span>
+              </>
             ) : null}
-          </div>
+          </button>
           <TitlePosterActions details={details} />
         </div>
         <div className="min-w-0 self-end pb-1">
@@ -50,7 +85,7 @@ export function TitleHero({ details }: { details: DiscoverTitleDetails }) {
   );
 }
 
-export function TitleFacts({ details, onSelectPerson }: { details: DiscoverTitleDetails; onSelectPerson: (tmdbId: number) => void }) {
+export function TitleFacts({ details }: { details: DiscoverTitleDetails }) {
   const toast = useToast();
   const certification = certificationFor(details);
   return (
@@ -116,69 +151,97 @@ export function TitleFacts({ details, onSelectPerson }: { details: DiscoverTitle
             </div>
           </FactRow>
         ) : null}
-        {details.directors.length ? (
-          <FactRow label={details.mediaType === "movie" ? "Director" : "Created by"}>
-            <div className="flex flex-wrap gap-x-3 gap-y-1">
-              {details.directors.map((person) => (
-                <button
-                  key={person.tmdbId}
-                  type="button"
-                  onClick={() => onSelectPerson(person.tmdbId)}
-                  onPointerEnter={() => prefetchPersonDetails(person.tmdbId)}
-                  onFocus={() => prefetchPersonDetails(person.tmdbId)}
-                  className="text-xs text-foreground underline decoration-border underline-offset-4 hover:text-accent"
-                >
-                  {person.name}
-                </button>
-              ))}
-            </div>
-          </FactRow>
-        ) : null}
       </div>
     </section>
   );
 }
 
-export function TitleCast({ details, onSelectPerson }: { details: DiscoverTitleDetails; onSelectPerson: (tmdbId: number) => void }) {
-  if (!details.cast.length) return null;
+export function TitleCastAndCrew({
+  details,
+  onSelectPerson,
+  onOpenPersonGallery,
+}: {
+  details: DiscoverTitleDetails;
+  onSelectPerson: (tmdbId: number) => void;
+  onOpenPersonGallery: (tmdbId: number) => void;
+}) {
+  if (!details.directors.length && !details.cast.length) return null;
+
+  const creatorLabel = details.mediaType === "movie" ? "Directed by" : "Created by";
+
   return (
     <section>
-      <SectionLabel>Cast</SectionLabel>
-      <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-3">
-        {details.cast.map((person) => {
-          const image = posterUrl(person.profilePath, "w185");
-          return (
-            <button
-              key={person.tmdbId}
-              type="button"
-              onClick={() => onSelectPerson(person.tmdbId)}
-              onPointerEnter={() => prefetchPersonDetails(person.tmdbId)}
-              onFocus={() => prefetchPersonDetails(person.tmdbId)}
-              className="group min-w-0 text-left"
-            >
-              <div className="aspect-[4/5] overflow-hidden border border-border bg-bg-elevated group-hover:border-accent/40">
-                {image ? (
-                  <img
-                    src={image}
-                    alt=""
-                    width={185}
-                    height={278}
-                    loading="lazy"
-                    decoding="async"
-                    className="h-full w-full object-cover grayscale transition-[filter] duration-200 group-hover:grayscale-0"
-                  />
-                ) : (
-                  <div className="grid h-full place-items-center">
-                    <UserRound className="h-6 w-6 text-text-dim" />
-                  </div>
-                )}
-              </div>
-              <p className="mt-1.5 line-clamp-2 text-[10px] font-semibold leading-tight">{person.name}</p>
-              <p className="mt-0.5 line-clamp-1 text-[9px] text-text-dim">{person.character}</p>
-            </button>
-          );
-        })}
-      </div>
+      <SectionLabel>Cast &amp; Crew</SectionLabel>
+      {details.directors.length ? (
+        <div className="mt-3 flex flex-col gap-2 border border-border bg-background/35 px-3 py-3 sm:flex-row sm:items-center sm:gap-6">
+          <span className="shrink-0 text-[9px] uppercase tracking-[0.15em] text-muted-foreground">{creatorLabel}</span>
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+            {details.directors.map((person) => (
+              <button
+                key={person.tmdbId}
+                type="button"
+                onClick={() => onSelectPerson(person.tmdbId)}
+                onPointerEnter={() => prefetchPersonDetails(person.tmdbId)}
+                onFocus={() => prefetchPersonDetails(person.tmdbId)}
+                className="text-left text-xs font-medium text-foreground underline decoration-border underline-offset-4 transition-colors hover:text-accent"
+              >
+                {person.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {details.cast.length ? (
+        <div className={details.directors.length ? "mt-6" : "mt-3"}>
+          {details.directors.length ? <h3 className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground">Cast</h3> : null}
+          <div className={cn("grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-3", details.directors.length && "mt-3")}>
+            {details.cast.map((person) => {
+              const image = posterUrl(person.profilePath, "w185");
+              return (
+                <article key={person.tmdbId} className="group min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => onOpenPersonGallery(person.tmdbId)}
+                    onPointerEnter={() => prefetchImageGallery({ type: "person", tmdbId: person.tmdbId })}
+                    onFocus={() => prefetchImageGallery({ type: "person", tmdbId: person.tmdbId })}
+                    aria-label={`View photos of ${person.name}`}
+                    className="relative block aspect-[4/5] w-full overflow-hidden border border-border bg-bg-elevated text-left group-hover:border-accent/40"
+                  >
+                    {image ? (
+                      <img
+                        src={image}
+                        alt=""
+                        width={185}
+                        height={278}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-cover grayscale transition-[filter] duration-200 group-hover:grayscale-0"
+                      />
+                    ) : (
+                      <div className="grid h-full place-items-center">
+                        <UserRound className="h-6 w-6 text-text-dim" />
+                      </div>
+                    )}
+                    <span className="absolute bottom-1.5 right-1.5 grid h-6 w-6 place-items-center border border-white/15 bg-black/55 text-white/65 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                      <Images className="h-3 w-3" />
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSelectPerson(person.tmdbId)}
+                    onPointerEnter={() => prefetchPersonDetails(person.tmdbId)}
+                    onFocus={() => prefetchPersonDetails(person.tmdbId)}
+                    className="mt-1.5 line-clamp-2 text-left text-[10px] font-semibold leading-tight hover:text-accent"
+                  >
+                    {person.name}
+                  </button>
+                  <p className="mt-0.5 line-clamp-1 text-[9px] text-text-dim">{person.character}</p>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

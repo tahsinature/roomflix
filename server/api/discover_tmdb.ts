@@ -2,7 +2,7 @@ import { Hono } from "hono";
 
 import { requireUser } from "@/auth.ts";
 import { tmdbRequest, TmdbGatewayError } from "@/discovery/tmdb-client.ts";
-import { isTitle, toPersonDetails, toSearchResult, toTitleDetails } from "@/discovery/tmdb-normalizers.ts";
+import { isTitle, toImageGallery, toPersonDetails, toSearchResult, toTitleDetails } from "@/discovery/tmdb-normalizers.ts";
 import { searchWithFuzzyFallback } from "@/discovery/tmdb-search.ts";
 import type { RawPersonDetails, RawSearchItem, RawTitleDetails } from "@/discovery/tmdb-types.ts";
 import type { DiscoverGenre, DiscoverMediaType, DiscoverSearchResponse } from "@/protocol.ts";
@@ -70,11 +70,26 @@ export function buildDiscoverTmdbRouter(storage: Storage) {
     return c.json(toTitleDetails(data, mediaType));
   });
 
+  app.get("/title/:mediaType/:tmdbId/images", async (c) => {
+    const mediaType = parseMediaType(c.req.param("mediaType"));
+    const tmdbId = parsePositiveInt(c.req.param("tmdbId"));
+    if (!mediaType || !tmdbId) return c.json({ error: "invalid TMDB title identity" }, 400);
+    const data = await tmdbRequest<RawTitleDetails>(`/${mediaType}/${tmdbId}`, { append_to_response: "images" });
+    return c.json(toImageGallery(data.title ?? data.name ?? "Untitled", mediaType, data.images));
+  });
+
   app.get("/person/:tmdbId", async (c) => {
     const tmdbId = parsePositiveInt(c.req.param("tmdbId"));
     if (!tmdbId) return c.json({ error: "invalid TMDB person identity" }, 400);
     const data = await tmdbRequest<RawPersonDetails>(`/person/${tmdbId}`, { append_to_response: "combined_credits" });
     return c.json(toPersonDetails(data));
+  });
+
+  app.get("/person/:tmdbId/images", async (c) => {
+    const tmdbId = parsePositiveInt(c.req.param("tmdbId"));
+    if (!tmdbId) return c.json({ error: "invalid TMDB person identity" }, 400);
+    const data = await tmdbRequest<RawPersonDetails>(`/person/${tmdbId}`, { append_to_response: "images" });
+    return c.json(toImageGallery(data.name ?? "Unknown person", "person", data.images));
   });
 
   return app;

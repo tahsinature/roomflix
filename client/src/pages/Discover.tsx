@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Bookmark, CheckCircle2, Clock3, GitCompareArrows, Loader2, Search } from "lucide-react";
-import type { DiscoverPersonResult, DiscoverSearchResult, RecentTitleItem, TitleLibraryItem } from "@shared/protocol";
+import type { DiscoverImageKind, DiscoverPersonResult, DiscoverSearchResult, RecentTitleItem, TitleLibraryItem } from "@shared/protocol";
 import { useToast } from "@/components/Toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { DiscoverExplore } from "@/features/discover/DiscoverExplore";
 import { DiscoverPersonView } from "@/features/discover/DiscoverPersonView";
+import { DiscoverPhotoGallery } from "@/features/discover/DiscoverPhotoGallery";
 import { DiscoverTitleView } from "@/features/discover/DiscoverTitleView";
 import { RecentTitlesView } from "@/features/discover/RecentTitlesView";
 import { TitleGrid } from "@/features/discover/TitleGrid";
 import { WatchlistCompareModal } from "@/features/discover/WatchlistCompareModal";
 import {
   discoverPersonPath,
+  discoverPersonPhotosPath,
   discoverTitlePath,
+  discoverTitlePhotosPath,
   libraryItemToSearchResult,
   parseDiscoverPersonRoute,
   parseDiscoverTitleRoute,
@@ -30,7 +33,7 @@ export default function Discover() {
   const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
-  const { entityType, tmdbId } = useParams<{ entityType?: string; tmdbId?: string }>();
+  const { entityType, tmdbId, subview } = useParams<{ entityType?: string; tmdbId?: string; subview?: string }>();
   const [searchParams] = useSearchParams();
   const { libraryRevision } = useCommandPalette();
   const [rootView, setRootView] = useState<Exclude<DiscoverView, "recent">>("search");
@@ -51,17 +54,22 @@ export default function Discover() {
   const recentLoaded = useRef(false);
   const selectedTitle = useMemo(() => parseDiscoverTitleRoute(entityType, tmdbId), [entityType, tmdbId]);
   const selectedPersonId = useMemo(() => parseDiscoverPersonRoute(entityType, tmdbId), [entityType, tmdbId]);
+  const isPhotoRoute = subview === "photos" && Boolean(selectedTitle || selectedPersonId);
   const legacyTitle = parseLegacyTitleParam(searchParams.get("title"));
   const legacyPersonId = parseLegacyPersonParam(searchParams.get("person"));
   const isRecentRoute = entityType === "recent" && !tmdbId;
   const wasRecentRoute = useRef(isRecentRoute);
   const view: DiscoverView = isRecentRoute ? "recent" : rootView;
-  const routeState = location.state as { discoverReturnTo?: unknown } | null;
+  const routeState = location.state as { discoverReturnTo?: unknown; galleryReturnTo?: unknown; galleryKind?: unknown } | null;
   const discoverReturnTo = isRecentRoute || routeState?.discoverReturnTo === "/discover/recent" ? "/discover/recent" : "/discover";
+  const defaultGalleryReturnTo = selectedTitle ? discoverTitlePath(selectedTitle) : selectedPersonId ? discoverPersonPath(selectedPersonId) : "/discover";
+  const galleryReturnTo =
+    typeof routeState?.galleryReturnTo === "string" && routeState.galleryReturnTo.startsWith("/discover") ? routeState.galleryReturnTo : defaultGalleryReturnTo;
+  const galleryKind = isDiscoverImageKind(routeState?.galleryKind) ? routeState.galleryKind : undefined;
   const routeIdentity = selectedTitle
-    ? `${selectedTitle.mediaType}:${selectedTitle.tmdbId}`
+    ? `${selectedTitle.mediaType}:${selectedTitle.tmdbId}${isPhotoRoute ? ":photos" : ""}`
     : selectedPersonId
-      ? `person:${selectedPersonId}`
+      ? `person:${selectedPersonId}${isPhotoRoute ? ":photos" : ""}`
       : isRecentRoute
         ? "discover:recent"
         : "discover";
@@ -209,6 +217,16 @@ export default function Discover() {
   const openTitle = (selection: TitleSelection) => {
     navigate(discoverTitlePath(selection), { state: { discoverReturnTo } });
   };
+  const openPersonPhotos = (personTmdbId: number) => {
+    navigate(discoverPersonPhotosPath(personTmdbId), {
+      state: { discoverReturnTo, galleryReturnTo: location.pathname, galleryKind: "profile" satisfies DiscoverImageKind },
+    });
+  };
+  const openTitlePhotos = (selection: TitleSelection, kind: DiscoverImageKind) => {
+    navigate(discoverTitlePhotosPath(selection), {
+      state: { discoverReturnTo, galleryReturnTo: location.pathname, galleryKind: kind },
+    });
+  };
 
   const selectView = (nextView: DiscoverView) => {
     if (nextView === "recent") {
@@ -237,7 +255,28 @@ export default function Discover() {
 
   if (!selectedTitle && !selectedPersonId && legacyTitle) return <Navigate to={discoverTitlePath(legacyTitle)} replace />;
   if (!selectedTitle && !selectedPersonId && legacyPersonId) return <Navigate to={discoverPersonPath(legacyPersonId)} replace />;
+  if (subview && subview !== "photos") return <Navigate to={defaultGalleryReturnTo} replace />;
   if ((entityType || tmdbId) && !selectedTitle && !selectedPersonId && !isRecentRoute) return <Navigate to="/discover" replace />;
+
+  if (isPhotoRoute && selectedTitle) {
+    return (
+      <DiscoverPhotoGallery
+        subject={{ type: selectedTitle.mediaType, tmdbId: selectedTitle.tmdbId }}
+        initialKind={galleryKind}
+        onBack={() => navigate(galleryReturnTo, { replace: true, state: { discoverReturnTo } })}
+      />
+    );
+  }
+
+  if (isPhotoRoute && selectedPersonId) {
+    return (
+      <DiscoverPhotoGallery
+        subject={{ type: "person", tmdbId: selectedPersonId }}
+        initialKind="profile"
+        onBack={() => navigate(galleryReturnTo, { replace: true, state: { discoverReturnTo } })}
+      />
+    );
+  }
 
   if (selectedTitle) {
     return (
@@ -247,6 +286,8 @@ export default function Discover() {
         onBack={() => navigate(discoverReturnTo, { replace: true })}
         onSelectTitle={openTitle}
         onSelectPerson={openPerson}
+        onOpenGallery={(kind) => openTitlePhotos(selectedTitle, kind)}
+        onOpenPersonGallery={openPersonPhotos}
         onViewed={rememberTitle}
         onSave={saveItem}
         onRemove={removeItem}
@@ -262,6 +303,7 @@ export default function Discover() {
         library={library}
         onBack={() => navigate(discoverReturnTo, { replace: true })}
         onSelectTitle={openTitle}
+        onOpenGallery={() => openPersonPhotos(selectedPersonId)}
       />
     );
   }
@@ -309,7 +351,13 @@ export default function Discover() {
               <h2 className="section-label">People</h2>
               <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {people.map((person) => (
-                  <PersonResult key={person.tmdbId} person={person} onSelect={() => openPerson(person.tmdbId)} onSelectTitle={openTitle} />
+                  <PersonResult
+                    key={person.tmdbId}
+                    person={person}
+                    onSelect={() => openPerson(person.tmdbId)}
+                    onSelectPhotos={() => openPersonPhotos(person.tmdbId)}
+                    onSelectTitle={openTitle}
+                  />
                 ))}
               </div>
             </section>
@@ -369,4 +417,8 @@ export default function Discover() {
       <WatchlistCompareModal open={compareOpen} items={shortlist} onClose={() => setCompareOpen(false)} />
     </main>
   );
+}
+
+function isDiscoverImageKind(value: unknown): value is DiscoverImageKind {
+  return value === "profile" || value === "backdrop" || value === "poster";
 }

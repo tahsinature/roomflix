@@ -3,8 +3,9 @@ import { Activity, Info, MapPin, Sparkles, UsersRound, Youtube, type LucideIcon 
 import type { DiscoverTitleDetails, TitleLibraryItem } from "@shared/protocol";
 import { cn } from "@/lib/utils";
 import { PulseLabPrototype } from "./PulseLabPrototype";
-import { SectionLabel, TitleCast, TitleFacts } from "./TitleDetailSections";
-import { TrailerGallery, WhereToWatch } from "./TitleMediaSections";
+import { SectionLabel, TitleCastAndCrew, TitleFacts } from "./TitleDetailSections";
+import { TrailerGallery } from "./TrailerGallery";
+import { WhereToWatch } from "./TitleMediaSections";
 import { TitleGrid } from "./TitleGrid";
 import { TitleWatchState } from "./TitleWatchState";
 import { TitleActionBar } from "./TitleActions";
@@ -25,6 +26,7 @@ export function TitleDetailWorkspace({
   existing,
   onSelectTitle,
   onSelectPerson,
+  onOpenPersonGallery,
   onSave,
   onRemove,
 }: {
@@ -33,6 +35,7 @@ export function TitleDetailWorkspace({
   existing?: TitleLibraryItem;
   onSelectTitle: (selection: TitleSelection) => void;
   onSelectPerson: (tmdbId: number) => void;
+  onOpenPersonGallery: (tmdbId: number) => void;
   onSave: (item: LibraryPayload) => Promise<void>;
   onRemove: (mediaType: TitleSelection["mediaType"], tmdbId: number) => Promise<void>;
 }) {
@@ -40,7 +43,7 @@ export function TitleDetailWorkspace({
   const panelRef = useRef<HTMLDivElement>(null);
   const options: SectionOption[] = [{ id: "overview", label: "Overview", icon: Info }];
 
-  if (details.cast.length) options.push({ id: "cast", label: "Cast", icon: UsersRound });
+  if (details.directors.length || details.cast.length) options.push({ id: "cast", label: "Cast & Crew", icon: UsersRound });
   if (details.trailers.length) options.push({ id: "trailers", label: "Trailers", icon: Youtube });
   if (Object.keys(details.watchProviders).length) options.push({ id: "providers", label: "Where to Watch", icon: MapPin });
   if (details.recommendations.length) options.push({ id: "recommendations", label: "More Like This", icon: Sparkles });
@@ -92,6 +95,7 @@ export function TitleDetailWorkspace({
             existing={existing}
             onSelectTitle={onSelectTitle}
             onSelectPerson={onSelectPerson}
+            onOpenPersonGallery={onOpenPersonGallery}
             onSave={onSave}
             onRemove={onRemove}
           />
@@ -108,6 +112,7 @@ function DetailContent({
   existing,
   onSelectTitle,
   onSelectPerson,
+  onOpenPersonGallery,
   onSave,
   onRemove,
 }: {
@@ -117,19 +122,20 @@ function DetailContent({
   existing?: TitleLibraryItem;
   onSelectTitle: (selection: TitleSelection) => void;
   onSelectPerson: (tmdbId: number) => void;
+  onOpenPersonGallery: (tmdbId: number) => void;
   onSave: (item: LibraryPayload) => Promise<void>;
   onRemove: (mediaType: TitleSelection["mediaType"], tmdbId: number) => Promise<void>;
 }): ReactNode {
   if (section === "overview") {
     return (
       <div className="flex flex-col gap-6">
-        <TitleFacts details={details} onSelectPerson={onSelectPerson} />
+        <TitleFacts details={details} />
         <TitleWatchState details={details} existing={existing} onSave={onSave} onRemove={onRemove} />
         <TitleActionBar details={details} />
       </div>
     );
   }
-  if (section === "cast") return <TitleCast details={details} onSelectPerson={onSelectPerson} />;
+  if (section === "cast") return <TitleCastAndCrew details={details} onSelectPerson={onSelectPerson} onOpenPersonGallery={onOpenPersonGallery} />;
   if (section === "trailers") return <TrailerGallery details={details} />;
   if (section === "providers") return <WhereToWatch providers={details.watchProviders} />;
   if (section === "pulse" && details.runtime) return <PulseLabPrototype title={details.title} runtimeMinutes={details.runtime} />;

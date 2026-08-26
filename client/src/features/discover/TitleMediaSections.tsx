@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { ExternalLink, MapPin, Play, Youtube } from "lucide-react";
-import type { DiscoverRegionProviders, DiscoverTitleDetails, DiscoverWatchProvider } from "@shared/protocol";
+import { ExternalLink, MapPin, Play } from "lucide-react";
+import type { DiscoverRegionProviders, DiscoverWatchProvider } from "@shared/protocol";
 import { SectionLabel } from "./TitleDetailSections";
 
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w92";
@@ -82,48 +82,6 @@ function ProviderGroup({ label, providers }: { label: string; providers: Discove
         ))}
       </div>
     </div>
-  );
-}
-
-export function TrailerGallery({ details }: { details: DiscoverTitleDetails }) {
-  if (!details.trailers.length) return null;
-  return (
-    <section>
-      <SectionLabel>Trailers</SectionLabel>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        {details.trailers.slice(0, 4).map((trailer) => (
-          <a
-            key={trailer.id}
-            href={`https://www.youtube.com/watch?v=${encodeURIComponent(trailer.youtubeKey)}`}
-            target="_blank"
-            rel="noreferrer"
-            className="group relative aspect-video overflow-hidden border border-border bg-black"
-          >
-            <img
-              src={`https://i.ytimg.com/vi/${encodeURIComponent(trailer.youtubeKey)}/hqdefault.jpg`}
-              alt=""
-              width={480}
-              height={360}
-              loading="lazy"
-              decoding="async"
-              className="h-full w-full object-cover opacity-70 transition-[transform,opacity] duration-200 group-hover:scale-[1.03] group-hover:opacity-90"
-            />
-            <span className="absolute inset-0 grid place-items-center">
-              <span className="grid h-10 w-10 place-items-center border border-white/25 bg-black/70 text-accent backdrop-blur-sm">
-                <Youtube className="h-5 w-5" />
-              </span>
-            </span>
-            <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/90 to-transparent px-3 pb-2 pt-8">
-              <span className="line-clamp-1 block text-[10px] font-semibold text-white">{trailer.name}</span>
-              <span className="mt-0.5 block text-[8px] uppercase tracking-[0.13em] text-white/55">
-                {trailer.type}
-                {trailer.official ? " · Official" : ""}
-              </span>
-            </span>
-          </a>
-        ))}
-      </div>
-    </section>
   );
 }
 

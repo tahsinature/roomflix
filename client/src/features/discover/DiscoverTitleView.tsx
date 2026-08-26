@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, RotateCw } from "lucide-react";
-import type { DiscoverTitleDetails, TitleLibraryItem } from "@shared/protocol";
+import type { DiscoverImageKind, DiscoverTitleDetails, TitleLibraryItem } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
 import { useCommandPalette } from "@/features/command-palette/CommandPaletteProvider";
 import { DiscoverDetailHeader } from "./DiscoverDetailHeader";
@@ -17,6 +17,8 @@ export function DiscoverTitleView({
   onBack,
   onSelectTitle,
   onSelectPerson,
+  onOpenGallery,
+  onOpenPersonGallery,
   onViewed,
   onSave,
   onRemove,
@@ -26,6 +28,8 @@ export function DiscoverTitleView({
   onBack: () => void;
   onSelectTitle: (selection: TitleSelection) => void;
   onSelectPerson: (tmdbId: number) => void;
+  onOpenGallery: (kind: DiscoverImageKind) => void;
+  onOpenPersonGallery: (tmdbId: number) => void;
   onViewed: (details: DiscoverTitleDetails) => void;
   onSave: (item: LibraryPayload) => Promise<void>;
   onRemove: (mediaType: TitleSelection["mediaType"], tmdbId: number) => Promise<void>;
@@ -86,7 +90,7 @@ export function DiscoverTitleView({
           </div>
         ) : details ? (
           <div className="view-enter overflow-hidden border border-border bg-card/20">
-            <TitleHero details={details} />
+            <TitleHero details={details} onOpenGallery={onOpenGallery} />
             <div className="px-4 py-5 sm:px-6 sm:py-7">
               <TitleDetailWorkspace
                 key={identity}
@@ -95,6 +99,7 @@ export function DiscoverTitleView({
                 existing={existing}
                 onSelectTitle={onSelectTitle}
                 onSelectPerson={onSelectPerson}
+                onOpenPersonGallery={onOpenPersonGallery}
                 onSave={onSave}
                 onRemove={onRemove}
               />

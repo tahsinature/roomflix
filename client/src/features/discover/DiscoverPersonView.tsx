@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, RotateCw, UserRound } from "lucide-react";
+import { Images, Loader2, RotateCw, UserRound } from "lucide-react";
 import type { DiscoverPersonDetails, DiscoverSearchResult, TitleLibraryItem } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DiscoverDetailHeader } from "./DiscoverDetailHeader";
 import { posterUrl, type TitleSelection } from "./discover-utils";
 import { invalidatePersonDetails, loadPersonDetails } from "./person-details-cache";
+import { prefetchImageGallery } from "./image-gallery-cache";
 import { TitleGrid } from "./TitleGrid";
 
 type CreditMode = "acting" | "creative" | "production";
@@ -16,11 +17,13 @@ export function DiscoverPersonView({
   library,
   onBack,
   onSelectTitle,
+  onOpenGallery,
 }: {
   tmdbId: number;
   library: TitleLibraryItem[];
   onBack: () => void;
   onSelectTitle: (selection: TitleSelection) => void;
+  onOpenGallery: () => void;
 }) {
   const [person, setPerson] = useState<DiscoverPersonDetails | null>(null);
   const [error, setError] = useState("");
@@ -72,7 +75,17 @@ export function DiscoverPersonView({
             </div>
           </div>
         ) : person ? (
-          <PersonContent person={person} library={library} mode={mode} sort={sort} onModeChange={setMode} onSortChange={setSort} onSelectTitle={onSelectTitle} credits={credits} />
+          <PersonContent
+            person={person}
+            library={library}
+            mode={mode}
+            sort={sort}
+            onModeChange={setMode}
+            onSortChange={setSort}
+            onSelectTitle={onSelectTitle}
+            onOpenGallery={onOpenGallery}
+            credits={credits}
+          />
         ) : (
           <PersonLoadingPreview />
         )}
@@ -90,6 +103,7 @@ function PersonContent({
   onModeChange,
   onSortChange,
   onSelectTitle,
+  onOpenGallery,
 }: {
   person: DiscoverPersonDetails;
   library: TitleLibraryItem[];
@@ -99,21 +113,39 @@ function PersonContent({
   onModeChange: (mode: CreditMode) => void;
   onSortChange: (sort: CreditSort) => void;
   onSelectTitle: (selection: TitleSelection) => void;
+  onOpenGallery: () => void;
 }) {
   const profile = posterUrl(person.profilePath, "w342");
 
   return (
     <article className="view-enter overflow-hidden border border-border bg-card/20">
       <header className="grid gap-5 border-b border-border p-5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:p-7">
-        <div className="aspect-[2/3] w-28 overflow-hidden border border-border bg-bg-elevated sm:w-36">
+        <button
+          type="button"
+          onClick={onOpenGallery}
+          onPointerEnter={() => prefetchImageGallery({ type: "person", tmdbId: person.tmdbId })}
+          onFocus={() => prefetchImageGallery({ type: "person", tmdbId: person.tmdbId })}
+          aria-label={`View photos of ${person.name}`}
+          className="group relative aspect-[2/3] w-28 overflow-hidden border border-border bg-bg-elevated text-left transition-colors hover:border-accent/45 sm:w-36"
+        >
           {profile ? (
-            <img src={profile} alt={person.name} width={342} height={513} decoding="async" className="h-full w-full object-cover" />
+            <img
+              src={profile}
+              alt={person.name}
+              width={342}
+              height={513}
+              decoding="async"
+              className="h-full w-full object-cover transition-[filter,transform] duration-300 group-hover:scale-[1.02] group-hover:brightness-75"
+            />
           ) : (
             <div className="grid h-full place-items-center">
               <UserRound className="h-9 w-9 text-text-dim" aria-hidden="true" />
             </div>
           )}
-        </div>
+          <span className="absolute inset-x-2 bottom-2 flex items-center justify-center gap-1.5 border border-white/15 bg-black/55 px-2 py-1.5 text-[8px] uppercase tracking-[0.1em] text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+            <Images className="h-3 w-3" /> Photos
+          </span>
+        </button>
         <div className="min-w-0 self-center">
           <p className="text-[9px] uppercase tracking-[0.16em] text-accent">{person.knownForDepartment || "Film & television"}</p>
           <h1 className="mt-2 text-3xl font-bold sm:text-4xl">{person.name}</h1>

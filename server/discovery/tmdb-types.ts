@@ -55,6 +55,21 @@ export type RawCertificationResult = {
   rating?: string;
 };
 
+export type RawImage = {
+  file_path?: string;
+  width?: number;
+  height?: number;
+  aspect_ratio?: number;
+  vote_average?: number;
+  vote_count?: number;
+};
+
+export type RawImageCollection = {
+  profiles?: RawImage[];
+  backdrops?: RawImage[];
+  posters?: RawImage[];
+};
+
 export type RawTitleDetails = RawSearchItem & {
   runtime?: number | null;
   episode_run_time?: number[];
@@ -73,6 +88,7 @@ export type RawTitleDetails = RawSearchItem & {
   "watch/providers"?: { results?: Record<string, RawRegionProviders> };
   release_dates?: { results?: RawCertificationResult[] };
   content_ratings?: { results?: RawCertificationResult[] };
+  images?: RawImageCollection;
 };
 
 export type RawPersonDetails = {
@@ -82,4 +98,5 @@ export type RawPersonDetails = {
   known_for_department?: string;
   biography?: string;
   combined_credits?: { cast?: RawCredit[]; crew?: RawCredit[] };
+  images?: RawImageCollection;
 };

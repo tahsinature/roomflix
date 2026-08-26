@@ -7,6 +7,7 @@ import type {
   CollectionMediaFilter,
   DiscoverMediaType,
   DiscoverGenre,
+  DiscoverImageGallery,
   DiscoverPersonDetails,
   DiscoverSearchResponse,
   DiscoverSearchResult,
@@ -112,6 +113,8 @@ export const api = {
     request<DiscoverSearchResult[]>(`/api/discover/genre/${mediaType}/${genreId}?minimumVotes=${minimumVotes}`),
   discoverTitle: (mediaType: DiscoverMediaType, tmdbId: number) => request<DiscoverTitleDetails>(`/api/discover/title/${mediaType}/${tmdbId}`),
   discoverPerson: (tmdbId: number) => request<DiscoverPersonDetails>(`/api/discover/person/${tmdbId}`),
+  discoverTitleImages: (mediaType: DiscoverMediaType, tmdbId: number) => request<DiscoverImageGallery>(`/api/discover/title/${mediaType}/${tmdbId}/images`),
+  discoverPersonImages: (tmdbId: number) => request<DiscoverImageGallery>(`/api/discover/person/${tmdbId}/images`),
 
   // Personal title intent — account-scoped, deliberately separate from the
   // space-scoped playable video library below.

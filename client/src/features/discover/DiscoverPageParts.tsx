@@ -3,6 +3,7 @@ import type { DiscoverPersonResult } from "@shared/protocol";
 import { cn } from "@/lib/utils";
 import { posterUrl, type TitleSelection } from "./discover-utils";
 import { prefetchPersonDetails } from "./person-details-cache";
+import { prefetchImageGallery } from "./image-gallery-cache";
 
 export type DiscoverView = "search" | "shortlist" | "watched" | "recent";
 
@@ -23,7 +24,17 @@ export function ViewButton({ active, onClick, icon: Icon, children }: { active: 
   );
 }
 
-export function PersonResult({ person, onSelect, onSelectTitle }: { person: DiscoverPersonResult; onSelect: () => void; onSelectTitle: (selection: TitleSelection) => void }) {
+export function PersonResult({
+  person,
+  onSelect,
+  onSelectPhotos,
+  onSelectTitle,
+}: {
+  person: DiscoverPersonResult;
+  onSelect: () => void;
+  onSelectPhotos: () => void;
+  onSelectTitle: (selection: TitleSelection) => void;
+}) {
   const image = posterUrl(person.profilePath, "w185");
   return (
     <article
@@ -31,7 +42,14 @@ export function PersonResult({ person, onSelect, onSelectTitle }: { person: Disc
       onPointerEnter={() => prefetchPersonDetails(person.tmdbId)}
       onFocusCapture={() => prefetchPersonDetails(person.tmdbId)}
     >
-      <button type="button" onClick={onSelect} className="h-20 w-16 shrink-0 overflow-hidden border border-border bg-bg-elevated">
+      <button
+        type="button"
+        onClick={onSelectPhotos}
+        onPointerEnter={() => prefetchImageGallery({ type: "person", tmdbId: person.tmdbId })}
+        onFocus={() => prefetchImageGallery({ type: "person", tmdbId: person.tmdbId })}
+        aria-label={`View photos of ${person.name}`}
+        className="h-20 w-16 shrink-0 overflow-hidden border border-border bg-bg-elevated"
+      >
         {image ? (
           <img src={image} alt="" className="h-full w-full object-cover grayscale hover:grayscale-0" />
         ) : (

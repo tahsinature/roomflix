@@ -116,6 +116,24 @@ export type DiscoverWatchProvider = {
   logoPath: string | null;
 };
 
+export type DiscoverImageKind = "profile" | "backdrop" | "poster";
+
+export type DiscoverImage = {
+  filePath: string;
+  kind: DiscoverImageKind;
+  width: number;
+  height: number;
+  aspectRatio: number;
+  voteAverage: number;
+  voteCount: number;
+};
+
+export type DiscoverImageGallery = {
+  subjectName: string;
+  subjectType: DiscoverMediaType | "person";
+  images: DiscoverImage[];
+};
+
 export type DiscoverRegionProviders = {
   link: string;
   stream: DiscoverWatchProvider[];
