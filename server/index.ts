@@ -42,6 +42,7 @@ import { buildChatRouter } from "@/api/chat.ts";
 import { buildWatchHistoryRouter } from "@/api/history.ts";
 import { buildDiscoverTmdbRouter } from "@/api/discover_tmdb.ts";
 import { buildTitleLibraryRouter } from "@/api/title_library.ts";
+import { buildRecentTitlesRouter } from "@/api/recent_titles.ts";
 import { buildInvitesRouter, buildJoinRequestsRouter, buildSessionSpaceRouter, buildSpacesRouter } from "@/api/spaces.ts";
 import { buildSessionMembersRouter, buildSessionStateRouter } from "@/api/session_state.ts";
 import { getCurrentPrincipalFromRequest } from "@/auth.ts";
@@ -188,6 +189,7 @@ app.route("/api/spaces/:id/chat", buildChatRouter(storage));
 app.route("/api/spaces/:id/history", buildWatchHistoryRouter(storage));
 app.route("/api/discover", buildDiscoverTmdbRouter(storage));
 app.route("/api/title-library", buildTitleLibraryRouter(storage));
+app.route("/api/recent-titles", buildRecentTitlesRouter(storage));
 
 // SPA fallback.
 //

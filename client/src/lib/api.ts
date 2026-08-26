@@ -17,6 +17,7 @@ import type {
   LibraryHealth,
   ProbeResult,
   PublicShareGate,
+  RecentTitleItem,
   ShareAccess,
   ShareLink,
   Space,
@@ -121,6 +122,16 @@ export const api = {
       body: JSON.stringify(item),
     }),
   removeTitleLibraryItem: (mediaType: DiscoverMediaType, tmdbId: number) => request<void>(`/api/title-library/${mediaType}/${tmdbId}`, { method: "DELETE" }),
+
+  // Account-scoped title browsing history. The server is the source of truth
+  // so the same timeline follows the user across browsers and devices.
+  listRecentTitles: () => request<RecentTitleItem[]>("/api/recent-titles"),
+  recordRecentTitle: (title: DiscoverSearchResult) =>
+    request<RecentTitleItem>(`/api/recent-titles/${title.mediaType}/${title.tmdbId}`, {
+      method: "PUT",
+      body: JSON.stringify(title),
+    }),
+  clearRecentTitles: () => request<{ deleted: number }>("/api/recent-titles", { method: "DELETE" }),
 
   listVideos: () => request<Video[]>("/api/videos"),
   createVideo: (input: { url: string; title?: string; subtitles?: Subtitle[] }) =>

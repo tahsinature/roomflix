@@ -4,13 +4,14 @@ import { cn } from "@/lib/utils";
 import { posterUrl, type TitleSelection } from "./discover-utils";
 import { prefetchPersonDetails } from "./person-details-cache";
 
-export type DiscoverView = "search" | "shortlist" | "watched";
+export type DiscoverView = "search" | "shortlist" | "watched" | "recent";
 
 export function ViewButton({ active, onClick, icon: Icon, children }: { active: boolean; onClick: () => void; icon: LucideIcon; children: React.ReactNode }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
         "flex min-w-0 items-center justify-center gap-2 border-r border-border px-2 py-3 text-[10px] uppercase tracking-[0.11em] transition last:border-r-0 sm:text-xs",
         active ? "bg-accent/10 text-accent" : "text-muted-foreground hover:bg-white/[0.02] hover:text-foreground",
@@ -71,7 +72,7 @@ export function LoadingGrid() {
   );
 }
 
-export function EmptyLibrary({ view, onSearch }: { view: DiscoverView; onSearch: () => void }) {
+export function EmptyLibrary({ view, onSearch }: { view: Exclude<DiscoverView, "search" | "recent">; onSearch: () => void }) {
   return (
     <div className="border border-border bg-card/35 px-6 py-14 text-center">
       <Clapperboard className="mx-auto h-7 w-7 text-text-dim" />

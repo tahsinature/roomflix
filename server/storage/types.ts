@@ -13,6 +13,7 @@ import type {
   CollectionSource,
   JoinRequest,
   JoinRequester,
+  RecentTitleItem,
   ShareAccess,
   ShareLink,
   ShareTargetKind,
@@ -57,6 +58,14 @@ export interface TitleLibraryRepo {
   get(userId: string, mediaType: DiscoverMediaType, tmdbId: number): Promise<TitleLibraryItem | null>;
   upsert(userId: string, input: TitleLibraryInput): Promise<TitleLibraryItem>;
   remove(userId: string, mediaType: DiscoverMediaType, tmdbId: number): Promise<boolean>;
+}
+
+export type RecentTitleInput = Omit<RecentTitleItem, "id" | "userId" | "lastViewedAt" | "viewCount">;
+
+export interface RecentTitleRepo {
+  list(userId: string, limit: number): Promise<RecentTitleItem[]>;
+  record(userId: string, input: RecentTitleInput): Promise<RecentTitleItem>;
+  removeAll(userId: string): Promise<number>;
 }
 
 // Persisted user record. passwordHash never leaves the server; AuthUser is
@@ -350,6 +359,7 @@ export interface ChatRepo {
 export type Storage = {
   videos: VideoRepo;
   titleLibrary: TitleLibraryRepo;
+  recentTitles: RecentTitleRepo;
   users: UserRepo;
   sessions: SessionRepo;
   // Legacy — only the boot migration reads from this. Use storageConnections

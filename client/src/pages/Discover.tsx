@@ -1,7 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Bookmark, CheckCircle2, GitCompareArrows, Loader2, Search } from "lucide-react";
-import type { DiscoverPersonResult, DiscoverSearchResult, TitleLibraryItem } from "@shared/protocol";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Bookmark, CheckCircle2, Clock3, GitCompareArrows, Loader2, Search } from "lucide-react";
+import type { DiscoverPersonResult, DiscoverSearchResult, RecentTitleItem, TitleLibraryItem } from "@shared/protocol";
 import { useToast } from "@/components/Toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { DiscoverExplore } from "@/features/discover/DiscoverExplore";
 import { DiscoverPersonView } from "@/features/discover/DiscoverPersonView";
 import { DiscoverTitleView } from "@/features/discover/DiscoverTitleView";
+import { RecentTitlesView } from "@/features/discover/RecentTitlesView";
 import { TitleGrid } from "@/features/discover/TitleGrid";
 import { WatchlistCompareModal } from "@/features/discover/WatchlistCompareModal";
 import {
@@ -23,14 +24,16 @@ import {
 } from "@/features/discover/discover-utils";
 import { EmptyLibrary, LoadingGrid, PersonResult, ViewButton, type DiscoverView } from "@/features/discover/DiscoverPageParts";
 import { useCommandPalette } from "@/features/command-palette/CommandPaletteProvider";
+import { mergeRecordedRecentTitle } from "@/features/discover/recent-titles";
 
 export default function Discover() {
   const toast = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const { entityType, tmdbId } = useParams<{ entityType?: string; tmdbId?: string }>();
   const [searchParams] = useSearchParams();
   const { libraryRevision } = useCommandPalette();
-  const [view, setView] = useState<DiscoverView>("search");
+  const [rootView, setRootView] = useState<Exclude<DiscoverView, "recent">>("search");
   const [query, setQuery] = useState("");
   const [titles, setTitles] = useState<DiscoverSearchResult[]>([]);
   const [people, setPeople] = useState<DiscoverPersonResult[]>([]);
@@ -39,12 +42,61 @@ export default function Discover() {
   const [usedFuzzyFallback, setUsedFuzzyFallback] = useState(false);
   const [error, setError] = useState("");
   const [compareOpen, setCompareOpen] = useState(false);
+  const [recentTitles, setRecentTitles] = useState<RecentTitleItem[]>([]);
+  const [recentLoading, setRecentLoading] = useState(true);
+  const [recentError, setRecentError] = useState("");
   const scrollPositions = useRef(new Map<string, number>());
+  const recentClearRevision = useRef(0);
+  const recentLoadRevision = useRef(0);
+  const recentLoaded = useRef(false);
   const selectedTitle = useMemo(() => parseDiscoverTitleRoute(entityType, tmdbId), [entityType, tmdbId]);
   const selectedPersonId = useMemo(() => parseDiscoverPersonRoute(entityType, tmdbId), [entityType, tmdbId]);
   const legacyTitle = parseLegacyTitleParam(searchParams.get("title"));
   const legacyPersonId = parseLegacyPersonParam(searchParams.get("person"));
-  const routeIdentity = selectedTitle ? `${selectedTitle.mediaType}:${selectedTitle.tmdbId}` : selectedPersonId ? `person:${selectedPersonId}` : "discover";
+  const isRecentRoute = entityType === "recent" && !tmdbId;
+  const wasRecentRoute = useRef(isRecentRoute);
+  const view: DiscoverView = isRecentRoute ? "recent" : rootView;
+  const routeState = location.state as { discoverReturnTo?: unknown } | null;
+  const discoverReturnTo = isRecentRoute || routeState?.discoverReturnTo === "/discover/recent" ? "/discover/recent" : "/discover";
+  const routeIdentity = selectedTitle
+    ? `${selectedTitle.mediaType}:${selectedTitle.tmdbId}`
+    : selectedPersonId
+      ? `person:${selectedPersonId}`
+      : isRecentRoute
+        ? "discover:recent"
+        : "discover";
+
+  const loadRecentHistory = useCallback(() => {
+    const loadRevision = ++recentLoadRevision.current;
+    const clearRevision = recentClearRevision.current;
+    setRecentLoading(true);
+    setRecentError("");
+    void api
+      .listRecentTitles()
+      .then((items) => {
+        if (loadRevision === recentLoadRevision.current && clearRevision === recentClearRevision.current) {
+          setRecentTitles(items);
+          recentLoaded.current = true;
+        }
+      })
+      .catch((reason) => {
+        if (loadRevision === recentLoadRevision.current && clearRevision === recentClearRevision.current) {
+          setRecentError(reason instanceof Error ? reason.message : "Recent history is unavailable.");
+        }
+      })
+      .finally(() => {
+        if (loadRevision === recentLoadRevision.current) setRecentLoading(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    loadRecentHistory();
+  }, [loadRecentHistory]);
+
+  useEffect(() => {
+    if (isRecentRoute && !wasRecentRoute.current) loadRecentHistory();
+    wasRecentRoute.current = isRecentRoute;
+  }, [isRecentRoute, loadRecentHistory]);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,7 +160,26 @@ export default function Discover() {
 
   const shortlist = useMemo(() => library.filter((item) => item.status === "shortlist"), [library]);
   const watched = useMemo(() => library.filter((item) => item.status === "watched"), [library]);
-  const libraryTitles = view === "shortlist" ? shortlist : watched;
+  const libraryTitles = view === "shortlist" ? shortlist : view === "watched" ? watched : [];
+
+  const rememberTitle = useCallback(
+    (title: DiscoverSearchResult) => {
+      const clearRevision = recentClearRevision.current;
+      void api
+        .recordRecentTitle(title)
+        .then((recorded) => {
+          if (clearRevision === recentClearRevision.current) {
+            setRecentTitles((current) => mergeRecordedRecentTitle(current, recorded));
+            setRecentError("");
+            if (!recentLoaded.current) loadRecentHistory();
+          }
+        })
+        .catch(() => {
+          if (clearRevision === recentClearRevision.current) setRecentError("A recent title could not be synced to your account.");
+        });
+    },
+    [loadRecentHistory],
+  );
 
   const saveItem: React.ComponentProps<typeof DiscoverTitleView>["onSave"] = async (item) => {
     try {
@@ -133,24 +204,50 @@ export default function Discover() {
   };
 
   const openPerson = (tmdbId: number) => {
-    navigate(discoverPersonPath(tmdbId));
+    navigate(discoverPersonPath(tmdbId), { state: { discoverReturnTo } });
   };
   const openTitle = (selection: TitleSelection) => {
-    navigate(discoverTitlePath(selection));
+    navigate(discoverTitlePath(selection), { state: { discoverReturnTo } });
+  };
+
+  const selectView = (nextView: DiscoverView) => {
+    if (nextView === "recent") {
+      navigate("/discover/recent");
+      return;
+    }
+    setRootView(nextView);
+    if (isRecentRoute) navigate("/discover");
+  };
+
+  const clearHistory = async () => {
+    if (recentTitles.length === 0) return;
+    recentClearRevision.current += 1;
+    try {
+      await api.clearRecentTitles();
+      setRecentTitles([]);
+      recentLoaded.current = true;
+      setRecentError("");
+      toast.success("Recently viewed history cleared.");
+    } catch (reason) {
+      toast.error((reason as Error).message);
+      loadRecentHistory();
+      throw reason;
+    }
   };
 
   if (!selectedTitle && !selectedPersonId && legacyTitle) return <Navigate to={discoverTitlePath(legacyTitle)} replace />;
   if (!selectedTitle && !selectedPersonId && legacyPersonId) return <Navigate to={discoverPersonPath(legacyPersonId)} replace />;
-  if ((entityType || tmdbId) && !selectedTitle && !selectedPersonId) return <Navigate to="/discover" replace />;
+  if ((entityType || tmdbId) && !selectedTitle && !selectedPersonId && !isRecentRoute) return <Navigate to="/discover" replace />;
 
   if (selectedTitle) {
     return (
       <DiscoverTitleView
         selection={selectedTitle}
         library={library}
-        onBack={() => navigate("/discover", { replace: true })}
+        onBack={() => navigate(discoverReturnTo, { replace: true })}
         onSelectTitle={openTitle}
         onSelectPerson={openPerson}
+        onViewed={rememberTitle}
         onSave={saveItem}
         onRemove={removeItem}
       />
@@ -159,21 +256,30 @@ export default function Discover() {
 
   if (selectedPersonId) {
     return (
-      <DiscoverPersonView key={selectedPersonId} tmdbId={selectedPersonId} library={library} onBack={() => navigate("/discover", { replace: true })} onSelectTitle={openTitle} />
+      <DiscoverPersonView
+        key={selectedPersonId}
+        tmdbId={selectedPersonId}
+        library={library}
+        onBack={() => navigate(discoverReturnTo, { replace: true })}
+        onSelectTitle={openTitle}
+      />
     );
   }
 
   return (
     <main className="mx-auto flex max-w-7xl flex-col gap-7 px-4 py-6 sm:px-6 sm:py-8">
-      <div className="grid grid-cols-3 border border-border bg-card/35">
-        <ViewButton active={view === "search"} onClick={() => setView("search")} icon={Search}>
+      <div className="grid grid-cols-4 border border-border bg-card/35">
+        <ViewButton active={view === "search"} onClick={() => selectView("search")} icon={Search}>
           Search
         </ViewButton>
-        <ViewButton active={view === "shortlist"} onClick={() => setView("shortlist")} icon={Bookmark}>
-          Watchlist · {shortlist.length}
+        <ViewButton active={view === "shortlist"} onClick={() => selectView("shortlist")} icon={Bookmark}>
+          Watchlist<span className="hidden sm:inline"> · {shortlist.length}</span>
         </ViewButton>
-        <ViewButton active={view === "watched"} onClick={() => setView("watched")} icon={CheckCircle2}>
-          Watched · {watched.length}
+        <ViewButton active={view === "watched"} onClick={() => selectView("watched")} icon={CheckCircle2}>
+          Watched<span className="hidden sm:inline"> · {watched.length}</span>
+        </ViewButton>
+        <ViewButton active={view === "recent"} onClick={() => selectView("recent")} icon={Clock3}>
+          Recent<span className="hidden sm:inline"> · {recentTitles.length}</span>
         </ViewButton>
       </div>
 
@@ -223,6 +329,17 @@ export default function Discover() {
             </div>
           )}
         </section>
+      ) : view === "recent" ? (
+        <RecentTitlesView
+          titles={recentTitles}
+          library={library}
+          onSelect={openTitle}
+          onClear={clearHistory}
+          onSearch={() => selectView("search")}
+          loading={recentLoading}
+          error={recentError}
+          onRetry={loadRecentHistory}
+        />
       ) : (
         <section>
           <div className="flex items-end justify-between gap-3">
@@ -243,7 +360,7 @@ export default function Discover() {
             {libraryTitles.length ? (
               <TitleGrid titles={libraryTitles.map(libraryItemToSearchResult)} library={library} onSelect={openTitle} />
             ) : (
-              <EmptyLibrary view={view} onSearch={() => setView("search")} />
+              <EmptyLibrary view={view} onSearch={() => selectView("search")} />
             )}
           </div>
         </section>

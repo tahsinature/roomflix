@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, RotateCw } from "lucide-react";
 import type { DiscoverTitleDetails, TitleLibraryItem } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ export function DiscoverTitleView({
   onBack,
   onSelectTitle,
   onSelectPerson,
+  onViewed,
   onSave,
   onRemove,
 }: {
@@ -25,6 +26,7 @@ export function DiscoverTitleView({
   onBack: () => void;
   onSelectTitle: (selection: TitleSelection) => void;
   onSelectPerson: (tmdbId: number) => void;
+  onViewed: (details: DiscoverTitleDetails) => void;
   onSave: (item: LibraryPayload) => Promise<void>;
   onRemove: (mediaType: TitleSelection["mediaType"], tmdbId: number) => Promise<void>;
 }) {
@@ -33,6 +35,7 @@ export function DiscoverTitleView({
   const [retryRevision, setRetryRevision] = useState(0);
   const { setCurrentTitle } = useCommandPalette();
   const identity = titleIdentity(selection);
+  const viewedIdentity = useRef("");
   const existing = useMemo(() => library.find((item) => titleIdentity(item) === identity), [identity, library]);
 
   useEffect(() => {
@@ -55,6 +58,12 @@ export function DiscoverTitleView({
     setCurrentTitle(details);
     return () => setCurrentTitle(null);
   }, [details, setCurrentTitle]);
+
+  useEffect(() => {
+    if (!details || viewedIdentity.current === identity) return;
+    viewedIdentity.current = identity;
+    onViewed(details);
+  }, [details, identity, onViewed]);
 
   const retry = () => {
     invalidateTitleDetails(selection);

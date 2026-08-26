@@ -6,6 +6,7 @@ export { CollectionModel } from "@/models/collection.ts";
 export { InviteModel } from "@/models/invite.ts";
 export { JoinRequestModel } from "@/models/join-request.ts";
 export { PasswordResetTokenModel } from "@/models/password-reset-token.ts";
+export { RecentTitleItemModel } from "@/models/recent-title-item.ts";
 export { PlaylistModel } from "@/models/playlist.ts";
 export { SessionModel } from "@/models/session.ts";
 export { SessionStateModel } from "@/models/session-state.ts";

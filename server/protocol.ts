@@ -65,6 +65,18 @@ export type DiscoverSearchResult = {
   adult: boolean;
 };
 
+export const RECENT_TITLE_LIMIT = 500;
+
+// Account-scoped discovery history. A title has one row per user; opening it
+// again moves it to the top and increments viewCount instead of creating a
+// duplicate event.
+export type RecentTitleItem = DiscoverSearchResult & {
+  id: string;
+  userId: string;
+  lastViewedAt: number;
+  viewCount: number;
+};
+
 export type DiscoverPersonResult = {
   tmdbId: number;
   name: string;

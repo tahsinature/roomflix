@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 
+import { RECENT_TITLE_LIMIT } from "@/protocol.ts";
+
 import type {
   ChatMessage,
   ChatMoment,
@@ -11,6 +13,7 @@ import type {
   JoinRequest,
   JoinRequester,
   JoinRequestStatus,
+  RecentTitleItem,
   SessionState,
   WatchHistoryEntry,
   ShareAccess,
@@ -37,6 +40,8 @@ import type {
   MembershipRepo,
   ChatRepo,
   PasswordResetRepo,
+  RecentTitleInput,
+  RecentTitleRepo,
   Session,
   SessionRepo,
   SessionStateRepo,
@@ -61,6 +66,7 @@ import {
   InviteModel,
   JoinRequestModel,
   PasswordResetTokenModel,
+  RecentTitleItemModel,
   SessionModel,
   SessionStateModel,
   WatchHistoryModel,
@@ -107,6 +113,7 @@ export async function createMongoStorage(mongoUrl: string): Promise<Storage> {
   return {
     videos: new MongoVideoRepo(),
     titleLibrary: new MongoTitleLibraryRepo(),
+    recentTitles: new MongoRecentTitleRepo(),
     users: new MongoUserRepo(),
     sessions: new MongoSessionRepo(),
     storageConfigs: new MongoStorageConfigRepo(),
@@ -190,6 +197,56 @@ class MongoTitleLibraryRepo implements TitleLibraryRepo {
       tmdbId,
     });
     return result.deletedCount > 0;
+  }
+}
+
+class MongoRecentTitleRepo implements RecentTitleRepo {
+  async list(userId: string, limit: number): Promise<RecentTitleItem[]> {
+    const safeLimit = Math.min(RECENT_TITLE_LIMIT, Math.max(1, Math.floor(limit)));
+    const docs = await RecentTitleItemModel.find({ userId }).sort({ lastViewedAt: -1, _id: -1 }).limit(safeLimit).lean();
+    return docs.map(toRecentTitleItem);
+  }
+
+  async record(userId: string, input: RecentTitleInput): Promise<RecentTitleItem> {
+    const now = Date.now();
+    const id = randomId() + randomId();
+    const fields = {
+      userId,
+      tmdbId: input.tmdbId,
+      mediaType: input.mediaType,
+      title: input.title.trim() || "Untitled",
+      year: input.year,
+      releaseDate: input.releaseDate,
+      overview: input.overview,
+      posterPath: input.posterPath,
+      backdropPath: input.backdropPath,
+      voteAverage: input.voteAverage,
+      voteCount: input.voteCount,
+      adult: input.adult,
+      lastViewedAt: now,
+    };
+
+    const doc = await RecentTitleItemModel.findOneAndUpdate(
+      { userId, mediaType: input.mediaType, tmdbId: input.tmdbId },
+      {
+        $set: fields,
+        $inc: { viewCount: 1 },
+        $setOnInsert: { _id: id },
+      },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
+    ).lean();
+
+    const stale = await RecentTitleItemModel.find({ userId }).sort({ lastViewedAt: -1, _id: -1 }).skip(RECENT_TITLE_LIMIT).select({ _id: 1 }).lean();
+    if (stale.length > 0) {
+      await RecentTitleItemModel.deleteMany({ userId, _id: { $in: stale.map((item) => item._id) } });
+    }
+
+    return toRecentTitleItem(doc ?? { _id: id, viewCount: 1, ...fields });
+  }
+
+  async removeAll(userId: string): Promise<number> {
+    const result = await RecentTitleItemModel.deleteMany({ userId });
+    return result.deletedCount;
   }
 }
 
@@ -1192,6 +1249,44 @@ function toTitleLibraryItem(doc: TitleLibraryItemLean): TitleLibraryItem {
     addedAt: doc.addedAt,
     watchedAt: doc.watchedAt ?? null,
     updatedAt: doc.updatedAt,
+  };
+}
+
+type RecentTitleItemLean = {
+  _id: string;
+  userId: string;
+  tmdbId: number;
+  mediaType: DiscoverMediaType;
+  title: string;
+  year?: string;
+  releaseDate?: string;
+  overview?: string;
+  posterPath?: string | null;
+  backdropPath?: string | null;
+  voteAverage?: number;
+  voteCount?: number;
+  adult?: boolean;
+  lastViewedAt: number;
+  viewCount: number;
+};
+
+function toRecentTitleItem(doc: RecentTitleItemLean): RecentTitleItem {
+  return {
+    id: doc._id,
+    userId: doc.userId,
+    tmdbId: doc.tmdbId,
+    mediaType: doc.mediaType,
+    title: doc.title,
+    year: doc.year ?? "",
+    releaseDate: doc.releaseDate ?? "",
+    overview: doc.overview ?? "",
+    posterPath: doc.posterPath ?? null,
+    backdropPath: doc.backdropPath ?? null,
+    voteAverage: doc.voteAverage ?? 0,
+    voteCount: doc.voteCount ?? 0,
+    adult: doc.adult ?? false,
+    lastViewedAt: doc.lastViewedAt,
+    viewCount: doc.viewCount,
   };
 }
 
