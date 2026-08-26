@@ -9,7 +9,7 @@
     "dev:server": "bun run --cwd server dev",
     "dev:client": "bun run --cwd client dev",
     "build": "bun run --cwd client build",
-    "test": "bun test tests && bun run --cwd server test",
+    "test": "bun test tests && bun run --cwd client test && bun run --cwd server test",
     "search-index:build": "bun run scripts/build-tmdb-search-index.ts",
     "start": "NODE_ENV=production bun run --cwd server start",
     "format": "prettier --write \"{client,server}/**/*.{ts,tsx,json,md,css}\" \"!**/dist/**\" \"!**/node_modules/**\"",
