@@ -45,7 +45,10 @@ export function AuthedLayout() {
           gaining a horizontal scrollbar — any stray wide content gets
           clipped instead. Vertical scroll still flows for the
           intentional cases (chat thread, settings forms). */}
-      <div className={embedded ? "h-[100dvh] overflow-y-auto overflow-x-hidden" : "h-[100dvh] overflow-y-auto pt-[60px] sm:pt-[68px]"}>
+      <div
+        id="app-scroll-container"
+        className={embedded ? "h-[100dvh] overflow-y-auto overflow-x-hidden overscroll-y-contain" : "h-[100dvh] overflow-y-auto overscroll-y-contain pt-[60px] sm:pt-[68px]"}
+      >
         <Outlet />
       </div>
     </>

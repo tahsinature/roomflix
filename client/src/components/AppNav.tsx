@@ -34,7 +34,7 @@ export function AppNav() {
 
   return (
     <>
-      <nav className="fixed inset-x-0 top-0 z-40 border-b border-border bg-background/70 backdrop-blur-xl backdrop-saturate-150">
+      <nav className="fixed inset-x-0 top-0 z-40 border-b border-border bg-background/95 shadow-[0_8px_28px_-24px_rgba(0,0,0,0.9)]">
         <div className="flex items-center justify-between px-5 py-3.5 sm:px-8">
           <div className="flex min-w-0 items-center gap-2.5">
             <Link

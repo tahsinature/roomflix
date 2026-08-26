@@ -5,16 +5,7 @@ import { SectionLabel } from "./TitleDetailSections";
 
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w92";
 
-export function TitleMediaSections({ details }: { details: DiscoverTitleDetails }) {
-  return (
-    <>
-      <WhereToWatch providers={details.watchProviders} />
-      <TrailerGallery details={details} />
-    </>
-  );
-}
-
-function WhereToWatch({ providers }: { providers: Record<string, DiscoverRegionProviders> }) {
+export function WhereToWatch({ providers }: { providers: Record<string, DiscoverRegionProviders> }) {
   const regions = useMemo(() => Object.keys(providers).sort(), [providers]);
   const [region, setRegion] = useState(() => preferredRegion(regions));
   const selectedRegion = regions.includes(region) ? region : preferredRegion(regions);
@@ -81,7 +72,11 @@ function ProviderGroup({ label, providers }: { label: string; providers: Discove
       <div className="mt-2 flex flex-wrap gap-2">
         {providers.map((provider) => (
           <span key={provider.providerId} className="inline-flex items-center gap-2 border border-border bg-card/70 p-1.5 pr-2.5 text-[10px]">
-            {provider.logoPath ? <img src={`${TMDB_IMAGE_BASE}${provider.logoPath}`} alt="" loading="lazy" className="h-7 w-7" /> : <Play className="h-4 w-4 text-text-dim" />}
+            {provider.logoPath ? (
+              <img src={`${TMDB_IMAGE_BASE}${provider.logoPath}`} alt="" width={92} height={92} loading="lazy" decoding="async" className="h-7 w-7" />
+            ) : (
+              <Play className="h-4 w-4 text-text-dim" />
+            )}
             {provider.name}
           </span>
         ))}
@@ -90,7 +85,7 @@ function ProviderGroup({ label, providers }: { label: string; providers: Discove
   );
 }
 
-function TrailerGallery({ details }: { details: DiscoverTitleDetails }) {
+export function TrailerGallery({ details }: { details: DiscoverTitleDetails }) {
   if (!details.trailers.length) return null;
   return (
     <section>
@@ -107,8 +102,11 @@ function TrailerGallery({ details }: { details: DiscoverTitleDetails }) {
             <img
               src={`https://i.ytimg.com/vi/${encodeURIComponent(trailer.youtubeKey)}/hqdefault.jpg`}
               alt=""
+              width={480}
+              height={360}
               loading="lazy"
-              className="h-full w-full object-cover opacity-70 transition duration-300 group-hover:scale-[1.03] group-hover:opacity-90"
+              decoding="async"
+              className="h-full w-full object-cover opacity-70 transition-[transform,opacity] duration-200 group-hover:scale-[1.03] group-hover:opacity-90"
             />
             <span className="absolute inset-0 grid place-items-center">
               <span className="grid h-10 w-10 place-items-center border border-white/25 bg-black/70 text-accent backdrop-blur-sm">

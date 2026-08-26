@@ -6,7 +6,7 @@ import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command";
 import { api } from "@/lib/api";
-import { posterUrl, titleIdentity, toLibraryPayload } from "@/features/discover/discover-utils";
+import { discoverPersonPath, discoverTitlePath, posterUrl, titleIdentity, toLibraryPayload } from "@/features/discover/discover-utils";
 import { CurrentTitleCommands } from "./CurrentTitleCommands";
 
 export default function RoomflixCommandPalette({
@@ -134,7 +134,7 @@ export default function RoomflixCommandPalette({
                       key={person.tmdbId}
                       forceMount
                       value={`person ${person.name} ${person.knownForDepartment}`}
-                      onSelect={() => goTo(`/discover?person=${person.tmdbId}`)}
+                      onSelect={() => goTo(discoverPersonPath(person.tmdbId))}
                     >
                       <PaletteImage path={person.profilePath} person />
                       <span className="min-w-0 flex-1 truncate">{person.name}</span>
@@ -154,7 +154,7 @@ export default function RoomflixCommandPalette({
                       key={titleIdentity(title)}
                       forceMount
                       value={`title ${title.title} ${title.year} ${title.mediaType}`}
-                      onSelect={() => goTo(`/discover?title=${encodeURIComponent(`${title.mediaType}:${title.tmdbId}`)}`)}
+                      onSelect={() => goTo(discoverTitlePath(title))}
                     >
                       <PaletteImage path={title.posterPath} />
                       <span className="min-w-0 flex-1 truncate">{title.title}</span>

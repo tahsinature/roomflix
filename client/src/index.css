@@ -29,6 +29,7 @@
 
     --green: 142 71% 45%;
     --cyan: 173 100% 45%;
+    color-scheme: dark;
   }
 
   body {
@@ -66,7 +67,6 @@
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
     pointer-events: none;
     z-index: 9999;
-    will-change: transform;
   }
 }
 
@@ -79,7 +79,6 @@
     border-radius: 50%;
     filter: blur(120px);
     pointer-events: none;
-    will-change: transform;
   }
   .glow-orb-coral {
     background: radial-gradient(circle, hsl(var(--accent) / 0.14), transparent 70%);
@@ -162,6 +161,20 @@
     animation: fadeUp 0.6s ease-out 0.55s both;
   }
 
+  @keyframes viewEnter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .view-enter {
+    animation: viewEnter 180ms ease-out both;
+  }
+
   /* ── Inset highlight + outer glow ── ClawShip's primary button signature. */
   .accent-glow {
     box-shadow:
@@ -230,10 +243,19 @@
     .fade-up-d4 {
       animation: none;
     }
+    .view-enter {
+      animation: none;
+    }
     .eq-bar {
       animation: none;
       transform: scaleY(0.7);
     }
+  }
+}
+
+@media (max-width: 767px) {
+  body::after {
+    display: none;
   }
 }
 

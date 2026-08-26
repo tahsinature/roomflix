@@ -3,6 +3,7 @@ import type { DiscoverTitleDetails } from "@shared/protocol";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/Toast";
 import { backdropUrl, formatRuntime, formatVotes, posterUrl } from "./discover-utils";
+import { prefetchPersonDetails } from "./person-details-cache";
 import { certificationFor, parentsGuideUrl } from "./title-actions";
 import { TitlePosterActions } from "./TitleActions";
 
@@ -13,14 +14,16 @@ export function TitleHero({ details }: { details: DiscoverTitleDetails }) {
   return (
     <div className="relative overflow-hidden border-b border-border">
       <div className="absolute inset-0">
-        {backdrop ? <img src={backdrop} alt="" className="h-full w-full object-cover opacity-30" /> : null}
+        {backdrop ? <img src={backdrop} alt="" width={1280} height={720} fetchPriority="high" decoding="async" className="h-full w-full object-cover opacity-30" /> : null}
         <div className="absolute inset-0 bg-gradient-to-r from-card via-card/90 to-card/55" />
         <div className="absolute inset-0 bg-gradient-to-t from-card via-transparent to-black/30" />
       </div>
       <div className="relative flex min-w-0 gap-4 p-5 sm:gap-6 sm:p-7">
         <div className="w-28 shrink-0 sm:w-36">
           <div className="aspect-[2/3] overflow-hidden border border-white/10 bg-bg-elevated shadow-2xl">
-            {poster ? <img src={poster} alt={details.title} className="h-full w-full object-cover" /> : null}
+            {poster ? (
+              <img src={poster} alt={`${details.title} poster`} width={342} height={513} fetchPriority="high" decoding="async" className="h-full w-full object-cover" />
+            ) : null}
           </div>
           <TitlePosterActions details={details} />
         </div>
@@ -29,9 +32,9 @@ export function TitleHero({ details }: { details: DiscoverTitleDetails }) {
             <MediaIcon className="h-3 w-3" />
             {details.mediaType === "tv" ? "Series" : "Film"}
           </span>
-          <h2 className="mt-3 text-balance text-xl font-bold leading-tight sm:text-3xl">
+          <h1 className="mt-3 text-balance text-xl font-bold leading-tight sm:text-3xl">
             {details.title} {details.year ? <span className="text-base font-normal text-muted-foreground">({details.year})</span> : null}
-          </h2>
+          </h1>
           {details.tagline ? <p className="mt-2 max-w-xl text-xs italic text-muted-foreground">“{details.tagline}”</p> : null}
           <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px]">
             <span className="flex items-center gap-1 text-amber-300">
@@ -95,7 +98,12 @@ export function TitleFacts({ details, onSelectPerson }: { details: DiscoverTitle
         {certification || details.adult || details.imdbId ? (
           <FactRow label="Age rating">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={cn("inline-flex items-center gap-1.5 border px-2 py-1 text-[10px]", details.adult ? "border-accent/40 bg-accent/10 text-accent" : "border-amber-400/35 bg-amber-400/10 text-amber-300")}>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 border px-2 py-1 text-[10px]",
+                  details.adult ? "border-accent/40 bg-accent/10 text-accent" : "border-amber-400/35 bg-amber-400/10 text-amber-300",
+                )}
+              >
                 <Shield className="h-3.5 w-3.5" />
                 {details.adult ? "Adult" : (certification?.value ?? "Not rated")}
               </span>
@@ -116,6 +124,8 @@ export function TitleFacts({ details, onSelectPerson }: { details: DiscoverTitle
                   key={person.tmdbId}
                   type="button"
                   onClick={() => onSelectPerson(person.tmdbId)}
+                  onPointerEnter={() => prefetchPersonDetails(person.tmdbId)}
+                  onFocus={() => prefetchPersonDetails(person.tmdbId)}
                   className="text-xs text-foreground underline decoration-border underline-offset-4 hover:text-accent"
                 >
                   {person.name}
@@ -134,14 +144,29 @@ export function TitleCast({ details, onSelectPerson }: { details: DiscoverTitleD
   return (
     <section>
       <SectionLabel>Cast</SectionLabel>
-      <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+      <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-3">
         {details.cast.map((person) => {
           const image = posterUrl(person.profilePath, "w185");
           return (
-            <button key={person.tmdbId} type="button" onClick={() => onSelectPerson(person.tmdbId)} className="group w-24 shrink-0 text-left">
+            <button
+              key={person.tmdbId}
+              type="button"
+              onClick={() => onSelectPerson(person.tmdbId)}
+              onPointerEnter={() => prefetchPersonDetails(person.tmdbId)}
+              onFocus={() => prefetchPersonDetails(person.tmdbId)}
+              className="group min-w-0 text-left"
+            >
               <div className="aspect-[4/5] overflow-hidden border border-border bg-bg-elevated group-hover:border-accent/40">
                 {image ? (
-                  <img src={image} alt="" loading="lazy" className="h-full w-full object-cover grayscale transition group-hover:grayscale-0" />
+                  <img
+                    src={image}
+                    alt=""
+                    width={185}
+                    height={278}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover grayscale transition-[filter] duration-200 group-hover:grayscale-0"
+                  />
                 ) : (
                   <div className="grid h-full place-items-center">
                     <UserRound className="h-6 w-6 text-text-dim" />
@@ -159,7 +184,7 @@ export function TitleCast({ details, onSelectPerson }: { details: DiscoverTitleD
 }
 
 export function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <h3 className="section-label">{children}</h3>;
+  return <h2 className="section-label">{children}</h2>;
 }
 
 function FactRow({ label, children }: { label: string; children: React.ReactNode }) {

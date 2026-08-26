@@ -48,7 +48,7 @@ export function TitleActionBar({ details }: { details: DiscoverTitleDetails }) {
   const actions = externalTitleActions(details);
   return (
     <section>
-      <h3 className="section-label">Actions</h3>
+      <h2 className="section-label">Actions</h2>
       <div className="mt-3 border border-border bg-background/35">
         {(["download", "search"] as const).map((group) => (
           <div key={group} className="grid gap-2 border-b border-border px-3 py-3 last:border-b-0 sm:grid-cols-[8rem_1fr]">

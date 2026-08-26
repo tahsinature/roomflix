@@ -2,6 +2,7 @@ import { Clapperboard, UserRound, type LucideIcon } from "lucide-react";
 import type { DiscoverPersonResult } from "@shared/protocol";
 import { cn } from "@/lib/utils";
 import { posterUrl, type TitleSelection } from "./discover-utils";
+import { prefetchPersonDetails } from "./person-details-cache";
 
 export type DiscoverView = "search" | "shortlist" | "watched";
 
@@ -24,7 +25,11 @@ export function ViewButton({ active, onClick, icon: Icon, children }: { active: 
 export function PersonResult({ person, onSelect, onSelectTitle }: { person: DiscoverPersonResult; onSelect: () => void; onSelectTitle: (selection: TitleSelection) => void }) {
   const image = posterUrl(person.profilePath, "w185");
   return (
-    <article className="flex min-w-0 gap-3 border border-border bg-card/45 p-3">
+    <article
+      className="flex min-w-0 gap-3 border border-border bg-card/45 p-3"
+      onPointerEnter={() => prefetchPersonDetails(person.tmdbId)}
+      onFocusCapture={() => prefetchPersonDetails(person.tmdbId)}
+    >
       <button type="button" onClick={onSelect} className="h-20 w-16 shrink-0 overflow-hidden border border-border bg-bg-elevated">
         {image ? (
           <img src={image} alt="" className="h-full w-full object-cover grayscale hover:grayscale-0" />

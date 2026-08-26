@@ -21,7 +21,7 @@ export function PulseLabPrototype({ title, runtimeMinutes }: { title: string; ru
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <Activity className="h-5 w-5 text-accent" />
-            <h3 className="text-base font-bold uppercase tracking-tight">Pulse Lab</h3>
+            <h2 className="text-base font-bold uppercase tracking-tight">Pulse Lab</h2>
             <span className="border border-amber-400/35 bg-amber-400/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.12em] text-amber-300">Prototype · demo data</span>
           </div>
           <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">Read the rhythm of {title}, or catch up without crossing your spoiler line.</p>

@@ -1,4 +1,4 @@
-import type { DiscoverMediaType, DiscoverSearchResult, DiscoverTitleDetails, TitleLibraryItem, TitleLibraryStatus } from "@shared/protocol";
+import type { DiscoverSearchResult, DiscoverTitleDetails, TitleLibraryItem, TitleLibraryStatus } from "@shared/protocol";
 
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
 
@@ -25,6 +25,37 @@ export function formatRuntime(minutes: number | null): string {
 
 export function titleIdentity(item: Pick<DiscoverSearchResult, "mediaType" | "tmdbId">): string {
   return `${item.mediaType}-${item.tmdbId}`;
+}
+
+export function discoverTitlePath(item: Pick<DiscoverSearchResult, "mediaType" | "tmdbId">): string {
+  return `/discover/${item.mediaType}/${item.tmdbId}`;
+}
+
+export function discoverPersonPath(tmdbId: number): string {
+  return `/discover/person/${tmdbId}`;
+}
+
+export function parseDiscoverTitleRoute(mediaType?: string, tmdbId?: string): TitleSelection | null {
+  if ((mediaType !== "movie" && mediaType !== "tv") || !tmdbId || !/^\d+$/.test(tmdbId)) return null;
+
+  const parsedId = Number(tmdbId);
+  return Number.isSafeInteger(parsedId) && parsedId > 0 ? { mediaType, tmdbId: parsedId } : null;
+}
+
+export function parseDiscoverPersonRoute(entityType?: string, tmdbId?: string): number | null {
+  if (entityType !== "person" || !tmdbId || !/^\d+$/.test(tmdbId)) return null;
+
+  const parsedId = Number(tmdbId);
+  return Number.isSafeInteger(parsedId) && parsedId > 0 ? parsedId : null;
+}
+
+export function parseLegacyTitleParam(value: string | null): TitleSelection | null {
+  const match = value?.match(/^(movie|tv):(\d+)$/);
+  return match ? parseDiscoverTitleRoute(match[1], match[2]) : null;
+}
+
+export function parseLegacyPersonParam(value: string | null): number | null {
+  return value && /^\d+$/.test(value) ? parseDiscoverPersonRoute("person", value) : null;
 }
 
 export function libraryItemToSearchResult(item: TitleLibraryItem): DiscoverSearchResult {
@@ -68,8 +99,4 @@ export function toLibraryPayload(
   };
 }
 
-export type TitleSelection = {
-  mediaType: DiscoverMediaType;
-  tmdbId: number;
-  title?: string;
-};
+export type TitleSelection = Pick<DiscoverSearchResult, "mediaType" | "tmdbId"> & Partial<Omit<DiscoverSearchResult, "mediaType" | "tmdbId">>;

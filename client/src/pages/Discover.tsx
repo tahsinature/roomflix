@@ -1,23 +1,34 @@
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Bookmark, CheckCircle2, GitCompareArrows, Loader2, Search } from "lucide-react";
 import type { DiscoverPersonResult, DiscoverSearchResult, TitleLibraryItem } from "@shared/protocol";
 import { useToast } from "@/components/Toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
-import { DiscoverPersonModal } from "@/features/discover/DiscoverPersonModal";
 import { DiscoverExplore } from "@/features/discover/DiscoverExplore";
-import { DiscoverTitleModal } from "@/features/discover/DiscoverTitleModal";
+import { DiscoverPersonView } from "@/features/discover/DiscoverPersonView";
+import { DiscoverTitleView } from "@/features/discover/DiscoverTitleView";
 import { TitleGrid } from "@/features/discover/TitleGrid";
 import { WatchlistCompareModal } from "@/features/discover/WatchlistCompareModal";
-import { libraryItemToSearchResult, type TitleSelection } from "@/features/discover/discover-utils";
+import {
+  discoverPersonPath,
+  discoverTitlePath,
+  libraryItemToSearchResult,
+  parseDiscoverPersonRoute,
+  parseDiscoverTitleRoute,
+  parseLegacyPersonParam,
+  parseLegacyTitleParam,
+  type TitleSelection,
+} from "@/features/discover/discover-utils";
 import { EmptyLibrary, LoadingGrid, PersonResult, ViewButton, type DiscoverView } from "@/features/discover/DiscoverPageParts";
 import { useCommandPalette } from "@/features/command-palette/CommandPaletteProvider";
 
 export default function Discover() {
   const toast = useToast();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { entityType, tmdbId } = useParams<{ entityType?: string; tmdbId?: string }>();
+  const [searchParams] = useSearchParams();
   const { libraryRevision } = useCommandPalette();
   const [view, setView] = useState<DiscoverView>("search");
   const [query, setQuery] = useState("");
@@ -27,9 +38,13 @@ export default function Discover() {
   const [searching, setSearching] = useState(false);
   const [usedFuzzyFallback, setUsedFuzzyFallback] = useState(false);
   const [error, setError] = useState("");
-  const [selectedTitle, setSelectedTitle] = useState<TitleSelection | null>(null);
-  const [selectedPerson, setSelectedPerson] = useState<number | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
+  const scrollPositions = useRef(new Map<string, number>());
+  const selectedTitle = useMemo(() => parseDiscoverTitleRoute(entityType, tmdbId), [entityType, tmdbId]);
+  const selectedPersonId = useMemo(() => parseDiscoverPersonRoute(entityType, tmdbId), [entityType, tmdbId]);
+  const legacyTitle = parseLegacyTitleParam(searchParams.get("title"));
+  const legacyPersonId = parseLegacyPersonParam(searchParams.get("person"));
+  const routeIdentity = selectedTitle ? `${selectedTitle.mediaType}:${selectedTitle.tmdbId}` : selectedPersonId ? `person:${selectedPersonId}` : "discover";
 
   useEffect(() => {
     let cancelled = false;
@@ -46,20 +61,15 @@ export default function Discover() {
     };
   }, [libraryRevision]);
 
-  useEffect(() => {
-    const title = searchParams.get("title")?.match(/^(movie|tv):(\d+)$/);
-    const person = Number(searchParams.get("person"));
-    if (title) {
-      setSelectedPerson(null);
-      setSelectedTitle({ mediaType: title[1] as TitleSelection["mediaType"], tmdbId: Number(title[2]) });
-    } else if (Number.isInteger(person) && person > 0) {
-      setSelectedTitle(null);
-      setSelectedPerson(person);
-    } else {
-      setSelectedTitle(null);
-      setSelectedPerson(null);
-    }
-  }, [searchParams]);
+  useLayoutEffect(() => {
+    const scroller = document.getElementById("app-scroll-container");
+    if (!scroller) return;
+
+    scroller.scrollTo({ top: scrollPositions.current.get(routeIdentity) ?? 0, behavior: "auto" });
+    return () => {
+      scrollPositions.current.set(routeIdentity, scroller.scrollTop);
+    };
+  }, [routeIdentity]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -100,7 +110,7 @@ export default function Discover() {
   const watched = useMemo(() => library.filter((item) => item.status === "watched"), [library]);
   const libraryTitles = view === "shortlist" ? shortlist : watched;
 
-  const saveItem: React.ComponentProps<typeof DiscoverTitleModal>["onSave"] = async (item) => {
+  const saveItem: React.ComponentProps<typeof DiscoverTitleView>["onSave"] = async (item) => {
     try {
       const saved = await api.saveTitleLibraryItem(item.mediaType, item.tmdbId, item);
       setLibrary((current) => [saved, ...current.filter((candidate) => candidate.id !== saved.id)]);
@@ -111,7 +121,7 @@ export default function Discover() {
     }
   };
 
-  const removeItem: React.ComponentProps<typeof DiscoverTitleModal>["onRemove"] = async (mediaType, tmdbId) => {
+  const removeItem: React.ComponentProps<typeof DiscoverTitleView>["onRemove"] = async (mediaType, tmdbId) => {
     try {
       await api.removeTitleLibraryItem(mediaType, tmdbId);
       setLibrary((current) => current.filter((item) => !(item.mediaType === mediaType && item.tmdbId === tmdbId)));
@@ -123,15 +133,35 @@ export default function Discover() {
   };
 
   const openPerson = (tmdbId: number) => {
-    setSelectedTitle(null);
-    setSelectedPerson(tmdbId);
-    setSearchParams({ person: String(tmdbId) });
+    navigate(discoverPersonPath(tmdbId));
   };
   const openTitle = (selection: TitleSelection) => {
-    setSelectedPerson(null);
-    setSelectedTitle(selection);
-    setSearchParams({ title: `${selection.mediaType}:${selection.tmdbId}` });
+    navigate(discoverTitlePath(selection));
   };
+
+  if (!selectedTitle && !selectedPersonId && legacyTitle) return <Navigate to={discoverTitlePath(legacyTitle)} replace />;
+  if (!selectedTitle && !selectedPersonId && legacyPersonId) return <Navigate to={discoverPersonPath(legacyPersonId)} replace />;
+  if ((entityType || tmdbId) && !selectedTitle && !selectedPersonId) return <Navigate to="/discover" replace />;
+
+  if (selectedTitle) {
+    return (
+      <DiscoverTitleView
+        selection={selectedTitle}
+        library={library}
+        onBack={() => navigate("/discover", { replace: true })}
+        onSelectTitle={openTitle}
+        onSelectPerson={openPerson}
+        onSave={saveItem}
+        onRemove={removeItem}
+      />
+    );
+  }
+
+  if (selectedPersonId) {
+    return (
+      <DiscoverPersonView key={selectedPersonId} tmdbId={selectedPersonId} library={library} onBack={() => navigate("/discover", { replace: true })} onSelectTitle={openTitle} />
+    );
+  }
 
   return (
     <main className="mx-auto flex max-w-7xl flex-col gap-7 px-4 py-6 sm:px-6 sm:py-8">
@@ -219,16 +249,6 @@ export default function Discover() {
         </section>
       )}
 
-      <DiscoverTitleModal
-        selection={selectedTitle}
-        library={library}
-        onClose={() => setSearchParams({})}
-        onSelectTitle={openTitle}
-        onSelectPerson={openPerson}
-        onSave={saveItem}
-        onRemove={removeItem}
-      />
-      <DiscoverPersonModal tmdbId={selectedPerson} library={library} onClose={() => setSearchParams({})} onSelectTitle={openTitle} />
       <WatchlistCompareModal open={compareOpen} items={shortlist} onClose={() => setCompareOpen(false)} />
     </main>
   );

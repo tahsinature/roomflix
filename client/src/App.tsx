@@ -38,116 +38,116 @@ export default function App() {
   return (
     <CommandPaletteProvider enabled={Boolean(user)}>
       <Routes>
-      <Route
-        path="/login"
-        element={
-          <RedirectIfAuthenticated>
-            <Login />
-          </RedirectIfAuthenticated>
-        }
-      />
-      <Route
-        path="/register"
-        element={
-          <RedirectIfAuthenticated>
-            <Register />
-          </RedirectIfAuthenticated>
-        }
-      />
-      {/* Password reset — request a link, then open the link to set a
+        <Route
+          path="/login"
+          element={
+            <RedirectIfAuthenticated>
+              <Login />
+            </RedirectIfAuthenticated>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <RedirectIfAuthenticated>
+              <Register />
+            </RedirectIfAuthenticated>
+          }
+        />
+        {/* Password reset — request a link, then open the link to set a
           new password. Both routes are auth-agnostic: a signed-in user
           who lost their password can still go through the flow, and
           confirming wipes any active sessions so they end up signed
           out either way. */}
-      <Route path="/reset-password" element={<PasswordResetRequest />} />
-      <Route path="/reset-password/:token" element={<PasswordResetConfirm />} />
-      {/* /join — code-entry pad. Wrapped by RedirectIfAuthenticated so
+        <Route path="/reset-password" element={<PasswordResetRequest />} />
+        <Route path="/reset-password/:token" element={<PasswordResetConfirm />} />
+        {/* /join — code-entry pad. Wrapped by RedirectIfAuthenticated so
           a signed-in user lands on something useful instead of seeing
           the join page. */}
-      <Route
-        path="/join"
-        element={
-          <RedirectIfAuthenticated>
-            <Join />
-          </RedirectIfAuthenticated>
-        }
-      />
-      {/* /join/:code — the deep-link path. NOT wrapped: signed-in users
+        <Route
+          path="/join"
+          element={
+            <RedirectIfAuthenticated>
+              <Join />
+            </RedirectIfAuthenticated>
+          }
+        />
+        {/* /join/:code — the deep-link path. NOT wrapped: signed-in users
           must reach the Join component so its auto-redeem effect can
           finish joining the linked space (e.g. after a sign-in
           round-trip from the universal picker). */}
-      <Route path="/join/:code" element={<Join />} />
-      {/* Waiting room for joinPolicy=approval flows. Not wrapped in
+        <Route path="/join/:code" element={<Join />} />
+        {/* Waiting room for joinPolicy=approval flows. Not wrapped in
           RedirectIfAuthenticated — guests are anonymous until the host
           approves; users who came through sign-in are about to be
           granted membership and need to see the status. */}
-      <Route path="/join/waiting/:id" element={<JoinWaiting />} />
-      {/* /welcome is the marketing landing for logged-out visitors;
+        <Route path="/join/waiting/:id" element={<JoinWaiting />} />
+        {/* /welcome is the marketing landing for logged-out visitors;
           it has its own SiteNav and lives outside the authed shell. */}
-      <Route path="/welcome" element={<Welcome />} />
+        <Route path="/welcome" element={<Welcome />} />
 
-      {/* /share/:code — a PUBLIC share-link viewer. No auth: the code
+        {/* /share/:code — a PUBLIC share-link viewer. No auth: the code
           (plus an optional passcode) is the only credential, so it lives
           entirely outside the authed shell. */}
-      <Route path="/share/:code" element={<PublicShare />} />
+        <Route path="/share/:code" element={<PublicShare />} />
 
-      {/* /watch uses its own authenticated theater layout while sharing
+        {/* /watch uses its own authenticated theater layout while sharing
           the app-wide navigation and command-palette provider. */}
-      <Route element={<TheaterLayout />}>
-        <Route path="/watch" element={<Watch />} />
-      </Route>
+        <Route element={<TheaterLayout />}>
+          <Route path="/watch" element={<Watch />} />
+        </Route>
 
-      {/* Everything authed (including "/") shares the AppNav via
+        {/* Everything authed (including "/") shares the AppNav via
           AuthedLayout. The layout itself gates auth (redirects to
           /welcome if not signed in) and renders the nav once above
           the outlet — page transitions never remount the nav. */}
-      <Route element={<AuthedLayout />}>
-        <Route path="/" element={<Home />} />
-        <Route path="/library" element={<Library />} />
-        <Route
-          path="/discover"
-          element={
-            <RequireRealUser redirectTo="/library">
-              <Suspense fallback={<RouteFallback />}>
-                <Discover />
-              </Suspense>
-            </RequireRealUser>
-          }
-        />
-        <Route path="/collections/:id" element={<CollectionEdit />} />
-        <Route path="/shares" element={<Shares />} />
-        <Route path="/remote" element={<Remote />} />
-        <Route path="/history" element={<History />} />
-        <Route path="/help" element={<Help />} />
-        {/* /spaces → /settings/space. Spaces management is now a
+        <Route element={<AuthedLayout />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/library" element={<Library />} />
+          <Route
+            path="/discover/:entityType?/:tmdbId?"
+            element={
+              <RequireRealUser redirectTo="/library">
+                <Suspense fallback={<RouteFallback />}>
+                  <Discover />
+                </Suspense>
+              </RequireRealUser>
+            }
+          />
+          <Route path="/collections/:id" element={<CollectionEdit />} />
+          <Route path="/shares" element={<Shares />} />
+          <Route path="/remote" element={<Remote />} />
+          <Route path="/history" element={<History />} />
+          <Route path="/help" element={<Help />} />
+          {/* /spaces → /settings/space. Spaces management is now a
             Settings section; the redirect catches any old links. */}
-        <Route path="/spaces" element={<Navigate to="/settings/space" replace />} />
-        <Route
-          path="/storage"
-          element={
-            <Suspense fallback={<RouteFallback />}>
-              <Storage />
-            </Suspense>
-          }
-        />
-        {/* Account-level settings live under /settings/<section>. For
+          <Route path="/spaces" element={<Navigate to="/settings/space" replace />} />
+          <Route
+            path="/storage"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <Storage />
+              </Suspense>
+            }
+          />
+          {/* Account-level settings live under /settings/<section>. For
             now only Storage exists — Profile / Preferences etc. slot
             in here later. Real users only — guests don't have
             persistent accounts to configure. */}
-        <Route
-          path="/settings"
-          element={
-            <RequireRealUser>
-              <Settings />
-            </RequireRealUser>
-          }
-        >
-          <Route index element={<Navigate to="profile" replace />} />
-          <Route path="profile" element={<SettingsProfile />} />
-          <Route path="space" element={<SettingsSpace />} />
-          <Route path="storage" element={<SettingsStorage />} />
+          <Route
+            path="/settings"
+            element={
+              <RequireRealUser>
+                <Settings />
+              </RequireRealUser>
+            }
+          >
+            <Route index element={<Navigate to="profile" replace />} />
+            <Route path="profile" element={<SettingsProfile />} />
+            <Route path="space" element={<SettingsSpace />} />
+            <Route path="storage" element={<SettingsStorage />} />
+          </Route>
         </Route>
-      </Route>
       </Routes>
     </CommandPaletteProvider>
   );
