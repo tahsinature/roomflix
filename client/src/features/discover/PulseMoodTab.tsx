@@ -1,6 +1,6 @@
-import { useState } from "react";
 import { CircleHelp, Gauge, Heart, LockKeyhole, Zap, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useHistoryEntryState } from "@/navigation/history-entry-memory";
 import { PulseGraph } from "./PulseGraph";
 import { PULSE_SIGNALS, type PulseRecap, type PulseSignalKey } from "./pulse-data";
 
@@ -12,8 +12,11 @@ const SIGNAL_ICONS: Record<PulseSignalKey, LucideIcon> = {
 };
 
 export function PulseMoodTab({ progressPercent, recap }: { progressPercent: number; recap: PulseRecap }) {
-  const [activeSignals, setActiveSignals] = useState<Set<PulseSignalKey>>(() => new Set(PULSE_SIGNALS.map((signal) => signal.key)));
-  const [revealFutureMood, setRevealFutureMood] = useState(false);
+  const [activeSignals, setActiveSignals] = useHistoryEntryState<Set<PulseSignalKey>>(
+    "discover.pulse.mood-signals",
+    () => new Set(PULSE_SIGNALS.map((signal) => signal.key)),
+  );
+  const [revealFutureMood, setRevealFutureMood] = useHistoryEntryState("discover.pulse.future-mood", false);
   const toggle = (key: PulseSignalKey) =>
     setActiveSignals((current) => {
       const next = new Set(current);

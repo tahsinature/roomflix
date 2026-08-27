@@ -2,6 +2,7 @@ import { Loader2 } from "lucide-react";
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 import { AppNav } from "@/components/AppNav";
+import { AppScrollRestoration } from "@/navigation/AppScrollRestoration";
 
 // Wraps every authenticated route. AppNav is mounted once at this
 // level so it never re-renders during in-app navigation — Library →
@@ -49,6 +50,7 @@ export function AuthedLayout() {
         id="app-scroll-container"
         className={embedded ? "h-[100dvh] overflow-y-auto overflow-x-hidden overscroll-y-contain" : "h-[100dvh] overflow-y-auto overscroll-y-contain pt-[60px] sm:pt-[68px]"}
       >
+        <AppScrollRestoration containerId="app-scroll-container" />
         <Outlet />
       </div>
     </>

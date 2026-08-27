@@ -1,10 +1,10 @@
-import { useState } from "react";
 import { EyeOff, LockKeyhole } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useHistoryEntryState } from "@/navigation/history-entry-memory";
 import { formatPulseTime } from "./pulse-data";
 
 export function PulseMissedTab({ progressMinutes, runtimeMinutes }: { progressMinutes: number; runtimeMinutes: number }) {
-  const [windowMinutes, setWindowMinutes] = useState(5);
+  const [windowMinutes, setWindowMinutes] = useHistoryEntryState("discover.pulse.missed-window", 5);
   const start = Math.max(0, progressMinutes - windowMinutes);
   return (
     <div className="flex flex-col gap-3">

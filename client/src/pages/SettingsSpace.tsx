@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/auth/AuthContext";
 import { CreateSpaceCard, RedeemInline, SpaceDetailCard } from "@/pages/Spaces";
 import { cn } from "@/lib/utils";
+import { useHistoryEntryState } from "@/navigation/history-entry-memory";
 
 // Space settings — the central hub for managing every space the user
 // belongs to. Two separate ideas live here:
@@ -25,7 +26,7 @@ export default function SettingsSpace() {
   const { spaces, refresh, currentSpace, switchSpace } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [creating, setCreating] = useState(searchParams.get("new") === "1");
-  const [selectedId, setSelectedId] = useState<string | null>(currentSpace?.id ?? spaces[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useHistoryEntryState<string | null>("settings.space.selected", currentSpace?.id ?? spaces[0]?.id ?? null);
   // Transient "Switched to <name>" confirmation. Set right after a
   // successful switch, cleared 2.4s later so the banner returns to
   // its no-banner resting state.

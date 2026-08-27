@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Clapperboard, Compass, Database, History, Home, Library, Settings, UserRound } from "lucide-react";
 import type { DiscoverSearchResponse, DiscoverTitleDetails, TitleLibraryItem, TitleLibraryStatus } from "@shared/protocol";
 import { Modal } from "@/components/Modal";
@@ -19,6 +19,7 @@ export default function RoomflixCommandPalette({
   onLibraryChanged: () => void;
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { error: showError, success: showSuccess } = useToast();
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<DiscoverSearchResponse | null>(null);
@@ -75,7 +76,10 @@ export default function RoomflixCommandPalette({
 
   const goTo = (path: string) => {
     onClose();
-    navigate(path);
+    const opensDiscoverDetail = /^\/discover\/(?:movie|tv|person)\/\d+/.test(path);
+    const currentDiscoverState = location.state as { discoverReturnTo?: unknown } | null;
+    const discoverReturnTo = location.pathname === "/discover/recent" || currentDiscoverState?.discoverReturnTo === "/discover/recent" ? "/discover/recent" : "/discover";
+    navigate(path, opensDiscoverDetail ? { state: { discoverReturnTo, hasAppReturn: true } } : undefined);
   };
   const saveStatus = async (status: TitleLibraryStatus) => {
     if (!currentTitle) return;

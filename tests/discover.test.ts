@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { formatPulseTime, recapAt } from "../client/src/features/discover/pulse-data";
 import { externalTitleActions } from "../client/src/features/discover/title-actions";
 import { discoverPersonPhotosPath, discoverTitlePhotosPath } from "../client/src/features/discover/discover-utils";
+import { sortRecommendations } from "../client/src/features/discover/recommendation-sort";
 import { toImageGallery, toTitleDetails } from "../server/discovery/tmdb-normalizers";
 
 describe("Pulse Lab prototype helpers", () => {
@@ -59,5 +60,19 @@ describe("discovery detail parity", () => {
   test("builds route-backed photo paths without query parameters", () => {
     expect(discoverTitlePhotosPath({ mediaType: "movie", tmdbId: 1084244 })).toBe("/discover/movie/1084244/photos");
     expect(discoverPersonPhotosPath(31)).toBe("/discover/person/31/photos");
+  });
+
+  test("sorts recommendations while preserving the original ranking by default", () => {
+    const titles = [
+      { tmdbId: 1, mediaType: "movie" as const, title: "Zulu", year: "2024", releaseDate: "2024-01-01", overview: "", posterPath: null, backdropPath: null, voteAverage: 6, voteCount: 100, adult: false },
+      { tmdbId: 2, mediaType: "movie" as const, title: "Alpha", year: "2020", releaseDate: "2020-01-01", overview: "", posterPath: null, backdropPath: null, voteAverage: 8, voteCount: 50, adult: false },
+      { tmdbId: 3, mediaType: "movie" as const, title: "Unknown", year: "", releaseDate: "", overview: "", posterPath: null, backdropPath: null, voteAverage: 7, voteCount: 75, adult: false },
+    ];
+
+    expect(sortRecommendations(titles, "recommended").map((title) => title.tmdbId)).toEqual([1, 2, 3]);
+    expect(sortRecommendations(titles, "rating").map((title) => title.tmdbId)).toEqual([2, 3, 1]);
+    expect(sortRecommendations(titles, "newest").map((title) => title.tmdbId)).toEqual([1, 2, 3]);
+    expect(sortRecommendations(titles, "oldest").map((title) => title.tmdbId)).toEqual([2, 1, 3]);
+    expect(sortRecommendations(titles, "title").map((title) => title.tmdbId)).toEqual([2, 3, 1]);
   });
 });

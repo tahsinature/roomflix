@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Bookmark, CheckCircle2, Clock3, GitCompareArrows, Loader2, Search } from "lucide-react";
 import type { DiscoverImageKind, DiscoverPersonResult, DiscoverSearchResult, RecentTitleItem, TitleLibraryItem } from "@shared/protocol";
@@ -28,6 +28,13 @@ import {
 import { EmptyLibrary, LoadingGrid, PersonResult, ViewButton, type DiscoverView } from "@/features/discover/DiscoverPageParts";
 import { useCommandPalette } from "@/features/command-palette/CommandPaletteProvider";
 import { mergeRecordedRecentTitle } from "@/features/discover/recent-titles";
+import { useHistoryEntryState } from "@/navigation/history-entry-memory";
+import { useAppBack, type AppReturnState } from "@/navigation/use-app-back";
+
+type DiscoverRouteState = AppReturnState & {
+  discoverReturnTo?: unknown;
+  galleryKind?: unknown;
+};
 
 export default function Discover() {
   const toast = useToast();
@@ -36,8 +43,8 @@ export default function Discover() {
   const { entityType, tmdbId, subview } = useParams<{ entityType?: string; tmdbId?: string; subview?: string }>();
   const [searchParams] = useSearchParams();
   const { libraryRevision } = useCommandPalette();
-  const [rootView, setRootView] = useState<Exclude<DiscoverView, "recent">>("search");
-  const [query, setQuery] = useState("");
+  const [rootView, setRootView] = useHistoryEntryState<Exclude<DiscoverView, "recent">>("discover.root-view", "search");
+  const [query, setQuery] = useHistoryEntryState("discover.search-query", "");
   const [titles, setTitles] = useState<DiscoverSearchResult[]>([]);
   const [people, setPeople] = useState<DiscoverPersonResult[]>([]);
   const [library, setLibrary] = useState<TitleLibraryItem[]>([]);
@@ -48,7 +55,6 @@ export default function Discover() {
   const [recentTitles, setRecentTitles] = useState<RecentTitleItem[]>([]);
   const [recentLoading, setRecentLoading] = useState(true);
   const [recentError, setRecentError] = useState("");
-  const scrollPositions = useRef(new Map<string, number>());
   const recentClearRevision = useRef(0);
   const recentLoadRevision = useRef(0);
   const recentLoaded = useRef(false);
@@ -60,19 +66,11 @@ export default function Discover() {
   const isRecentRoute = entityType === "recent" && !tmdbId;
   const wasRecentRoute = useRef(isRecentRoute);
   const view: DiscoverView = isRecentRoute ? "recent" : rootView;
-  const routeState = location.state as { discoverReturnTo?: unknown; galleryReturnTo?: unknown; galleryKind?: unknown } | null;
+  const routeState = location.state as DiscoverRouteState | null;
   const discoverReturnTo = isRecentRoute || routeState?.discoverReturnTo === "/discover/recent" ? "/discover/recent" : "/discover";
   const defaultGalleryReturnTo = selectedTitle ? discoverTitlePath(selectedTitle) : selectedPersonId ? discoverPersonPath(selectedPersonId) : "/discover";
-  const galleryReturnTo =
-    typeof routeState?.galleryReturnTo === "string" && routeState.galleryReturnTo.startsWith("/discover") ? routeState.galleryReturnTo : defaultGalleryReturnTo;
   const galleryKind = isDiscoverImageKind(routeState?.galleryKind) ? routeState.galleryKind : undefined;
-  const routeIdentity = selectedTitle
-    ? `${selectedTitle.mediaType}:${selectedTitle.tmdbId}${isPhotoRoute ? ":photos" : ""}`
-    : selectedPersonId
-      ? `person:${selectedPersonId}${isPhotoRoute ? ":photos" : ""}`
-      : isRecentRoute
-        ? "discover:recent"
-        : "discover";
+  const goBack = useAppBack(isPhotoRoute ? defaultGalleryReturnTo : discoverReturnTo);
 
   const loadRecentHistory = useCallback(() => {
     const loadRevision = ++recentLoadRevision.current;
@@ -120,16 +118,6 @@ export default function Discover() {
       cancelled = true;
     };
   }, [libraryRevision]);
-
-  useLayoutEffect(() => {
-    const scroller = document.getElementById("app-scroll-container");
-    if (!scroller) return;
-
-    scroller.scrollTo({ top: scrollPositions.current.get(routeIdentity) ?? 0, behavior: "auto" });
-    return () => {
-      scrollPositions.current.set(routeIdentity, scroller.scrollTop);
-    };
-  }, [routeIdentity]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -212,19 +200,19 @@ export default function Discover() {
   };
 
   const openPerson = (tmdbId: number) => {
-    navigate(discoverPersonPath(tmdbId), { state: { discoverReturnTo } });
+    navigate(discoverPersonPath(tmdbId), { state: { discoverReturnTo, hasAppReturn: true } satisfies DiscoverRouteState });
   };
   const openTitle = (selection: TitleSelection) => {
-    navigate(discoverTitlePath(selection), { state: { discoverReturnTo } });
+    navigate(discoverTitlePath(selection), { state: { discoverReturnTo, hasAppReturn: true } satisfies DiscoverRouteState });
   };
   const openPersonPhotos = (personTmdbId: number) => {
     navigate(discoverPersonPhotosPath(personTmdbId), {
-      state: { discoverReturnTo, galleryReturnTo: location.pathname, galleryKind: "profile" satisfies DiscoverImageKind },
+      state: { discoverReturnTo, galleryKind: "profile" satisfies DiscoverImageKind, hasAppReturn: true } satisfies DiscoverRouteState,
     });
   };
   const openTitlePhotos = (selection: TitleSelection, kind: DiscoverImageKind) => {
     navigate(discoverTitlePhotosPath(selection), {
-      state: { discoverReturnTo, galleryReturnTo: location.pathname, galleryKind: kind },
+      state: { discoverReturnTo, galleryKind: kind, hasAppReturn: true } satisfies DiscoverRouteState,
     });
   };
 
@@ -263,7 +251,7 @@ export default function Discover() {
       <DiscoverPhotoGallery
         subject={{ type: selectedTitle.mediaType, tmdbId: selectedTitle.tmdbId }}
         initialKind={galleryKind}
-        onBack={() => navigate(galleryReturnTo, { replace: true, state: { discoverReturnTo } })}
+        onBack={goBack}
       />
     );
   }
@@ -273,7 +261,7 @@ export default function Discover() {
       <DiscoverPhotoGallery
         subject={{ type: "person", tmdbId: selectedPersonId }}
         initialKind="profile"
-        onBack={() => navigate(galleryReturnTo, { replace: true, state: { discoverReturnTo } })}
+        onBack={goBack}
       />
     );
   }
@@ -283,7 +271,7 @@ export default function Discover() {
       <DiscoverTitleView
         selection={selectedTitle}
         library={library}
-        onBack={() => navigate(discoverReturnTo, { replace: true })}
+        onBack={goBack}
         onSelectTitle={openTitle}
         onSelectPerson={openPerson}
         onOpenGallery={(kind) => openTitlePhotos(selectedTitle, kind)}
@@ -301,7 +289,7 @@ export default function Discover() {
         key={selectedPersonId}
         tmdbId={selectedPersonId}
         library={library}
-        onBack={() => navigate(discoverReturnTo, { replace: true })}
+        onBack={goBack}
         onSelectTitle={openTitle}
         onOpenGallery={() => openPersonPhotos(selectedPersonId)}
       />

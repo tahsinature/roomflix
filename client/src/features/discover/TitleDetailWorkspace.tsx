@@ -1,15 +1,16 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { Activity, Info, MapPin, Sparkles, UsersRound, Youtube, type LucideIcon } from "lucide-react";
 import type { DiscoverTitleDetails, TitleLibraryItem } from "@shared/protocol";
 import { cn } from "@/lib/utils";
 import { PulseLabPrototype } from "./PulseLabPrototype";
-import { SectionLabel, TitleCastAndCrew, TitleFacts } from "./TitleDetailSections";
+import { TitleCastAndCrew, TitleFacts } from "./TitleDetailSections";
 import { TrailerGallery } from "./TrailerGallery";
 import { WhereToWatch } from "./TitleMediaSections";
-import { TitleGrid } from "./TitleGrid";
 import { TitleWatchState } from "./TitleWatchState";
 import { TitleActionBar } from "./TitleActions";
 import type { TitleSelection } from "./discover-utils";
+import { useHistoryEntryState } from "@/navigation/history-entry-memory";
+import { RecommendationSection } from "./RecommendationSection";
 
 type DetailSection = "overview" | "cast" | "trailers" | "providers" | "recommendations" | "pulse";
 type LibraryPayload = Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt">;
@@ -39,7 +40,7 @@ export function TitleDetailWorkspace({
   onSave: (item: LibraryPayload) => Promise<void>;
   onRemove: (mediaType: TitleSelection["mediaType"], tmdbId: number) => Promise<void>;
 }) {
-  const [activeSection, setActiveSection] = useState<DetailSection>("overview");
+  const [activeSection, setActiveSection] = useHistoryEntryState<DetailSection>("discover.title-section", "overview");
   const panelRef = useRef<HTMLDivElement>(null);
   const options: SectionOption[] = [{ id: "overview", label: "Overview", icon: Info }];
 
@@ -139,15 +140,6 @@ function DetailContent({
   if (section === "trailers") return <TrailerGallery details={details} />;
   if (section === "providers") return <WhereToWatch providers={details.watchProviders} />;
   if (section === "pulse" && details.runtime) return <PulseLabPrototype title={details.title} runtimeMinutes={details.runtime} />;
-  if (section === "recommendations") {
-    return (
-      <section>
-        <SectionLabel>More Like This</SectionLabel>
-        <div className="mt-3">
-          <TitleGrid titles={details.recommendations} library={library} onSelect={onSelectTitle} compact />
-        </div>
-      </section>
-    );
-  }
+  if (section === "recommendations") return <RecommendationSection details={details} library={library} onSelectTitle={onSelectTitle} />;
   return null;
 }

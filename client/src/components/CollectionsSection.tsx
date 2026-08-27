@@ -23,7 +23,7 @@ export function CollectionsSection({ collections, onChange }: { collections: Col
     try {
       const created = await api.createCollection({ title: "New collection" });
       onChange([created, ...collections]);
-      navigate(`/collections/${created.id}`);
+      navigate(`/collections/${created.id}`, { state: { hasAppReturn: true } });
     } catch (e) {
       toast.error(`Couldn't create collection. ${(e as Error).message}`);
     }
@@ -165,7 +165,7 @@ function CollectionCard({ collection, onDelete, onReplace }: { collection: Colle
         onOpenChange={setMenuOpen}
         onSetCover={() => setCoverOpen(true)}
         onShare={() => setShareOpen(true)}
-        onEdit={() => navigate(`/collections/${collection.id}`)}
+        onEdit={() => navigate(`/collections/${collection.id}`, { state: { hasAppReturn: true } })}
         onDelete={() => void triggerDelete()}
       />
 

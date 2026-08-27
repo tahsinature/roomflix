@@ -8,6 +8,7 @@ import { posterUrl, type TitleSelection } from "./discover-utils";
 import { invalidatePersonDetails, loadPersonDetails } from "./person-details-cache";
 import { prefetchImageGallery } from "./image-gallery-cache";
 import { TitleGrid } from "./TitleGrid";
+import { useHistoryEntryState } from "@/navigation/history-entry-memory";
 
 type CreditMode = "acting" | "creative" | "production";
 type CreditSort = "latest" | "popular" | "oldest";
@@ -27,8 +28,8 @@ export function DiscoverPersonView({
 }) {
   const [person, setPerson] = useState<DiscoverPersonDetails | null>(null);
   const [error, setError] = useState("");
-  const [mode, setMode] = useState<CreditMode>("acting");
-  const [sort, setSort] = useState<CreditSort>("latest");
+  const [mode, setMode] = useHistoryEntryState<CreditMode>("discover.person.credit-mode", "acting");
+  const [sort, setSort] = useHistoryEntryState<CreditSort>("discover.person.credit-sort", "latest");
   const [retryRevision, setRetryRevision] = useState(0);
 
   useEffect(() => {
@@ -39,7 +40,7 @@ export function DiscoverPersonView({
       .then((value) => {
         if (cancelled) return;
         setPerson(value);
-        setMode(defaultCreditMode(value));
+        setMode((current) => (creditsForMode(value, current).length ? current : defaultCreditMode(value)));
       })
       .catch((reason) => {
         if (!cancelled) setError((reason as Error).message);
@@ -233,6 +234,12 @@ function defaultCreditMode(person: DiscoverPersonDetails): CreditMode {
   if (person.knownForDepartment === "Production") return "production";
   if (person.knownForDepartment === "Acting") return "acting";
   return "creative";
+}
+
+function creditsForMode(person: DiscoverPersonDetails, mode: CreditMode): DiscoverSearchResult[] {
+  if (mode === "acting") return person.actingCredits;
+  if (mode === "creative") return person.creativeCredits;
+  return person.productionCredits;
 }
 
 function compareCredits(a: DiscoverSearchResult, b: DiscoverSearchResult, sort: CreditSort): number {

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { tmdbImageUrl } from "./discover-utils";
 import { invalidateImageGallery, loadImageGallery, type GallerySubject } from "./image-gallery-cache";
+import { useHistoryEntryState } from "@/navigation/history-entry-memory";
 
 const SLIDE_DURATION_MS = 4_500;
 const GROUPS: Array<{ kind: DiscoverImageKind; label: string }> = [
@@ -15,8 +16,11 @@ const GROUPS: Array<{ kind: DiscoverImageKind; label: string }> = [
 
 export function DiscoverPhotoGallery({ subject, initialKind, onBack }: { subject: GallerySubject; initialKind?: DiscoverImageKind; onBack: () => void }) {
   const [gallery, setGallery] = useState<DiscoverImageGallery | null>(null);
-  const [activeKind, setActiveKind] = useState<DiscoverImageKind>(initialKind ?? (subject.type === "person" ? "profile" : "backdrop"));
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeKind, setActiveKind] = useHistoryEntryState<DiscoverImageKind>(
+    "discover.gallery.kind",
+    initialKind ?? (subject.type === "person" ? "profile" : "backdrop"),
+  );
+  const [activeIndex, setActiveIndex] = useHistoryEntryState("discover.gallery.index", 0);
   const [playing, setPlaying] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [error, setError] = useState("");
@@ -31,12 +35,11 @@ export function DiscoverPhotoGallery({ subject, initialKind, onBack }: { subject
     setGallery(null);
     setError("");
     setPlaying(false);
-    setActiveIndex(0);
     void loadImageGallery(subject)
       .then((result) => {
         if (cancelled) return;
         setGallery(result);
-        setActiveKind(selectInitialKind(result, initialKind));
+        setActiveKind((current) => (result.images.some((image) => image.kind === current) ? current : selectInitialKind(result, initialKind)));
       })
       .catch((reason) => {
         if (!cancelled) setError(reason instanceof Error ? reason.message : "Photos are unavailable.");
@@ -54,7 +57,12 @@ export function DiscoverPhotoGallery({ subject, initialKind, onBack }: { subject
   }, [gallery]);
   const availableGroups = GROUPS.filter((group) => (groupedImages.get(group.kind)?.length ?? 0) > 0);
   const activeImages = groupedImages.get(activeKind) ?? [];
-  const activeImage = activeImages[activeIndex] ?? null;
+  const visibleIndex = activeImages.length ? Math.min(activeIndex, activeImages.length - 1) : 0;
+  const activeImage = activeImages[visibleIndex] ?? null;
+
+  useEffect(() => {
+    if (activeIndex !== visibleIndex) setActiveIndex(visibleIndex);
+  }, [activeIndex, setActiveIndex, visibleIndex]);
 
   const goTo = useCallback(
     (index: number) => {
@@ -63,8 +71,8 @@ export function DiscoverPhotoGallery({ subject, initialKind, onBack }: { subject
     },
     [activeImages.length],
   );
-  const showPrevious = useCallback(() => goTo(activeIndex - 1), [activeIndex, goTo]);
-  const showNext = useCallback(() => goTo(activeIndex + 1), [activeIndex, goTo]);
+  const showPrevious = useCallback(() => goTo(visibleIndex - 1), [goTo, visibleIndex]);
+  const showNext = useCallback(() => goTo(visibleIndex + 1), [goTo, visibleIndex]);
 
   useEffect(() => {
     if (!playing || activeImages.length < 2) return;
@@ -105,12 +113,12 @@ export function DiscoverPhotoGallery({ subject, initialKind, onBack }: { subject
       inline: "center",
     });
     if (activeImages.length < 2) return;
-    const neighborPaths = [activeImages[(activeIndex + 1) % activeImages.length], activeImages[(activeIndex - 1 + activeImages.length) % activeImages.length]];
+    const neighborPaths = [activeImages[(visibleIndex + 1) % activeImages.length], activeImages[(visibleIndex - 1 + activeImages.length) % activeImages.length]];
     for (const neighbor of neighborPaths) {
       const image = new Image();
       image.src = tmdbImageUrl(neighbor.filePath);
     }
-  }, [activeImages, activeIndex]);
+  }, [activeImages, visibleIndex]);
 
   const selectGroup = (kind: DiscoverImageKind) => {
     setActiveKind(kind);
@@ -182,7 +190,7 @@ export function DiscoverPhotoGallery({ subject, initialKind, onBack }: { subject
           <h1 className="truncate text-sm font-semibold text-white sm:text-base">{gallery.subjectName}</h1>
         </div>
         <span className="hidden text-[10px] tabular-nums text-white/45 sm:inline" aria-live="polite">
-          {activeIndex + 1} / {activeImages.length}
+          {visibleIndex + 1} / {activeImages.length}
         </span>
         <button
           type="button"
@@ -207,7 +215,7 @@ export function DiscoverPhotoGallery({ subject, initialKind, onBack }: { subject
 
       <section
         className="relative min-h-0 flex-1 overflow-hidden"
-        aria-label={`${gallery.subjectName} photo ${activeIndex + 1}`}
+        aria-label={`${gallery.subjectName} photo ${visibleIndex + 1}`}
         onTouchStart={(event) => {
           touchStartX.current = event.changedTouches[0]?.clientX ?? null;
         }}
@@ -223,7 +231,7 @@ export function DiscoverPhotoGallery({ subject, initialKind, onBack }: { subject
         <img
           key={activeImage.filePath}
           src={tmdbImageUrl(activeImage.filePath)}
-          alt={`${gallery.subjectName} — ${groupLabel(activeKind)} ${activeIndex + 1}`}
+          alt={`${gallery.subjectName} — ${groupLabel(activeKind)} ${visibleIndex + 1}`}
           decoding="async"
           fetchPriority="high"
           className="view-enter relative z-10 h-full w-full select-none object-contain px-2 py-3 sm:px-16 sm:py-5"
@@ -240,7 +248,7 @@ export function DiscoverPhotoGallery({ subject, initialKind, onBack }: { subject
         <div className="absolute bottom-3 left-3 z-20 border border-white/10 bg-black/55 px-2.5 py-1.5 text-[9px] text-white/55 backdrop-blur-md sm:bottom-5 sm:left-5">
           {activeImage.width && activeImage.height ? `${activeImage.width} × ${activeImage.height}` : groupLabel(activeKind)}
         </div>
-        {playing ? <div key={`${activeKind}-${activeIndex}`} className="gallery-progress absolute bottom-0 left-0 z-30 h-px bg-accent" /> : null}
+        {playing ? <div key={`${activeKind}-${visibleIndex}`} className="gallery-progress absolute bottom-0 left-0 z-30 h-px bg-accent" /> : null}
       </section>
 
       <footer className="relative z-20 shrink-0 border-t border-white/10 bg-black/70 px-3 pb-3 pt-2 backdrop-blur-xl sm:px-5 sm:pb-4">
@@ -263,21 +271,21 @@ export function DiscoverPhotoGallery({ subject, initialKind, onBack }: { subject
             ))}
           </div>
           <span className="text-[9px] tabular-nums text-white/40 sm:hidden">
-            {activeIndex + 1} / {activeImages.length}
+            {visibleIndex + 1} / {activeImages.length}
           </span>
         </div>
         <div className="flex gap-2 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:thin]">
           {activeImages.map((image, index) => (
             <button
               key={image.filePath}
-              ref={index === activeIndex ? activeThumbnailRef : undefined}
+              ref={index === visibleIndex ? activeThumbnailRef : undefined}
               type="button"
               onClick={() => goTo(index)}
               aria-label={`Show ${groupLabel(activeKind).toLowerCase()} ${index + 1}`}
-              aria-current={index === activeIndex ? "true" : undefined}
+              aria-current={index === visibleIndex ? "true" : undefined}
               className={cn(
                 "h-14 w-14 shrink-0 overflow-hidden border bg-white/5 transition-[border-color,opacity] sm:h-16 sm:w-16",
-                index === activeIndex ? "border-accent opacity-100" : "border-white/10 opacity-45 hover:opacity-90",
+                index === visibleIndex ? "border-accent opacity-100" : "border-white/10 opacity-45 hover:opacity-90",
               )}
             >
               <img

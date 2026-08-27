@@ -8,6 +8,7 @@ import { loadFullConnection } from "@/lib/buckets/session";
 import { StorageWorkspace } from "@/pages/StorageWorkspace";
 import type { Connection } from "@/lib/buckets/types";
 import { cn } from "@/lib/utils";
+import { useHistoryEntryState } from "@/navigation/history-entry-memory";
 
 // Space-scoped storage view. Horizontal pill strip lists every
 // connection accessible in the current space; the main pane shows the
@@ -21,14 +22,13 @@ export default function Storage() {
   const { user, currentSpace } = useAuth();
   const [connections, setConnections] = useState<StorageConnection[] | null>(null);
   const [error, setError] = useState("");
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useHistoryEntryState<string | null>("storage.active-connection", null);
 
   useEffect(() => {
     if (!currentSpace) return;
     let cancelled = false;
     setConnections(null);
     setError("");
-    setActiveId(null);
     api
       .listSpaceStorage(currentSpace.id)
       .then((list) => {
@@ -37,7 +37,7 @@ export default function Storage() {
         // Auto-select the first connection so the file browser never
         // boots into an empty "pick one" state when there's an obvious
         // single choice.
-        if (list.length > 0) setActiveId(list[0]!.id);
+        setActiveId((current) => (current && list.some((connection) => connection.id === current) ? current : (list[0]?.id ?? null)));
       })
       .catch((err: Error) => {
         if (!cancelled) setError(err.message || "Failed to load storage");

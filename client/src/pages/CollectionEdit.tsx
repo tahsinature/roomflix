@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { api, ApiError } from "@/lib/api";
 import { useToast } from "@/components/Toast";
 import { cn, matchesMediaFilter, mediaKind, urlFilename, type MediaKind } from "@/lib/utils";
+import { useAppBack } from "@/navigation/use-app-back";
 
 // Full-page collection editor — built for collections with hundreds of
 // items, which the old modal couldn't handle. Items render as a sortable
@@ -17,7 +18,7 @@ import { cn, matchesMediaFilter, mediaKind, urlFilename, type MediaKind } from "
 // they stay reachable however far you've scrolled.
 export default function CollectionEdit() {
   const { id = "" } = useParams();
-  const navigate = useNavigate();
+  const goBack = useAppBack("/library");
   const toast = useToast();
 
   const [original, setOriginal] = useState<Collection | null>(null);
@@ -116,7 +117,7 @@ export default function CollectionEdit() {
   // Guard against losing edits on the way out.
   const leave = () => {
     if (dirty && !confirm("Discard unsaved changes?")) return;
-    navigate("/library");
+    goBack();
   };
 
   if (loading) {
@@ -132,7 +133,7 @@ export default function CollectionEdit() {
       <main className="mx-auto flex min-h-[50vh] max-w-md flex-col items-center justify-center gap-3 px-6 text-center">
         <Layers className="h-7 w-7 text-text-dim" />
         <p className="text-sm text-muted-foreground">{loadError || "Collection not found."}</p>
-        <Button variant="outline" size="sm" onClick={() => navigate("/library")}>
+        <Button variant="outline" size="sm" onClick={goBack}>
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to library
         </Button>

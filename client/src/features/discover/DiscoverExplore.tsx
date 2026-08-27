@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { TitleGrid } from "./TitleGrid";
 import type { TitleSelection } from "./discover-utils";
+import { useHistoryEntryState } from "@/navigation/history-entry-memory";
 
 type ExploreMode = "trending" | DiscoverMediaType;
 
@@ -22,10 +23,10 @@ const VOTE_FILTERS = [
 ];
 
 export function DiscoverExplore({ library, onSelect }: { library: TitleLibraryItem[]; onSelect: (selection: TitleSelection) => void }) {
-  const [mode, setMode] = useState<ExploreMode>("trending");
+  const [mode, setMode] = useHistoryEntryState<ExploreMode>("discover.explore.mode", "trending");
   const [genres, setGenres] = useState<DiscoverGenre[]>([]);
-  const [selectedGenreByType, setSelectedGenreByType] = useState<Partial<Record<DiscoverMediaType, number>>>({});
-  const [minimumVotes, setMinimumVotes] = useState(0);
+  const [selectedGenreByType, setSelectedGenreByType] = useHistoryEntryState<Partial<Record<DiscoverMediaType, number>>>("discover.explore.genres", {});
+  const [minimumVotes, setMinimumVotes] = useHistoryEntryState("discover.explore.minimum-votes", 0);
   const [titles, setTitles] = useState<DiscoverSearchResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

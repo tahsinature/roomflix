@@ -1,9 +1,9 @@
-import { useState } from "react";
 import { Brain, CircleHelp, ShieldCheck, Sparkles, Users, type LucideIcon } from "lucide-react";
+import { useHistoryEntryState } from "@/navigation/history-entry-memory";
 import { formatPulseTime, type PulseRecap } from "./pulse-data";
 
 export function PulseRecapTab({ progressMinutes, recap }: { progressMinutes: number; recap: PulseRecap }) {
-  const [showAnswer, setShowAnswer] = useState(false);
+  const [showAnswer, setShowAnswer] = useHistoryEntryState("discover.pulse.show-answer", false);
   return (
     <div className="flex flex-col gap-3">
       <div className="border-l-2 border-cyan bg-cyan/5 px-3 py-2.5">

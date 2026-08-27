@@ -1,16 +1,17 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Activity, Brain, EyeOff, ShieldCheck, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PulseMissedTab } from "./PulseMissedTab";
 import { PulseMoodTab } from "./PulseMoodTab";
 import { PulseRecapTab } from "./PulseRecapTab";
 import { formatPulseTime, recapAt } from "./pulse-data";
+import { useHistoryEntryState } from "@/navigation/history-entry-memory";
 
 type PulseTab = "mood" | "recap" | "missed";
 
 export function PulseLabPrototype({ title, runtimeMinutes }: { title: string; runtimeMinutes: number }) {
-  const [progressMinutes, setProgressMinutes] = useState(() => Math.min(20, Math.max(1, runtimeMinutes - 1)));
-  const [tab, setTab] = useState<PulseTab>("mood");
+  const [progressMinutes, setProgressMinutes] = useHistoryEntryState("discover.pulse.progress", () => Math.min(20, Math.max(1, runtimeMinutes - 1)));
+  const [tab, setTab] = useHistoryEntryState<PulseTab>("discover.pulse.tab", "mood");
   const recap = recapAt(progressMinutes, runtimeMinutes);
   const progressPercent = (progressMinutes / runtimeMinutes) * 100;
 
