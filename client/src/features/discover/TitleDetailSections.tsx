@@ -7,6 +7,7 @@ import { prefetchPersonDetails } from "./person-details-cache";
 import { prefetchImageGallery } from "./image-gallery-cache";
 import { certificationFor, parentsGuideUrl } from "./title-actions";
 import { TitlePosterActions } from "./TitleActions";
+import { CopyableTitle } from "./CopyableTitle";
 
 export function TitleHero({ details, onOpenGallery }: { details: DiscoverTitleDetails; onOpenGallery: (kind: DiscoverImageKind) => void }) {
   const backdrop = backdropUrl(details.backdropPath);
@@ -67,8 +68,9 @@ export function TitleHero({ details, onOpenGallery }: { details: DiscoverTitleDe
             <MediaIcon className="h-3 w-3" />
             {details.mediaType === "tv" ? "Series" : "Film"}
           </span>
-          <h1 className="mt-3 text-balance text-xl font-bold leading-tight sm:text-3xl">
-            {details.title} {details.year ? <span className="text-base font-normal text-muted-foreground">({details.year})</span> : null}
+          <h1 className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xl font-bold leading-tight sm:text-3xl">
+            <CopyableTitle title={details.title} />
+            {details.year ? <span className="text-base font-normal text-muted-foreground">({details.year})</span> : null}
           </h1>
           {details.tagline ? <p className="mt-2 max-w-xl text-xs italic text-muted-foreground">“{details.tagline}”</p> : null}
           <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px]">
