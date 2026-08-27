@@ -29,7 +29,6 @@ export function TitleDetailWorkspace({
   existing,
   onSelectTitle,
   onSelectPerson,
-  onOpenPersonGallery,
   onSelectEpisode,
   onSave,
   onRemove,
@@ -39,7 +38,6 @@ export function TitleDetailWorkspace({
   existing?: TitleLibraryItem;
   onSelectTitle: (selection: TitleSelection) => void;
   onSelectPerson: (tmdbId: number) => void;
-  onOpenPersonGallery: (tmdbId: number) => void;
   onSelectEpisode: (selection: EpisodeSelection) => void;
   onSave: (item: LibraryPayload) => Promise<void>;
   onRemove: (mediaType: TitleSelection["mediaType"], tmdbId: number) => Promise<void>;
@@ -103,7 +101,6 @@ export function TitleDetailWorkspace({
             existing={existing}
             onSelectTitle={onSelectTitle}
             onSelectPerson={onSelectPerson}
-            onOpenPersonGallery={onOpenPersonGallery}
             onSelectEpisode={onSelectEpisode}
             onSave={onSave}
             onRemove={onRemove}
@@ -121,7 +118,6 @@ function DetailContent({
   existing,
   onSelectTitle,
   onSelectPerson,
-  onOpenPersonGallery,
   onSelectEpisode,
   onSave,
   onRemove,
@@ -132,7 +128,6 @@ function DetailContent({
   existing?: TitleLibraryItem;
   onSelectTitle: (selection: TitleSelection) => void;
   onSelectPerson: (tmdbId: number) => void;
-  onOpenPersonGallery: (tmdbId: number) => void;
   onSelectEpisode: (selection: EpisodeSelection) => void;
   onSave: (item: LibraryPayload) => Promise<void>;
   onRemove: (mediaType: TitleSelection["mediaType"], tmdbId: number) => Promise<void>;
@@ -147,7 +142,7 @@ function DetailContent({
     );
   }
   if (section === "episodes") return <EpisodeBrowser details={details} onSelectEpisode={onSelectEpisode} />;
-  if (section === "cast") return <TitleCastAndCrew details={details} onSelectPerson={onSelectPerson} onOpenPersonGallery={onOpenPersonGallery} />;
+  if (section === "cast") return <TitleCastAndCrew details={details} onSelectPerson={onSelectPerson} />;
   if (section === "trailers") return <TrailerGallery details={details} />;
   if (section === "providers") return <WhereToWatch providers={details.watchProviders} />;
   if (section === "pulse" && details.runtime) return <PulseLabPrototype title={details.title} runtimeMinutes={details.runtime} />;

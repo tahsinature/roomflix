@@ -18,7 +18,6 @@ export function DiscoverTitleView({
   onSelectTitle,
   onSelectPerson,
   onOpenGallery,
-  onOpenPersonGallery,
   onSelectEpisode,
   onViewed,
   onSave,
@@ -30,7 +29,6 @@ export function DiscoverTitleView({
   onSelectTitle: (selection: TitleSelection) => void;
   onSelectPerson: (tmdbId: number) => void;
   onOpenGallery: (kind: DiscoverImageKind) => void;
-  onOpenPersonGallery: (tmdbId: number) => void;
   onSelectEpisode: (selection: EpisodeSelection) => void;
   onViewed: (details: DiscoverTitleDetails) => void;
   onSave: (item: LibraryPayload) => Promise<void>;
@@ -101,7 +99,6 @@ export function DiscoverTitleView({
                 existing={existing}
                 onSelectTitle={onSelectTitle}
                 onSelectPerson={onSelectPerson}
-                onOpenPersonGallery={onOpenPersonGallery}
                 onSelectEpisode={onSelectEpisode}
                 onSave={onSave}
                 onRemove={onRemove}

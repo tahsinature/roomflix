@@ -7,19 +7,34 @@ import { prefetchImageGallery } from "./image-gallery-cache";
 
 export type DiscoverView = "search" | "shortlist" | "watched" | "recent";
 
-export function ViewButton({ active, onClick, icon: Icon, children }: { active: boolean; onClick: () => void; icon: LucideIcon; children: React.ReactNode }) {
+export function ViewButton({
+  active,
+  onClick,
+  icon: Icon,
+  count,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: LucideIcon;
+  count?: number;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex min-w-0 items-center justify-center gap-2 border-r border-border px-2 py-3 text-[10px] uppercase tracking-[0.11em] transition last:border-r-0 sm:text-xs",
+        "flex min-w-0 items-center justify-center gap-1 border-r border-border px-1.5 py-3 text-[10px] uppercase tracking-[0.11em] transition last:border-r-0 sm:gap-2 sm:px-2 sm:text-xs",
         active ? "bg-accent/10 text-accent" : "text-muted-foreground hover:bg-white/[0.02] hover:text-foreground",
       )}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">{children}</span>
+      <span className="min-w-0 truncate">{children}</span>
+      {count !== undefined ? (
+        <span className="min-w-4 shrink-0 border border-border bg-black/15 px-1 py-0.5 text-center text-[8px] tabular-nums leading-none sm:text-[9px]">{count}</span>
+      ) : null}
     </button>
   );
 }

@@ -161,15 +161,7 @@ export function TitleFacts({ details }: { details: DiscoverTitleDetails }) {
   );
 }
 
-export function TitleCastAndCrew({
-  details,
-  onSelectPerson,
-  onOpenPersonGallery,
-}: {
-  details: DiscoverTitleDetails;
-  onSelectPerson: (tmdbId: number) => void;
-  onOpenPersonGallery: (tmdbId: number) => void;
-}) {
+export function TitleCastAndCrew({ details, onSelectPerson }: { details: DiscoverTitleDetails; onSelectPerson: (tmdbId: number) => void }) {
   if (!details.directors.length && !details.cast.length) return null;
 
   const creatorLabel = details.mediaType === "movie" ? "Directed by" : "Created by";
@@ -203,15 +195,15 @@ export function TitleCastAndCrew({
             {details.cast.map((person) => {
               const image = posterUrl(person.profilePath, "w185");
               return (
-                <article key={person.tmdbId} className="group min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => onOpenPersonGallery(person.tmdbId)}
-                    onPointerEnter={() => prefetchImageGallery({ type: "person", tmdbId: person.tmdbId })}
-                    onFocus={() => prefetchImageGallery({ type: "person", tmdbId: person.tmdbId })}
-                    aria-label={`View photos of ${person.name}`}
-                    className="relative block aspect-[4/5] w-full overflow-hidden border border-border bg-bg-elevated text-left group-hover:border-accent/40"
-                  >
+                <button
+                  key={person.tmdbId}
+                  type="button"
+                  onClick={() => onSelectPerson(person.tmdbId)}
+                  onPointerEnter={() => prefetchPersonDetails(person.tmdbId)}
+                  onFocus={() => prefetchPersonDetails(person.tmdbId)}
+                  className="group min-w-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                >
+                  <span className="block aspect-[4/5] w-full overflow-hidden border border-border bg-bg-elevated transition-colors group-hover:border-accent/40">
                     {image ? (
                       <img
                         src={image}
@@ -223,25 +215,14 @@ export function TitleCastAndCrew({
                         className="h-full w-full object-cover grayscale transition-[filter] duration-200 group-hover:grayscale-0"
                       />
                     ) : (
-                      <div className="grid h-full place-items-center">
+                      <span className="grid h-full place-items-center">
                         <UserRound className="h-6 w-6 text-text-dim" />
-                      </div>
+                      </span>
                     )}
-                    <span className="absolute bottom-1.5 right-1.5 grid h-6 w-6 place-items-center border border-white/15 bg-black/55 text-white/65 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                      <Images className="h-3 w-3" />
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onSelectPerson(person.tmdbId)}
-                    onPointerEnter={() => prefetchPersonDetails(person.tmdbId)}
-                    onFocus={() => prefetchPersonDetails(person.tmdbId)}
-                    className="mt-1.5 line-clamp-2 text-left text-[10px] font-semibold leading-tight hover:text-accent"
-                  >
-                    {person.name}
-                  </button>
-                  <p className="mt-0.5 line-clamp-1 text-[9px] text-text-dim">{person.character}</p>
-                </article>
+                  </span>
+                  <span className="mt-1.5 block line-clamp-2 text-[10px] font-semibold leading-tight group-hover:text-accent">{person.name}</span>
+                  <span className="mt-0.5 block line-clamp-1 text-[9px] text-text-dim">{person.character}</span>
+                </button>
               );
             })}
           </div>

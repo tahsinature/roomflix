@@ -291,7 +291,6 @@ export default function Discover() {
         onSelectTitle={openTitle}
         onSelectPerson={openPerson}
         onOpenGallery={(kind) => openTitlePhotos(selectedTitle, kind)}
-        onOpenPersonGallery={openPersonPhotos}
         onSelectEpisode={openEpisode}
         onViewed={rememberTitle}
         onSave={saveItem}
@@ -319,29 +318,29 @@ export default function Discover() {
         <ViewButton active={view === "search"} onClick={() => selectView("search")} icon={Search}>
           Search
         </ViewButton>
-        <ViewButton active={view === "shortlist"} onClick={() => selectView("shortlist")} icon={Bookmark}>
-          Watchlist<span className="hidden sm:inline"> · {shortlist.length}</span>
+        <ViewButton active={view === "shortlist"} onClick={() => selectView("shortlist")} icon={Bookmark} count={shortlist.length}>
+          Watchlist
         </ViewButton>
-        <ViewButton active={view === "watched"} onClick={() => selectView("watched")} icon={CheckCircle2}>
-          Watched<span className="hidden sm:inline"> · {watched.length}</span>
+        <ViewButton active={view === "watched"} onClick={() => selectView("watched")} icon={CheckCircle2} count={watched.length}>
+          Watched
         </ViewButton>
-        <ViewButton active={view === "recent"} onClick={() => selectView("recent")} icon={Clock3}>
-          Recent<span className="hidden sm:inline"> · {recentTitles.length}</span>
+        <ViewButton active={view === "recent"} onClick={() => selectView("recent")} icon={Clock3} count={recentTitles.length}>
+          Recent
         </ViewButton>
       </div>
 
       {view === "search" ? (
         <section>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+          <div className="relative max-w-4xl">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search a movie, series, actor, director or producer…"
-              className="h-16 pl-12 pr-12 text-base sm:text-lg"
-              autoFocus
+              placeholder="Search movies, series, or people…"
+              aria-label="Search movies, series, or people"
+              className="h-11 pl-10 pr-10 text-sm sm:h-12 sm:text-base"
             />
-            {searching ? <Loader2 className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-accent" /> : null}
+            {searching ? <Loader2 className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-accent" /> : null}
           </div>
           {error ? <div className="mt-4 border border-accent/30 bg-accent/10 p-3 text-xs text-accent">{error}</div> : null}
           {usedFuzzyFallback && !searching ? (
