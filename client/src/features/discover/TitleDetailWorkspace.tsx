@@ -63,7 +63,7 @@ export function TitleDetailWorkspace({
       <aside className="sticky top-[4.5rem] z-20 -mx-2 self-start sm:top-[5rem] lg:top-[5.75rem] lg:mx-0">
         <nav
           aria-label="Title sections"
-          className="flex snap-x gap-1 overflow-x-auto rounded-xl border border-white/[0.08] bg-background/80 p-1.5 shadow-[0_18px_36px_-24px_rgba(0,0,0,0.95)] backdrop-blur-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex-col lg:overflow-visible lg:rounded-lg"
+          className="grid grid-cols-3 gap-1 rounded-xl border border-white/[0.08] bg-background/80 p-1.5 shadow-[0_18px_36px_-24px_rgba(0,0,0,0.95)] backdrop-blur-xl lg:flex lg:flex-col lg:rounded-lg"
         >
           {options.map((option) => {
             const Icon = option.icon;
@@ -75,14 +75,14 @@ export function TitleDetailWorkspace({
                 aria-pressed={active}
                 onClick={() => selectSection(option.id)}
                 className={cn(
-                  "flex min-h-10 min-w-[7.25rem] snap-start items-center justify-center gap-2 rounded-lg border border-transparent px-3 py-2 text-[10px] font-medium transition-[color,background-color,border-color,box-shadow] focus-visible:ring-2 focus-visible:ring-accent/60 lg:min-h-11 lg:min-w-0 lg:justify-start lg:px-2.5",
+                  "flex min-h-10 min-w-0 items-center justify-center gap-2 rounded-lg border border-transparent px-2 py-2 text-[10px] font-medium transition-[color,background-color,border-color,box-shadow] focus-visible:ring-2 focus-visible:ring-accent/60 lg:min-h-11 lg:justify-start lg:px-2.5",
                   active
                     ? "border-accent/25 bg-accent/10 text-accent shadow-[inset_0_0_18px_hsl(var(--accent)/0.04)]"
                     : "text-muted-foreground hover:bg-white/[0.035] hover:text-foreground",
                 )}
               >
                 <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span className="whitespace-nowrap">{option.label}</span>
+                <span className="line-clamp-2 min-w-0 text-center leading-tight lg:text-left">{option.label}</span>
               </button>
             );
           })}
@@ -131,7 +131,7 @@ function DetailContent({
 }): ReactNode {
   if (section === "overview") {
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex min-w-0 flex-col gap-6">
         <TitleFacts details={details} />
         <TitleWatchState details={details} existing={existing} onSave={onSave} onRemove={onRemove} />
         <TitleActionBar details={details} />

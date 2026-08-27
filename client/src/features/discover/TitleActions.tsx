@@ -47,19 +47,25 @@ export function TitlePosterActions({ details }: { details: DiscoverTitleDetails 
 export function TitleActionBar({ details }: { details: DiscoverTitleDetails }) {
   const actions = externalTitleActions(details);
   return (
-    <section>
+    <section className="min-w-0">
       <h2 className="section-label">Actions</h2>
-      <div className="mt-3 border border-border bg-background/35">
+      <div className="mt-3 min-w-0 border border-border bg-background/35">
         {(["download", "search"] as const).map((group) => (
-          <div key={group} className="grid gap-2 border-b border-border px-3 py-3 last:border-b-0 sm:grid-cols-[8rem_1fr]">
+          <div key={group} className="grid min-w-0 gap-2 border-b border-border px-3 py-3 last:border-b-0 sm:grid-cols-[8rem_minmax(0,1fr)]">
             <span className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground">{group}</span>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid min-w-0 grid-cols-1 gap-2 min-[360px]:grid-cols-2 xl:grid-cols-3">
               {actions
                 .filter((action) => action.group === group)
                 .map((action) => {
                   const Icon = ACTION_ICONS[action.id as keyof typeof ACTION_ICONS] ?? Link2;
                   return (
-                    <Button key={action.id} asChild size="sm" variant="outline">
+                    <Button
+                      key={action.id}
+                      asChild
+                      size="sm"
+                      variant="outline"
+                      className="h-auto min-h-8 w-full min-w-0 justify-start whitespace-normal px-2.5 py-2 text-left leading-tight"
+                    >
                       <a href={action.url} target="_blank" rel="noreferrer">
                         <Icon className="h-3.5 w-3.5" />
                         {action.label}

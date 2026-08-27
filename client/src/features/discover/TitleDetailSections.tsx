@@ -94,12 +94,12 @@ export function TitleFacts({ details }: { details: DiscoverTitleDetails }) {
   const toast = useToast();
   const certification = certificationFor(details);
   return (
-    <section>
+    <section className="min-w-0">
       <SectionLabel>Details</SectionLabel>
       <div className="mt-3 border border-border bg-background/35">
         <FactRow label="Description">
-          <div className="flex items-start gap-2">
-            <p className="max-w-2xl flex-1 text-xs leading-relaxed text-foreground/80">{details.overview || "No description available."}</p>
+          <div className="flex min-w-0 items-start gap-2">
+            <p className="min-w-0 flex-1 text-xs leading-relaxed text-foreground/80 [overflow-wrap:anywhere]">{details.overview || "No description available."}</p>
             {details.overview ? (
               <button
                 type="button"
@@ -257,9 +257,9 @@ export function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function FactRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid gap-2 border-b border-border px-3 py-3 last:border-b-0 sm:grid-cols-[8rem_1fr]">
+    <div className="grid min-w-0 gap-2 border-b border-border px-3 py-3 last:border-b-0 sm:grid-cols-[8rem_minmax(0,1fr)]">
       <span className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground">{label}</span>
-      <div className="min-w-0 text-xs">{children}</div>
+      <div className="min-w-0 break-words text-xs">{children}</div>
     </div>
   );
 }

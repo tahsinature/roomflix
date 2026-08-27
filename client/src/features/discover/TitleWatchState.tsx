@@ -38,26 +38,26 @@ export function TitleWatchState({
   };
 
   return (
-    <section>
+    <section className="min-w-0">
       <SectionLabel>My watch state</SectionLabel>
-      <div className="mt-3 border border-border bg-card/50 p-4">
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant={existing?.status === "shortlist" ? "accent" : "outline"} disabled={busy} onClick={() => void save("shortlist")}>
+      <div className="mt-3 min-w-0 border border-border bg-card/50 p-4">
+        <div className="grid min-w-0 grid-cols-1 gap-2 min-[430px]:grid-cols-2 sm:flex sm:flex-wrap">
+          <Button size="sm" variant={existing?.status === "shortlist" ? "accent" : "outline"} disabled={busy} onClick={() => void save("shortlist")} className="w-full sm:w-auto">
             <Bookmark className="h-3.5 w-3.5" />
             {existing?.status === "shortlist" ? "In watchlist" : "Add to watchlist"}
           </Button>
-          <Button size="sm" variant={existing?.status === "watched" ? "accent" : "outline"} disabled={busy} onClick={() => void save("watched")}>
+          <Button size="sm" variant={existing?.status === "watched" ? "accent" : "outline"} disabled={busy} onClick={() => void save("watched")} className="w-full sm:w-auto">
             <Check className="h-3.5 w-3.5" />
             {existing?.status === "watched" ? "Watched" : "Mark watched"}
           </Button>
           {existing ? (
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void onRemove(details.mediaType, details.tmdbId)}>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void onRemove(details.mediaType, details.tmdbId)} className="w-full sm:w-auto">
               <Trash2 className="h-3.5 w-3.5" />
               Remove
             </Button>
           ) : null}
           {details.imdbId ? (
-            <Button asChild size="sm" variant="ghost">
+            <Button asChild size="sm" variant="ghost" className="w-full sm:w-auto">
               <a href={`https://www.imdb.com/title/${details.imdbId}/`} target="_blank" rel="noreferrer">
                 <ExternalLink className="h-3.5 w-3.5" />
                 IMDb
