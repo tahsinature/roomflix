@@ -80,6 +80,7 @@ export type RawTitleDetails = RawSearchItem & {
   status?: string;
   number_of_seasons?: number;
   number_of_episodes?: number;
+  seasons?: RawSeasonSummary[];
   created_by?: Array<{ id: number; name: string }>;
   credits?: { cast?: RawCredit[]; crew?: RawCredit[] };
   external_ids?: { imdb_id?: string | null };
@@ -89,6 +90,39 @@ export type RawTitleDetails = RawSearchItem & {
   release_dates?: { results?: RawCertificationResult[] };
   content_ratings?: { results?: RawCertificationResult[] };
   images?: RawImageCollection;
+};
+
+export type RawSeasonSummary = {
+  id: number;
+  season_number?: number;
+  name?: string;
+  overview?: string;
+  air_date?: string;
+  episode_count?: number;
+  poster_path?: string | null;
+  vote_average?: number;
+};
+
+export type RawEpisodeDetails = {
+  id: number;
+  season_number?: number;
+  episode_number?: number;
+  name?: string;
+  overview?: string;
+  air_date?: string;
+  runtime?: number | null;
+  still_path?: string | null;
+  vote_average?: number;
+  vote_count?: number;
+  production_code?: string;
+  crew?: RawCredit[];
+  guest_stars?: RawCredit[];
+  credits?: { cast?: RawCredit[]; crew?: RawCredit[] };
+  external_ids?: { imdb_id?: string | null };
+};
+
+export type RawSeasonDetails = RawSeasonSummary & {
+  episodes?: RawEpisodeDetails[];
 };
 
 export type RawPersonDetails = {

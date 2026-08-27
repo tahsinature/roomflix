@@ -3,21 +3,29 @@ import type {
   DiscoverImage,
   DiscoverImageGallery,
   DiscoverImageKind,
+  DiscoverEpisodeDetails,
+  DiscoverEpisodeSummary,
   DiscoverPersonDetails,
   DiscoverPersonResult,
   DiscoverRegionProviders,
   DiscoverSearchResult,
+  DiscoverSeasonDetails,
+  DiscoverSeasonSummary,
   DiscoverTitleDetails,
   DiscoverTrailer,
   DiscoverWatchProvider,
 } from "@/protocol.ts";
 import type {
   RawCertificationResult,
+  RawCredit,
+  RawEpisodeDetails,
   RawImage,
   RawImageCollection,
   RawPersonDetails,
   RawRegionProviders,
   RawSearchItem,
+  RawSeasonDetails,
+  RawSeasonSummary,
   RawTitleDetails,
   RawVideo,
   RawWatchProvider,
@@ -83,9 +91,64 @@ export function toTitleDetails(item: RawTitleDetails, mediaType: DiscoverMediaTy
     recommendations: (item.recommendations?.results ?? []).map((result) => toSearchResult(result, mediaType)).slice(0, 12),
     numberOfSeasons: item.number_of_seasons ?? null,
     numberOfEpisodes: item.number_of_episodes ?? null,
+    seasons: (item.seasons ?? []).map(toSeasonSummary).sort((left, right) => left.seasonNumber - right.seasonNumber),
     trailers: normalizeTrailers(item.videos?.results),
     watchProviders: normalizeWatchProviders(item["watch/providers"]?.results),
     certifications: normalizeCertifications(mediaType === "movie" ? item.release_dates?.results : item.content_ratings?.results, mediaType),
+  };
+}
+
+export function toSeasonSummary(item: RawSeasonSummary): DiscoverSeasonSummary {
+  return {
+    tmdbId: item.id,
+    seasonNumber: item.season_number ?? 0,
+    name: item.name ?? `Season ${item.season_number ?? 0}`,
+    overview: item.overview ?? "",
+    airDate: item.air_date ?? "",
+    episodeCount: item.episode_count ?? 0,
+    posterPath: item.poster_path ?? null,
+    voteAverage: item.vote_average ?? 0,
+  };
+}
+
+export function toEpisodeSummary(item: RawEpisodeDetails): DiscoverEpisodeSummary {
+  return {
+    tmdbId: item.id,
+    seasonNumber: item.season_number ?? 0,
+    episodeNumber: item.episode_number ?? 0,
+    name: item.name ?? `Episode ${item.episode_number ?? 0}`,
+    overview: item.overview ?? "",
+    airDate: item.air_date ?? "",
+    runtime: item.runtime ?? null,
+    stillPath: item.still_path ?? null,
+    voteAverage: item.vote_average ?? 0,
+    voteCount: item.vote_count ?? 0,
+  };
+}
+
+export function toSeasonDetails(item: RawSeasonDetails): DiscoverSeasonDetails {
+  return {
+    ...toSeasonSummary(item),
+    episodes: (item.episodes ?? []).map(toEpisodeSummary).sort((left, right) => left.episodeNumber - right.episodeNumber),
+  };
+}
+
+export function toEpisodeDetails(item: RawEpisodeDetails, seriesTmdbId: number): DiscoverEpisodeDetails {
+  const crew = [...(item.crew ?? []), ...(item.credits?.crew ?? [])];
+  const cast = uniqueCredits([...(item.credits?.cast ?? []), ...(item.guest_stars ?? [])]);
+  return {
+    ...toEpisodeSummary(item),
+    seriesTmdbId,
+    productionCode: item.production_code ?? "",
+    imdbId: item.external_ids?.imdb_id ?? null,
+    directors: uniquePersonCredits(crew.filter((credit) => credit.job === "Director")),
+    writers: uniquePersonCredits(crew.filter((credit) => ["Writer", "Screenplay", "Teleplay", "Story"].includes(credit.job ?? ""))),
+    cast: cast.slice(0, 14).map((credit) => ({
+      tmdbId: credit.id,
+      name: credit.name ?? "Unknown",
+      character: credit.character ?? "",
+      profilePath: credit.profile_path ?? null,
+    })),
   };
 }
 
@@ -118,6 +181,18 @@ export function toPersonDetails(person: RawPersonDetails): DiscoverPersonDetails
   };
 }
 
+function uniqueCredits(credits: RawCredit[]): RawCredit[] {
+  const seen = new Set<number>();
+  return credits.filter((credit) => {
+    if (seen.has(credit.id)) return false;
+    seen.add(credit.id);
+    return true;
+  });
+}
+
+function uniquePersonCredits(credits: RawCredit[]): Array<{ tmdbId: number; name: string }> {
+  return uniqueCredits(credits).map((credit) => ({ tmdbId: credit.id, name: credit.name ?? "Unknown" }));
+}
 export function toImageGallery(subjectName: string, subjectType: DiscoverMediaType | "person", collection: RawImageCollection | undefined): DiscoverImageGallery {
   const images = [...normalizeImages(collection?.profiles, "profile"), ...normalizeImages(collection?.backdrops, "backdrop"), ...normalizeImages(collection?.posters, "poster")];
 

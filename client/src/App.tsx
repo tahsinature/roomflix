@@ -104,16 +104,8 @@ export default function App() {
         <Route element={<AuthedLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/library" element={<Library />} />
-          <Route
-            path="/discover/:entityType?/:tmdbId?/:subview?"
-            element={
-              <RequireRealUser redirectTo="/library">
-                <Suspense fallback={<RouteFallback />}>
-                  <Discover />
-                </Suspense>
-              </RequireRealUser>
-            }
-          />
+          <Route path="/discover/:entityType/:tmdbId/season/:seasonNumber/episode/:episodeNumber" element={<DiscoverRoute />} />
+          <Route path="/discover/:entityType?/:tmdbId?/:subview?" element={<DiscoverRoute />} />
           <Route path="/collections/:id" element={<CollectionEdit />} />
           <Route path="/shares" element={<Shares />} />
           <Route path="/remote" element={<Remote />} />
@@ -150,6 +142,16 @@ export default function App() {
         </Route>
       </Routes>
     </CommandPaletteProvider>
+  );
+}
+
+function DiscoverRoute() {
+  return (
+    <RequireRealUser redirectTo="/library">
+      <Suspense fallback={<RouteFallback />}>
+        <Discover />
+      </Suspense>
+    </RequireRealUser>
   );
 }
 

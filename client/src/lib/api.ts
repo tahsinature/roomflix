@@ -6,10 +6,12 @@ import type {
   CollectionItem,
   CollectionMediaFilter,
   DiscoverMediaType,
+  DiscoverEpisodeDetails,
   DiscoverGenre,
   DiscoverImageGallery,
   DiscoverPersonDetails,
   DiscoverSearchResponse,
+  DiscoverSeasonDetails,
   DiscoverSearchResult,
   DiscoverTitleDetails,
   GuestIdentity,
@@ -113,6 +115,9 @@ export const api = {
   discoverByGenre: (mediaType: DiscoverMediaType, genreId: number, minimumVotes = 0) =>
     request<DiscoverSearchResult[]>(`/api/discover/genre/${mediaType}/${genreId}?minimumVotes=${minimumVotes}`),
   discoverTitle: (mediaType: DiscoverMediaType, tmdbId: number) => request<DiscoverTitleDetails>(`/api/discover/title/${mediaType}/${tmdbId}`),
+  discoverSeason: (tmdbId: number, seasonNumber: number) => request<DiscoverSeasonDetails>(`/api/discover/title/tv/${tmdbId}/season/${seasonNumber}`),
+  discoverEpisode: (tmdbId: number, seasonNumber: number, episodeNumber: number) =>
+    request<DiscoverEpisodeDetails>(`/api/discover/title/tv/${tmdbId}/season/${seasonNumber}/episode/${episodeNumber}`),
   discoverPerson: (tmdbId: number) => request<DiscoverPersonDetails>(`/api/discover/person/${tmdbId}`),
   discoverTitleImages: (mediaType: DiscoverMediaType, tmdbId: number) => request<DiscoverImageGallery>(`/api/discover/title/${mediaType}/${tmdbId}/images`),
   discoverPersonImages: (tmdbId: number) => request<DiscoverImageGallery>(`/api/discover/person/${tmdbId}/images`),

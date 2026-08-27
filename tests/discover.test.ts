@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { formatPulseTime, recapAt } from "../client/src/features/discover/pulse-data";
 import { externalTitleActions } from "../client/src/features/discover/title-actions";
-import { discoverPersonPhotosPath, discoverTitlePhotosPath } from "../client/src/features/discover/discover-utils";
+import { discoverEpisodePath, discoverPersonPhotosPath, discoverTitlePhotosPath, parseDiscoverEpisodeRoute } from "../client/src/features/discover/discover-utils";
 import { sortRecommendations } from "../client/src/features/discover/recommendation-sort";
-import { toImageGallery, toTitleDetails } from "../server/discovery/tmdb-normalizers";
+import { toEpisodeDetails, toImageGallery, toSeasonDetails, toTitleDetails } from "../server/discovery/tmdb-normalizers";
 
 describe("Pulse Lab prototype helpers", () => {
   test("formats playback boundaries", () => {
@@ -34,6 +34,56 @@ describe("discovery detail parity", () => {
     expect(series.certifications).toEqual({ US: "TV-14" });
   });
 
+  test("keeps Specials and regular season summaries on series details", () => {
+    const series = toTitleDetails(
+      {
+        id: 2,
+        name: "Series",
+        seasons: [
+          { id: 20, season_number: 0, name: "Specials", episode_count: 3 },
+          { id: 21, season_number: 1, name: "Season 1", episode_count: 8, air_date: "2026-01-04" },
+        ],
+      },
+      "tv",
+    );
+
+    expect(series.seasons.map((season) => season.seasonNumber)).toEqual([0, 1]);
+    expect(series.seasons[0]?.name).toBe("Specials");
+    expect(series.seasons[1]?.episodeCount).toBe(8);
+  });
+
+  test("normalizes season episodes and deduplicates episode credits", () => {
+    const season = toSeasonDetails({
+      id: 21,
+      season_number: 1,
+      name: "Season 1",
+      episodes: [{ id: 101, season_number: 1, episode_number: 1, name: "Pilot", runtime: 52, still_path: "/pilot.jpg" }],
+    });
+    const episode = toEpisodeDetails(
+      {
+        id: 101,
+        season_number: 1,
+        episode_number: 1,
+        name: "Pilot",
+        crew: [{ id: 7, name: "A. Director", job: "Director" }],
+        credits: {
+          crew: [{ id: 7, name: "A. Director", job: "Director" }],
+          cast: [{ id: 8, name: "Lead", character: "Sam" }],
+        },
+        guest_stars: [
+          { id: 8, name: "Lead", character: "Sam" },
+          { id: 9, name: "Guest", character: "Alex" },
+        ],
+      },
+      42,
+    );
+
+    expect(season.episodes[0]?.runtime).toBe(52);
+    expect(episode.seriesTmdbId).toBe(42);
+    expect(episode.directors).toHaveLength(1);
+    expect(episode.cast.map((person) => person.name)).toEqual(["Lead", "Guest"]);
+  });
+
   test("builds fixed external actions without exposing configuration", () => {
     const details = toTitleDetails({ id: 550, title: "Fight Club", release_date: "1999-10-15", external_ids: { imdb_id: "tt0137523" } }, "movie");
     const actions = externalTitleActions(details);
@@ -62,11 +112,55 @@ describe("discovery detail parity", () => {
     expect(discoverPersonPhotosPath(31)).toBe("/discover/person/31/photos");
   });
 
+  test("builds and parses dedicated episode routes, including Specials", () => {
+    const special = { seriesTmdbId: 1399, seasonNumber: 0, episodeNumber: 2 };
+    expect(discoverEpisodePath(special)).toBe("/discover/tv/1399/season/0/episode/2");
+    expect(parseDiscoverEpisodeRoute("tv", "1399", "0", "2")).toEqual(special);
+    expect(parseDiscoverEpisodeRoute("movie", "1399", "0", "2")).toBeNull();
+    expect(parseDiscoverEpisodeRoute("tv", "1399", "1", "0")).toBeNull();
+  });
+
   test("sorts recommendations while preserving the original ranking by default", () => {
     const titles = [
-      { tmdbId: 1, mediaType: "movie" as const, title: "Zulu", year: "2024", releaseDate: "2024-01-01", overview: "", posterPath: null, backdropPath: null, voteAverage: 6, voteCount: 100, adult: false },
-      { tmdbId: 2, mediaType: "movie" as const, title: "Alpha", year: "2020", releaseDate: "2020-01-01", overview: "", posterPath: null, backdropPath: null, voteAverage: 8, voteCount: 50, adult: false },
-      { tmdbId: 3, mediaType: "movie" as const, title: "Unknown", year: "", releaseDate: "", overview: "", posterPath: null, backdropPath: null, voteAverage: 7, voteCount: 75, adult: false },
+      {
+        tmdbId: 1,
+        mediaType: "movie" as const,
+        title: "Zulu",
+        year: "2024",
+        releaseDate: "2024-01-01",
+        overview: "",
+        posterPath: null,
+        backdropPath: null,
+        voteAverage: 6,
+        voteCount: 100,
+        adult: false,
+      },
+      {
+        tmdbId: 2,
+        mediaType: "movie" as const,
+        title: "Alpha",
+        year: "2020",
+        releaseDate: "2020-01-01",
+        overview: "",
+        posterPath: null,
+        backdropPath: null,
+        voteAverage: 8,
+        voteCount: 50,
+        adult: false,
+      },
+      {
+        tmdbId: 3,
+        mediaType: "movie" as const,
+        title: "Unknown",
+        year: "",
+        releaseDate: "",
+        overview: "",
+        posterPath: null,
+        backdropPath: null,
+        voteAverage: 7,
+        voteCount: 75,
+        adult: false,
+      },
     ];
 
     expect(sortRecommendations(titles, "recommended").map((title) => title.tmdbId)).toEqual([1, 2, 3]);

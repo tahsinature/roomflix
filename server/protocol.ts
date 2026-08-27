@@ -97,6 +97,43 @@ export type DiscoverPersonCredit = {
   name: string;
 };
 
+export type DiscoverSeasonSummary = {
+  tmdbId: number;
+  seasonNumber: number;
+  name: string;
+  overview: string;
+  airDate: string;
+  episodeCount: number;
+  posterPath: string | null;
+  voteAverage: number;
+};
+
+export type DiscoverEpisodeSummary = {
+  tmdbId: number;
+  seasonNumber: number;
+  episodeNumber: number;
+  name: string;
+  overview: string;
+  airDate: string;
+  runtime: number | null;
+  stillPath: string | null;
+  voteAverage: number;
+  voteCount: number;
+};
+
+export type DiscoverSeasonDetails = DiscoverSeasonSummary & {
+  episodes: DiscoverEpisodeSummary[];
+};
+
+export type DiscoverEpisodeDetails = DiscoverEpisodeSummary & {
+  seriesTmdbId: number;
+  productionCode: string;
+  imdbId: string | null;
+  directors: DiscoverPersonCredit[];
+  writers: DiscoverPersonCredit[];
+  cast: DiscoverCastMember[];
+};
+
 export type DiscoverGenre = {
   id: number;
   name: string;
@@ -157,6 +194,7 @@ export type DiscoverTitleDetails = DiscoverSearchResult & {
   recommendations: DiscoverSearchResult[];
   numberOfSeasons: number | null;
   numberOfEpisodes: number | null;
+  seasons: DiscoverSeasonSummary[];
   trailers: DiscoverTrailer[];
   watchProviders: Record<string, DiscoverRegionProviders>;
   /** Regional age certification, e.g. { CA: "14A", US: "PG-13" }. */

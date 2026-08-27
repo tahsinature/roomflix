@@ -39,6 +39,10 @@ export function discoverTitlePhotosPath(item: Pick<DiscoverSearchResult, "mediaT
   return `${discoverTitlePath(item)}/photos`;
 }
 
+export function discoverEpisodePath(selection: EpisodeSelection): string {
+  return `/discover/tv/${selection.seriesTmdbId}/season/${selection.seasonNumber}/episode/${selection.episodeNumber}`;
+}
+
 export function discoverPersonPath(tmdbId: number): string {
   return `/discover/person/${tmdbId}`;
 }
@@ -59,6 +63,22 @@ export function parseDiscoverPersonRoute(entityType?: string, tmdbId?: string): 
 
   const parsedId = Number(tmdbId);
   return Number.isSafeInteger(parsedId) && parsedId > 0 ? parsedId : null;
+}
+
+export function parseDiscoverEpisodeRoute(entityType?: string, tmdbId?: string, seasonNumber?: string, episodeNumber?: string): EpisodeSelection | null {
+  if (entityType !== "tv" || !tmdbId || !seasonNumber || !episodeNumber) return null;
+  if (!/^\d+$/.test(tmdbId) || !/^\d+$/.test(seasonNumber) || !/^\d+$/.test(episodeNumber)) return null;
+
+  const parsedSeriesId = Number(tmdbId);
+  const parsedSeasonNumber = Number(seasonNumber);
+  const parsedEpisodeNumber = Number(episodeNumber);
+  return Number.isSafeInteger(parsedSeriesId) &&
+    parsedSeriesId > 0 &&
+    Number.isSafeInteger(parsedSeasonNumber) &&
+    Number.isSafeInteger(parsedEpisodeNumber) &&
+    parsedEpisodeNumber > 0
+    ? { seriesTmdbId: parsedSeriesId, seasonNumber: parsedSeasonNumber, episodeNumber: parsedEpisodeNumber }
+    : null;
 }
 
 export function parseLegacyTitleParam(value: string | null): TitleSelection | null {
@@ -112,3 +132,9 @@ export function toLibraryPayload(
 }
 
 export type TitleSelection = Pick<DiscoverSearchResult, "mediaType" | "tmdbId"> & Partial<Omit<DiscoverSearchResult, "mediaType" | "tmdbId">>;
+
+export type EpisodeSelection = {
+  seriesTmdbId: number;
+  seasonNumber: number;
+  episodeNumber: number;
+};

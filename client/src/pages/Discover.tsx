@@ -10,19 +10,23 @@ import { DiscoverExplore } from "@/features/discover/DiscoverExplore";
 import { DiscoverPersonView } from "@/features/discover/DiscoverPersonView";
 import { DiscoverPhotoGallery } from "@/features/discover/DiscoverPhotoGallery";
 import { DiscoverTitleView } from "@/features/discover/DiscoverTitleView";
+import { DiscoverEpisodeView } from "@/features/discover/DiscoverEpisodeView";
 import { RecentTitlesView } from "@/features/discover/RecentTitlesView";
 import { TitleGrid } from "@/features/discover/TitleGrid";
 import { WatchlistCompareModal } from "@/features/discover/WatchlistCompareModal";
 import {
   discoverPersonPath,
   discoverPersonPhotosPath,
+  discoverEpisodePath,
   discoverTitlePath,
   discoverTitlePhotosPath,
   libraryItemToSearchResult,
   parseDiscoverPersonRoute,
+  parseDiscoverEpisodeRoute,
   parseDiscoverTitleRoute,
   parseLegacyPersonParam,
   parseLegacyTitleParam,
+  type EpisodeSelection,
   type TitleSelection,
 } from "@/features/discover/discover-utils";
 import { EmptyLibrary, LoadingGrid, PersonResult, ViewButton, type DiscoverView } from "@/features/discover/DiscoverPageParts";
@@ -40,7 +44,13 @@ export default function Discover() {
   const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
-  const { entityType, tmdbId, subview } = useParams<{ entityType?: string; tmdbId?: string; subview?: string }>();
+  const { entityType, tmdbId, subview, seasonNumber, episodeNumber } = useParams<{
+    entityType?: string;
+    tmdbId?: string;
+    subview?: string;
+    seasonNumber?: string;
+    episodeNumber?: string;
+  }>();
   const [searchParams] = useSearchParams();
   const { libraryRevision } = useCommandPalette();
   const [rootView, setRootView] = useHistoryEntryState<Exclude<DiscoverView, "recent">>("discover.root-view", "search");
@@ -59,8 +69,10 @@ export default function Discover() {
   const recentLoadRevision = useRef(0);
   const recentLoaded = useRef(false);
   const selectedTitle = useMemo(() => parseDiscoverTitleRoute(entityType, tmdbId), [entityType, tmdbId]);
+  const selectedEpisode = useMemo(() => parseDiscoverEpisodeRoute(entityType, tmdbId, seasonNumber, episodeNumber), [entityType, episodeNumber, seasonNumber, tmdbId]);
   const selectedPersonId = useMemo(() => parseDiscoverPersonRoute(entityType, tmdbId), [entityType, tmdbId]);
   const isPhotoRoute = subview === "photos" && Boolean(selectedTitle || selectedPersonId);
+  const isEpisodePath = seasonNumber !== undefined || episodeNumber !== undefined;
   const legacyTitle = parseLegacyTitleParam(searchParams.get("title"));
   const legacyPersonId = parseLegacyPersonParam(searchParams.get("person"));
   const isRecentRoute = entityType === "recent" && !tmdbId;
@@ -70,7 +82,8 @@ export default function Discover() {
   const discoverReturnTo = isRecentRoute || routeState?.discoverReturnTo === "/discover/recent" ? "/discover/recent" : "/discover";
   const defaultGalleryReturnTo = selectedTitle ? discoverTitlePath(selectedTitle) : selectedPersonId ? discoverPersonPath(selectedPersonId) : "/discover";
   const galleryKind = isDiscoverImageKind(routeState?.galleryKind) ? routeState.galleryKind : undefined;
-  const goBack = useAppBack(isPhotoRoute ? defaultGalleryReturnTo : discoverReturnTo);
+  const episodeSeriesPath = selectedEpisode ? discoverTitlePath({ mediaType: "tv", tmdbId: selectedEpisode.seriesTmdbId }) : null;
+  const goBack = useAppBack(episodeSeriesPath ?? (isPhotoRoute ? defaultGalleryReturnTo : discoverReturnTo));
 
   const loadRecentHistory = useCallback(() => {
     const loadRevision = ++recentLoadRevision.current;
@@ -205,6 +218,9 @@ export default function Discover() {
   const openTitle = (selection: TitleSelection) => {
     navigate(discoverTitlePath(selection), { state: { discoverReturnTo, hasAppReturn: true } satisfies DiscoverRouteState });
   };
+  const openEpisode = (selection: EpisodeSelection) => {
+    navigate(discoverEpisodePath(selection), { state: { discoverReturnTo, hasAppReturn: true } satisfies DiscoverRouteState });
+  };
   const openPersonPhotos = (personTmdbId: number) => {
     navigate(discoverPersonPhotosPath(personTmdbId), {
       state: { discoverReturnTo, galleryKind: "profile" satisfies DiscoverImageKind, hasAppReturn: true } satisfies DiscoverRouteState,
@@ -243,25 +259,25 @@ export default function Discover() {
 
   if (!selectedTitle && !selectedPersonId && legacyTitle) return <Navigate to={discoverTitlePath(legacyTitle)} replace />;
   if (!selectedTitle && !selectedPersonId && legacyPersonId) return <Navigate to={discoverPersonPath(legacyPersonId)} replace />;
+  if (isEpisodePath && !selectedEpisode) return <Navigate to={selectedTitle ? discoverTitlePath(selectedTitle) : "/discover"} replace />;
   if (subview && subview !== "photos") return <Navigate to={defaultGalleryReturnTo} replace />;
   if ((entityType || tmdbId) && !selectedTitle && !selectedPersonId && !isRecentRoute) return <Navigate to="/discover" replace />;
 
   if (isPhotoRoute && selectedTitle) {
-    return (
-      <DiscoverPhotoGallery
-        subject={{ type: selectedTitle.mediaType, tmdbId: selectedTitle.tmdbId }}
-        initialKind={galleryKind}
-        onBack={goBack}
-      />
-    );
+    return <DiscoverPhotoGallery subject={{ type: selectedTitle.mediaType, tmdbId: selectedTitle.tmdbId }} initialKind={galleryKind} onBack={goBack} />;
   }
 
   if (isPhotoRoute && selectedPersonId) {
+    return <DiscoverPhotoGallery subject={{ type: "person", tmdbId: selectedPersonId }} initialKind="profile" onBack={goBack} />;
+  }
+
+  if (selectedEpisode) {
     return (
-      <DiscoverPhotoGallery
-        subject={{ type: "person", tmdbId: selectedPersonId }}
-        initialKind="profile"
+      <DiscoverEpisodeView
+        selection={selectedEpisode}
         onBack={goBack}
+        onOpenSeries={() => openTitle({ mediaType: "tv", tmdbId: selectedEpisode.seriesTmdbId })}
+        onSelectPerson={openPerson}
       />
     );
   }
@@ -276,6 +292,7 @@ export default function Discover() {
         onSelectPerson={openPerson}
         onOpenGallery={(kind) => openTitlePhotos(selectedTitle, kind)}
         onOpenPersonGallery={openPersonPhotos}
+        onSelectEpisode={openEpisode}
         onViewed={rememberTitle}
         onSave={saveItem}
         onRemove={removeItem}

@@ -1,5 +1,5 @@
 import { useRef, type ReactNode } from "react";
-import { Activity, Info, MapPin, Sparkles, UsersRound, Youtube, type LucideIcon } from "lucide-react";
+import { Activity, Info, ListVideo, MapPin, Sparkles, UsersRound, Youtube, type LucideIcon } from "lucide-react";
 import type { DiscoverTitleDetails, TitleLibraryItem } from "@shared/protocol";
 import { cn } from "@/lib/utils";
 import { PulseLabPrototype } from "./PulseLabPrototype";
@@ -11,8 +11,10 @@ import { TitleActionBar } from "./TitleActions";
 import type { TitleSelection } from "./discover-utils";
 import { useHistoryEntryState } from "@/navigation/history-entry-memory";
 import { RecommendationSection } from "./RecommendationSection";
+import { EpisodeBrowser } from "./EpisodeBrowser";
+import type { EpisodeSelection } from "./discover-utils";
 
-type DetailSection = "overview" | "cast" | "trailers" | "providers" | "recommendations" | "pulse";
+type DetailSection = "overview" | "episodes" | "cast" | "trailers" | "providers" | "recommendations" | "pulse";
 type LibraryPayload = Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt">;
 
 type SectionOption = {
@@ -28,6 +30,7 @@ export function TitleDetailWorkspace({
   onSelectTitle,
   onSelectPerson,
   onOpenPersonGallery,
+  onSelectEpisode,
   onSave,
   onRemove,
 }: {
@@ -37,6 +40,7 @@ export function TitleDetailWorkspace({
   onSelectTitle: (selection: TitleSelection) => void;
   onSelectPerson: (tmdbId: number) => void;
   onOpenPersonGallery: (tmdbId: number) => void;
+  onSelectEpisode: (selection: EpisodeSelection) => void;
   onSave: (item: LibraryPayload) => Promise<void>;
   onRemove: (mediaType: TitleSelection["mediaType"], tmdbId: number) => Promise<void>;
 }) {
@@ -44,6 +48,7 @@ export function TitleDetailWorkspace({
   const panelRef = useRef<HTMLDivElement>(null);
   const options: SectionOption[] = [{ id: "overview", label: "Overview", icon: Info }];
 
+  if (details.mediaType === "tv" && details.seasons.length) options.push({ id: "episodes", label: "Episodes", icon: ListVideo });
   if (details.directors.length || details.cast.length) options.push({ id: "cast", label: "Cast & Crew", icon: UsersRound });
   if (details.trailers.length) options.push({ id: "trailers", label: "Trailers", icon: Youtube });
   if (Object.keys(details.watchProviders).length) options.push({ id: "providers", label: "Where to Watch", icon: MapPin });
@@ -99,6 +104,7 @@ export function TitleDetailWorkspace({
             onSelectTitle={onSelectTitle}
             onSelectPerson={onSelectPerson}
             onOpenPersonGallery={onOpenPersonGallery}
+            onSelectEpisode={onSelectEpisode}
             onSave={onSave}
             onRemove={onRemove}
           />
@@ -116,6 +122,7 @@ function DetailContent({
   onSelectTitle,
   onSelectPerson,
   onOpenPersonGallery,
+  onSelectEpisode,
   onSave,
   onRemove,
 }: {
@@ -126,6 +133,7 @@ function DetailContent({
   onSelectTitle: (selection: TitleSelection) => void;
   onSelectPerson: (tmdbId: number) => void;
   onOpenPersonGallery: (tmdbId: number) => void;
+  onSelectEpisode: (selection: EpisodeSelection) => void;
   onSave: (item: LibraryPayload) => Promise<void>;
   onRemove: (mediaType: TitleSelection["mediaType"], tmdbId: number) => Promise<void>;
 }): ReactNode {
@@ -138,6 +146,7 @@ function DetailContent({
       </div>
     );
   }
+  if (section === "episodes") return <EpisodeBrowser details={details} onSelectEpisode={onSelectEpisode} />;
   if (section === "cast") return <TitleCastAndCrew details={details} onSelectPerson={onSelectPerson} onOpenPersonGallery={onOpenPersonGallery} />;
   if (section === "trailers") return <TrailerGallery details={details} />;
   if (section === "providers") return <WhereToWatch providers={details.watchProviders} />;

@@ -6,7 +6,7 @@ import { useCommandPalette } from "@/features/command-palette/CommandPaletteProv
 import { DiscoverDetailHeader } from "./DiscoverDetailHeader";
 import { TitleDetailWorkspace } from "./TitleDetailWorkspace";
 import { TitleHero } from "./TitleDetailSections";
-import { backdropUrl, posterUrl, titleIdentity, type TitleSelection } from "./discover-utils";
+import { backdropUrl, posterUrl, titleIdentity, type EpisodeSelection, type TitleSelection } from "./discover-utils";
 import { invalidateTitleDetails, loadTitleDetails } from "./title-details-cache";
 
 type LibraryPayload = Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt">;
@@ -19,6 +19,7 @@ export function DiscoverTitleView({
   onSelectPerson,
   onOpenGallery,
   onOpenPersonGallery,
+  onSelectEpisode,
   onViewed,
   onSave,
   onRemove,
@@ -30,6 +31,7 @@ export function DiscoverTitleView({
   onSelectPerson: (tmdbId: number) => void;
   onOpenGallery: (kind: DiscoverImageKind) => void;
   onOpenPersonGallery: (tmdbId: number) => void;
+  onSelectEpisode: (selection: EpisodeSelection) => void;
   onViewed: (details: DiscoverTitleDetails) => void;
   onSave: (item: LibraryPayload) => Promise<void>;
   onRemove: (mediaType: TitleSelection["mediaType"], tmdbId: number) => Promise<void>;
@@ -100,6 +102,7 @@ export function DiscoverTitleView({
                 onSelectTitle={onSelectTitle}
                 onSelectPerson={onSelectPerson}
                 onOpenPersonGallery={onOpenPersonGallery}
+                onSelectEpisode={onSelectEpisode}
                 onSave={onSave}
                 onRemove={onRemove}
               />

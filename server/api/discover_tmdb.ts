@@ -2,9 +2,9 @@ import { Hono } from "hono";
 
 import { requireUser } from "@/auth.ts";
 import { tmdbRequest, TmdbGatewayError } from "@/discovery/tmdb-client.ts";
-import { isTitle, toImageGallery, toPersonDetails, toSearchResult, toTitleDetails } from "@/discovery/tmdb-normalizers.ts";
+import { isTitle, toEpisodeDetails, toImageGallery, toPersonDetails, toSearchResult, toSeasonDetails, toTitleDetails } from "@/discovery/tmdb-normalizers.ts";
 import { searchWithFuzzyFallback } from "@/discovery/tmdb-search.ts";
-import type { RawPersonDetails, RawSearchItem, RawTitleDetails } from "@/discovery/tmdb-types.ts";
+import type { RawEpisodeDetails, RawPersonDetails, RawSearchItem, RawSeasonDetails, RawTitleDetails } from "@/discovery/tmdb-types.ts";
 import type { DiscoverGenre, DiscoverMediaType, DiscoverSearchResponse } from "@/protocol.ts";
 import type { Storage } from "@/storage/index.ts";
 
@@ -70,6 +70,25 @@ export function buildDiscoverTmdbRouter(storage: Storage) {
     return c.json(toTitleDetails(data, mediaType));
   });
 
+  app.get("/title/tv/:tmdbId/season/:seasonNumber", async (c) => {
+    const tmdbId = parsePositiveInt(c.req.param("tmdbId"));
+    const seasonNumber = parseNonNegativeInt(c.req.param("seasonNumber"));
+    if (!tmdbId || seasonNumber === null) return c.json({ error: "invalid TMDB season identity" }, 400);
+    const data = await tmdbRequest<RawSeasonDetails>(`/tv/${tmdbId}/season/${seasonNumber}`);
+    return c.json(toSeasonDetails(data));
+  });
+
+  app.get("/title/tv/:tmdbId/season/:seasonNumber/episode/:episodeNumber", async (c) => {
+    const tmdbId = parsePositiveInt(c.req.param("tmdbId"));
+    const seasonNumber = parseNonNegativeInt(c.req.param("seasonNumber"));
+    const episodeNumber = parsePositiveInt(c.req.param("episodeNumber"));
+    if (!tmdbId || seasonNumber === null || !episodeNumber) return c.json({ error: "invalid TMDB episode identity" }, 400);
+    const data = await tmdbRequest<RawEpisodeDetails>(`/tv/${tmdbId}/season/${seasonNumber}/episode/${episodeNumber}`, {
+      append_to_response: "credits,external_ids",
+    });
+    return c.json(toEpisodeDetails(data, tmdbId));
+  });
+
   app.get("/title/:mediaType/:tmdbId/images", async (c) => {
     const mediaType = parseMediaType(c.req.param("mediaType"));
     const tmdbId = parsePositiveInt(c.req.param("tmdbId"));
@@ -102,4 +121,9 @@ function parseMediaType(value: string): DiscoverMediaType | null {
 function parsePositiveInt(value: string): number | null {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseNonNegativeInt(value: string): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
 }
