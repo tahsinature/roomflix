@@ -29,6 +29,7 @@ import type {
   Subtitle,
   TitleLibraryItem,
   TitleLibraryStatus,
+  UserPreferencesPatch,
   DiscoverMediaType,
   Video,
 } from "@/protocol.ts";
@@ -88,6 +89,7 @@ export interface UserRepo {
     id: string,
     patch: { displayName?: string | null; timezone?: string | null; city?: string | null; homeBezelStyle?: "cinema" | "crt" | "minimal" | null },
   ): Promise<StoredUser | null>;
+  updatePreferences(id: string, patch: UserPreferencesPatch): Promise<StoredUser | null>;
   // Replace the stored password hash. Called by the password-reset
   // confirm flow after the new password has already been hashed.
   updatePasswordHash(id: string, passwordHash: string): Promise<void>;

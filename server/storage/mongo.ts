@@ -31,6 +31,7 @@ import type {
   TitleLibraryItem,
   TitleLibraryStatus,
   DiscoverMediaType,
+  UserPreferencesPatch,
   Video,
 } from "@/protocol.ts";
 import type {
@@ -82,6 +83,7 @@ import {
   VideoModel,
 } from "@/models/index.ts";
 import { decrypt, encrypt } from "@/crypto.ts";
+import { defaultUserPreferences, normalizeUserPreferences } from "@/user-preferences.ts";
 
 // Mongoose-backed Storage implementation. The model layer lives under
 // server/models/ — each collection has its own schema file. This module
@@ -352,6 +354,7 @@ class MongoUserRepo implements UserRepo {
       usernameLower: input.username.toLowerCase(),
       passwordHash: input.passwordHash,
       displayName: null,
+      preferences: defaultUserPreferences(),
       isAdmin: input.isAdmin,
       createdAt: Date.now(),
     };
@@ -377,6 +380,19 @@ class MongoUserRepo implements UserRepo {
     if (patch.timezone !== undefined) set.timezone = patch.timezone;
     if (patch.city !== undefined) set.city = patch.city;
     if (patch.homeBezelStyle !== undefined) set.homeBezelStyle = patch.homeBezelStyle;
+    if (Object.keys(set).length === 0) {
+      const existing = await UserModel.findOne({ _id: id }).lean();
+      return existing ? toStoredUser(existing) : null;
+    }
+    const updated = await UserModel.findOneAndUpdate({ _id: id }, { $set: set }, { returnDocument: "after" }).lean();
+    return updated ? toStoredUser(updated) : null;
+  }
+
+  async updatePreferences(id: string, patch: UserPreferencesPatch): Promise<StoredUser | null> {
+    const set: Record<string, unknown> = {};
+    if (patch.discover?.moreLikeThisSort !== undefined) {
+      set["preferences.discover.moreLikeThisSort"] = patch.discover.moreLikeThisSort;
+    }
     if (Object.keys(set).length === 0) {
       const existing = await UserModel.findOne({ _id: id }).lean();
       return existing ? toStoredUser(existing) : null;
@@ -1320,6 +1336,7 @@ type UserLean = {
   timezone?: string | null;
   city?: string | null;
   homeBezelStyle?: string | null;
+  preferences?: unknown;
   passwordHash: string;
   isAdmin: boolean;
   createdAt: number;
@@ -1333,6 +1350,7 @@ function toStoredUser(doc: UserLean): StoredUser {
     timezone: doc.timezone ?? null,
     city: doc.city ?? null,
     homeBezelStyle: bezel === "cinema" || bezel === "crt" || bezel === "minimal" ? bezel : null,
+    preferences: normalizeUserPreferences(doc.preferences),
     passwordHash: doc.passwordHash,
     isAdmin: doc.isAdmin,
     createdAt: doc.createdAt,

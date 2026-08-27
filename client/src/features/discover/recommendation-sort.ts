@@ -1,6 +1,6 @@
-import type { DiscoverSearchResult } from "@shared/protocol";
+import type { DiscoverSearchResult, RecommendationSort } from "@shared/protocol";
 
-export type RecommendationSort = "recommended" | "rating" | "newest" | "oldest" | "title";
+export type { RecommendationSort } from "@shared/protocol";
 
 export function sortRecommendations(titles: DiscoverSearchResult[], sort: RecommendationSort): DiscoverSearchResult[] {
   if (sort === "recommended") return titles;

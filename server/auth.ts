@@ -2,6 +2,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 
 import type { AuthUser, Space, SpaceRole } from "@/protocol.ts";
+import { defaultUserPreferences } from "@/user-preferences.ts";
 import type { Session, Storage, StoredUser } from "@/storage/types.ts";
 
 export const SESSION_COOKIE = "rf_session";
@@ -171,6 +172,7 @@ export function requireSpaceMember(storage: Storage): MiddlewareHandler {
         displayName: principal.session.guestDisplayName,
         isAdmin: false,
         createdAt: principal.session.createdAt,
+        preferences: defaultUserPreferences(),
       };
       c.set("user", synthetic);
       c.set("space", space);
@@ -213,6 +215,7 @@ export function toAuthUser(user: StoredUser): AuthUser {
     timezone: user.timezone ?? null,
     city: user.city ?? null,
     homeBezelStyle: user.homeBezelStyle ?? null,
+    preferences: user.preferences,
     isAdmin: user.isAdmin,
     createdAt: user.createdAt,
   };

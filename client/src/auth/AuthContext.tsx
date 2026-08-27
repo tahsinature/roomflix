@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { AuthUser, GuestIdentity, SpaceSummary } from "@shared/protocol";
+import type { AuthUser, GuestIdentity, SpaceSummary, UserPreferencesPatch } from "@shared/protocol";
 import { api, UnauthorizedError, type RedeemInviteGuestResult } from "@/lib/api";
 
 // Tri-state because the initial /session probe runs async and we don't
@@ -38,12 +38,8 @@ type AuthContextValue = {
   // and guests (server picks the right backing store); the location +
   // bezel fields are user-only and silently no-op for guests on the
   // server.
-  updateProfile: (patch: {
-    displayName?: string | null;
-    timezone?: string | null;
-    city?: string | null;
-    homeBezelStyle?: "cinema" | "crt" | "minimal" | null;
-  }) => Promise<void>;
+  updateProfile: (patch: { displayName?: string | null; timezone?: string | null; city?: string | null; homeBezelStyle?: "cinema" | "crt" | "minimal" | null }) => Promise<void>;
+  updatePreferences: (patch: UserPreferencesPatch) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -168,6 +164,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [refresh],
   );
 
+  const updatePreferences: AuthContextValue["updatePreferences"] = useCallback(
+    async (patch) => {
+      // Account preferences should feel immediate. The session already
+      // contains the canonical values, so only reconcile with a fresh
+      // session when persistence fails.
+      setState((previous) => {
+        if (!previous || previous === "loading") return previous;
+        return {
+          ...previous,
+          preferences: {
+            ...previous.preferences,
+            discover: {
+              ...previous.preferences.discover,
+              ...patch.discover,
+            },
+          },
+        };
+      });
+
+      try {
+        await api.updatePreferences(patch);
+      } catch (error) {
+        await refresh();
+        throw error;
+      }
+    },
+    [refresh],
+  );
+
   const currentSpace = useMemo(() => spaces.find((s) => s.id === currentSpaceId) ?? null, [spaces, currentSpaceId]);
   const isGuest = guest !== null;
   const identityLabel = useMemo(() => {
@@ -195,8 +220,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refresh,
       switchSpace,
       updateProfile,
+      updatePreferences,
     }),
-    [state, guest, registrationAllowed, spaces, currentSpace, isGuest, identityLabel, login, register, redeemGuest, logout, refresh, switchSpace, updateProfile],
+    [state, guest, registrationAllowed, spaces, currentSpace, isGuest, identityLabel, login, register, redeemGuest, logout, refresh, switchSpace, updateProfile, updatePreferences],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

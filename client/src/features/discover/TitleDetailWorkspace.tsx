@@ -60,10 +60,10 @@ export function TitleDetailWorkspace({
 
   return (
     <div className="grid min-w-0 gap-5 lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-7">
-      <aside className="lg:sticky lg:top-[84px] lg:self-start">
+      <aside className="sticky top-[4.5rem] z-20 -mx-2 self-start sm:top-[5rem] lg:top-[5.75rem] lg:mx-0">
         <nav
           aria-label="Title sections"
-          className="sticky top-[60px] z-20 grid grid-cols-3 border border-border bg-background/95 p-1.5 shadow-[0_12px_30px_-24px_rgba(0,0,0,0.9)] sm:top-[68px] lg:static lg:grid-cols-1"
+          className="flex snap-x gap-1 overflow-x-auto rounded-xl border border-white/[0.08] bg-background/80 p-1.5 shadow-[0_18px_36px_-24px_rgba(0,0,0,0.95)] backdrop-blur-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex-col lg:overflow-visible lg:rounded-lg"
         >
           {options.map((option) => {
             const Icon = option.icon;
@@ -75,19 +75,21 @@ export function TitleDetailWorkspace({
                 aria-pressed={active}
                 onClick={() => selectSection(option.id)}
                 className={cn(
-                  "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 border border-transparent px-2 py-2 text-[10px] font-medium transition-[color,background-color,border-color] focus-visible:ring-2 focus-visible:ring-accent/60 lg:min-h-11 lg:flex-row lg:justify-start lg:gap-2 lg:px-2.5",
-                  active ? "border-accent/35 bg-accent/10 text-accent" : "text-muted-foreground hover:bg-white/[0.035] hover:text-foreground",
+                  "flex min-h-10 min-w-[7.25rem] snap-start items-center justify-center gap-2 rounded-lg border border-transparent px-3 py-2 text-[10px] font-medium transition-[color,background-color,border-color,box-shadow] focus-visible:ring-2 focus-visible:ring-accent/60 lg:min-h-11 lg:min-w-0 lg:justify-start lg:px-2.5",
+                  active
+                    ? "border-accent/25 bg-accent/10 text-accent shadow-[inset_0_0_18px_hsl(var(--accent)/0.04)]"
+                    : "text-muted-foreground hover:bg-white/[0.035] hover:text-foreground",
                 )}
               >
                 <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span className="truncate">{option.label}</span>
+                <span className="whitespace-nowrap">{option.label}</span>
               </button>
             );
           })}
         </nav>
       </aside>
 
-      <div ref={panelRef} className="min-w-0 scroll-mt-[13rem] lg:scroll-mt-[6rem]">
+      <div ref={panelRef} className="min-w-0 scroll-mt-[8rem] lg:scroll-mt-[6rem]">
         <div key={activeSection} className="view-enter">
           <DetailContent
             section={activeSection}

@@ -6,6 +6,7 @@ import { endSession, getCurrentPrincipal, hashPassword, requireUser, startSessio
 import { propagateGuestDisplayName, propagateUserDisplayName } from "@/sessions.ts";
 import { sendPasswordResetEmail } from "@/notify.ts";
 import { ensureHomeSpace, listSpaceSummaries, resolveDefaultSpaceId } from "@/spaces.ts";
+import { parseUserPreferencesPatch } from "@/user-preferences.ts";
 
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,32}$/;
 const MIN_PASSWORD_LENGTH = 8;
@@ -24,6 +25,7 @@ const ALLOWED_BEZELS = new Set(["cinema", "crt", "minimal"]);
 //   POST   /api/auth/logout                                  → 204
 //   GET    /api/auth/me                                       → AuthUser (real users only)
 //   PATCH  /api/auth/me             { displayName? }          → AuthUser | GuestIdentity
+//   PATCH  /api/auth/preferences    { discover: {...} }       → AuthUser
 //   GET    /api/auth/session                                   → { user, guest, registrationAllowed, currentSpaceId, spaces }
 export function buildAuthRouter(storage: Storage) {
   const app = new Hono();
@@ -87,6 +89,15 @@ export function buildAuthRouter(storage: Storage) {
   // For "show me my current identity (user or guest)," clients use /session.
   app.get("/me", requireUser(storage), (c) => c.json(c.get("user")));
 
+  app.patch("/preferences", requireUser(storage), async (c) => {
+    const parsed = parseUserPreferencesPatch(await c.req.json().catch(() => null));
+    if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+    const updated = await storage.users.updatePreferences(c.get("user").id, parsed.value);
+    if (!updated) return c.json({ error: "not found" }, 404);
+    return c.json(toAuthUser(updated));
+  });
+
   // PATCH /me works for both flavors. For users it updates the persistent
   // user record + fans out to memberships. For guests it updates the
   // session row's guestDisplayName in place (no fan-out — no membership
@@ -95,9 +106,7 @@ export function buildAuthRouter(storage: Storage) {
     const principal = await getCurrentPrincipal(c, storage);
     if (!principal) return c.json({ error: "unauthorized" }, 401);
 
-    const body = (await c.req.json().catch(() => null)) as
-      | { displayName?: unknown; timezone?: unknown; city?: unknown; homeBezelStyle?: unknown }
-      | null;
+    const body = (await c.req.json().catch(() => null)) as { displayName?: unknown; timezone?: unknown; city?: unknown; homeBezelStyle?: unknown } | null;
     const parsed = parseDisplayName(body);
     if (!parsed.ok) return c.json({ error: parsed.error }, 400);
     const tz = parseTimezone(body);
@@ -297,7 +306,6 @@ function buildResetLink(requestUrl: string, token: string): string {
 }
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
-
 
 type DisplayNameParse = { ok: true; value: string | null | undefined } | { ok: false; error: string };
 

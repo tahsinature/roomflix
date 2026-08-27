@@ -33,6 +33,7 @@ import type {
   Subtitle,
   TitleLibraryItem,
   TitleLibraryStatus,
+  UserPreferencesPatch,
   Video,
   WatchHistoryEntry,
 } from "@shared/protocol";
@@ -195,6 +196,11 @@ export const api = {
     }),
   updateProfile: (patch: { displayName?: string | null; timezone?: string | null; city?: string | null; homeBezelStyle?: "cinema" | "crt" | "minimal" | null }) =>
     request<AuthUser>("/api/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+  updatePreferences: (patch: UserPreferencesPatch) =>
+    request<AuthUser>("/api/auth/preferences", {
       method: "PATCH",
       body: JSON.stringify(patch),
     }),

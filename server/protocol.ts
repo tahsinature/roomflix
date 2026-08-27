@@ -187,6 +187,23 @@ export type DiscoverSearchResponse = {
 // surface follows them across spaces. Defaults to "cinema" when unset.
 export type BezelStyle = "cinema" | "crt" | "minimal";
 
+export type RecommendationSort = "recommended" | "rating" | "newest" | "oldest" | "title";
+
+// Durable interface choices that follow a user across browsers and devices.
+// Keep this limited to explicit preferences; transient navigation state such
+// as scroll position and open dialogs belongs in the client history entry.
+export type UserPreferences = {
+  discover: {
+    moreLikeThisSort: RecommendationSort;
+  };
+};
+
+export type UserPreferencesPatch = {
+  discover?: {
+    moreLikeThisSort?: RecommendationSort;
+  };
+};
+
 export type AuthUser = {
   id: string;
   username: string;
@@ -202,6 +219,7 @@ export type AuthUser = {
   city?: string | null;
   // Preferred bezel chrome for the home mini-monitor.
   homeBezelStyle?: BezelStyle | null;
+  preferences: UserPreferences;
 };
 
 // A space groups members + their shared library, playlists, imports, and

@@ -2,17 +2,21 @@ import { ArrowLeft } from "lucide-react";
 
 export function DiscoverDetailHeader({ label, onBack }: { label: string; onBack: () => void }) {
   return (
-    <header className="border-b border-border bg-background/95">
-      <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4 sm:px-6">
+    <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-background/80 backdrop-blur-xl">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:h-[4.5rem] sm:px-6">
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex h-11 items-center gap-2 border border-border px-3 text-xs text-muted-foreground transition-colors hover:border-border-hover hover:text-foreground"
+          aria-label="Back to Discover"
+          title="Back to Discover"
+          className="group grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.035] text-muted-foreground shadow-[0_10px_28px_-18px_rgba(0,0,0,0.9)] transition-[color,border-color,background-color,transform] hover:-translate-x-0.5 hover:border-accent/35 hover:bg-accent/10 hover:text-accent"
         >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Discover
+          <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
         </button>
-        <span className="min-w-0 truncate text-[10px] uppercase tracking-[0.14em] text-text-dim">{label}</span>
+        <div className="min-w-0 leading-none">
+          <span className="block text-[8px] font-medium uppercase tracking-[0.2em] text-accent/80 sm:text-[9px]">Discover</span>
+          <span className="mt-1.5 block truncate text-xs font-medium text-foreground/85 sm:text-sm">{label}</span>
+        </div>
       </div>
     </header>
   );

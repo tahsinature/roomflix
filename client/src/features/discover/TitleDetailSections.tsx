@@ -16,25 +16,28 @@ export function TitleHero({ details, onOpenGallery }: { details: DiscoverTitleDe
   const gallerySubject = { type: details.mediaType, tmdbId: details.tmdbId } as const;
   const preferredGalleryKind: DiscoverImageKind = details.backdropPath ? "backdrop" : "poster";
   return (
-    <div className="relative overflow-hidden border-b border-border">
+    <div className="relative isolate overflow-hidden border-b border-white/[0.07]">
       <div className="absolute inset-0">
-        {backdrop ? <img src={backdrop} alt="" width={1280} height={720} fetchPriority="high" decoding="async" className="h-full w-full object-cover opacity-30" /> : null}
-        <div className="absolute inset-0 bg-gradient-to-r from-card via-card/90 to-card/55" />
-        <div className="absolute inset-0 bg-gradient-to-t from-card via-transparent to-black/30" />
+        {backdrop ? (
+          <img src={backdrop} alt="" width={1280} height={720} fetchPriority="high" decoding="async" className="h-full w-full scale-[1.02] object-cover opacity-40" />
+        ) : null}
+        <div className="absolute inset-0 bg-gradient-to-r from-card via-card/85 to-card/35" />
+        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/15 to-black/40" />
       </div>
+      <div className="absolute -left-20 bottom-0 h-48 w-48 rounded-full bg-accent/[0.09] blur-3xl" aria-hidden="true" />
       {backdrop || poster ? (
         <button
           type="button"
           onClick={() => onOpenGallery(preferredGalleryKind)}
           onPointerEnter={() => prefetchImageGallery(gallerySubject)}
           onFocus={() => prefetchImageGallery(gallerySubject)}
-          className="absolute right-4 top-4 z-20 inline-flex h-9 items-center gap-2 border border-white/15 bg-black/40 px-3 text-[9px] uppercase tracking-[0.12em] text-white/65 backdrop-blur-md transition-colors hover:border-white/30 hover:text-white"
+          className="absolute right-4 top-4 z-20 inline-flex h-9 items-center gap-2 rounded-full border border-white/15 bg-black/45 px-3 text-[9px] uppercase tracking-[0.12em] text-white/70 shadow-lg backdrop-blur-md transition-[color,border-color,background-color] hover:border-white/30 hover:bg-black/60 hover:text-white sm:right-6 sm:top-6"
         >
-          <Images className="h-3.5 w-3.5" /> Photos
+          <Images className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Photos</span>
         </button>
       ) : null}
-      <div className="relative flex min-w-0 gap-4 p-5 sm:gap-6 sm:p-7">
-        <div className="w-28 shrink-0 sm:w-36">
+      <div className="relative grid min-w-0 grid-cols-[6.25rem_minmax(0,1fr)] items-end gap-4 p-4 pt-16 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-7 sm:p-7 sm:pt-20">
+        <div className="w-[6.25rem] shrink-0 sm:w-36">
           <button
             type="button"
             disabled={!poster}
@@ -42,7 +45,7 @@ export function TitleHero({ details, onOpenGallery }: { details: DiscoverTitleDe
             onPointerEnter={() => prefetchImageGallery(gallerySubject)}
             onFocus={() => prefetchImageGallery(gallerySubject)}
             aria-label={`View ${details.title} photos`}
-            className="group relative block aspect-[2/3] w-full overflow-hidden border border-white/10 bg-bg-elevated text-left shadow-2xl disabled:cursor-default"
+            className="group relative block aspect-[2/3] w-full overflow-hidden rounded-lg border border-white/15 bg-bg-elevated text-left shadow-[0_22px_55px_-22px_rgba(0,0,0,0.95)] disabled:cursor-default sm:rounded-xl"
           >
             {poster ? (
               <>
@@ -55,7 +58,7 @@ export function TitleHero({ details, onOpenGallery }: { details: DiscoverTitleDe
                   decoding="async"
                   className="h-full w-full object-cover transition-[filter,transform] duration-300 group-hover:scale-[1.02] group-hover:brightness-75"
                 />
-                <span className="absolute inset-x-2 bottom-2 flex translate-y-1 items-center justify-center gap-1.5 border border-white/15 bg-black/55 px-2 py-1.5 text-[8px] uppercase tracking-[0.12em] text-white opacity-0 backdrop-blur-sm transition-[opacity,transform] group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
+                <span className="absolute inset-x-2 bottom-2 hidden translate-y-1 items-center justify-center gap-1.5 rounded-md border border-white/15 bg-black/55 px-2 py-1.5 text-[8px] uppercase tracking-[0.12em] text-white opacity-0 backdrop-blur-sm transition-[opacity,transform] group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 sm:flex">
                   <Images className="h-3 w-3" /> View photos
                 </span>
               </>
@@ -63,23 +66,23 @@ export function TitleHero({ details, onOpenGallery }: { details: DiscoverTitleDe
           </button>
           <TitlePosterActions details={details} />
         </div>
-        <div className="min-w-0 self-end pb-1">
-          <span className="inline-flex items-center gap-1.5 border border-accent/35 bg-accent/10 px-2 py-1 text-[9px] uppercase tracking-[0.14em] text-accent">
+        <div className="min-w-0 self-end pb-0.5 sm:pb-1">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[8px] uppercase tracking-[0.14em] text-accent shadow-[0_0_22px_-10px_hsl(var(--accent)/0.8)] sm:text-[9px]">
             <MediaIcon className="h-3 w-3" />
             {details.mediaType === "tv" ? "Series" : "Film"}
           </span>
-          <h1 className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xl font-bold leading-tight sm:text-3xl">
+          <h1 className="mt-2.5 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xl font-bold leading-[1.16] tracking-[-0.035em] text-balance sm:mt-3 sm:gap-x-3 sm:text-4xl">
             <CopyableTitle title={details.title} />
-            {details.year ? <span className="text-base font-normal text-muted-foreground">({details.year})</span> : null}
+            {details.year ? <span className="text-sm font-normal tracking-normal text-muted-foreground sm:text-base">({details.year})</span> : null}
           </h1>
-          {details.tagline ? <p className="mt-2 max-w-xl text-xs italic text-muted-foreground">“{details.tagline}”</p> : null}
-          <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px]">
-            <span className="flex items-center gap-1 text-amber-300">
+          {details.tagline ? <p className="mt-2 line-clamp-2 max-w-xl text-[10px] italic leading-relaxed text-muted-foreground sm:text-xs">“{details.tagline}”</p> : null}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[9px] sm:gap-2 sm:text-[10px]">
+            <span className="flex items-center gap-1 rounded-full border border-amber-300/15 bg-black/25 px-2 py-1 text-amber-300 backdrop-blur-sm">
               <Star className="h-3.5 w-3.5 fill-current" />
               {details.voteAverage.toFixed(1)}
             </span>
-            <span className="text-cyan">{formatVotes(details.voteCount)} votes</span>
-            <span className="text-muted-foreground">{formatRuntime(details.runtime)}</span>
+            <span className="rounded-full border border-white/[0.08] bg-black/25 px-2 py-1 text-cyan backdrop-blur-sm">{formatVotes(details.voteCount)} votes</span>
+            <span className="rounded-full border border-white/[0.08] bg-black/25 px-2 py-1 text-muted-foreground backdrop-blur-sm">{formatRuntime(details.runtime)}</span>
           </div>
         </div>
       </div>

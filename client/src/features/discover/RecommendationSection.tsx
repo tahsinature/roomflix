@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { DiscoverTitleDetails, TitleLibraryItem } from "@shared/protocol";
-import { useHistoryEntryState } from "@/navigation/history-entry-memory";
+import { useAuth } from "@/auth/AuthContext";
+import { useToast } from "@/components/Toast";
 import { SectionLabel } from "./TitleDetailSections";
 import { TitleGrid } from "./TitleGrid";
 import type { TitleSelection } from "./discover-utils";
@@ -15,8 +16,16 @@ export function RecommendationSection({
   library: TitleLibraryItem[];
   onSelectTitle: (selection: TitleSelection) => void;
 }) {
-  const [sort, setSort] = useHistoryEntryState<RecommendationSort>("discover.recommendations.sort", "recommended");
+  const { user, updatePreferences } = useAuth();
+  const toast = useToast();
+  const sort = user?.preferences.discover.moreLikeThisSort ?? "recommended";
   const titles = useMemo(() => sortRecommendations(details.recommendations, sort), [details.recommendations, sort]);
+
+  const saveSort = (nextSort: RecommendationSort) => {
+    void updatePreferences({ discover: { moreLikeThisSort: nextSort } }).catch(() => {
+      toast.error("Couldn't save your More Like This sort setting.");
+    });
+  };
 
   return (
     <section>
@@ -29,7 +38,7 @@ export function RecommendationSection({
           Sort
           <select
             value={sort}
-            onChange={(event) => setSort(event.target.value as RecommendationSort)}
+            onChange={(event) => saveSort(event.target.value as RecommendationSort)}
             className="h-10 border border-border bg-input px-3 text-[10px] normal-case tracking-normal text-foreground transition-colors hover:border-border-hover focus:border-accent/55"
           >
             <option value="recommended">Recommended</option>

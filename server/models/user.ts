@@ -19,6 +19,17 @@ const userSchema = new Schema(
     // Home page mini-monitor bezel style — "cinema" | "crt" | "minimal".
     // Null = use the default ("cinema").
     homeBezelStyle: { type: String, default: null },
+    // Durable account-level UI choices. Nested fields let us add future
+    // preferences without turning the user document into a flat key list.
+    preferences: {
+      discover: {
+        moreLikeThisSort: {
+          type: String,
+          enum: ["recommended", "rating", "newest", "oldest", "title"],
+          default: "recommended",
+        },
+      },
+    },
     isAdmin: { type: Boolean, default: false },
     createdAt: { type: Number, required: true },
   },

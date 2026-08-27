@@ -89,7 +89,7 @@ export function DiscoverTitleView({
             </div>
           </div>
         ) : details ? (
-          <div className="view-enter overflow-hidden border border-border bg-card/20">
+          <div className="view-enter overflow-hidden rounded-2xl border border-white/[0.08] bg-card/25 shadow-[0_28px_80px_-45px_rgba(0,0,0,0.95)]">
             <TitleHero details={details} onOpenGallery={onOpenGallery} />
             <div className="px-4 py-5 sm:px-6 sm:py-7">
               <TitleDetailWorkspace

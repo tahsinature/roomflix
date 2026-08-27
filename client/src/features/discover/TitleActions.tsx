@@ -82,7 +82,7 @@ function PosterButton({ label, onClick, icon: Icon }: { label: string; onClick: 
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="grid h-9 place-items-center border border-white/10 bg-card/85 text-muted-foreground transition hover:border-accent/40 hover:text-accent"
+      className="grid h-9 place-items-center rounded-lg border border-white/10 bg-black/25 text-muted-foreground transition-[color,border-color,background-color] hover:border-accent/40 hover:bg-accent/10 hover:text-accent"
     >
       <Icon className="h-4 w-4" />
     </button>
