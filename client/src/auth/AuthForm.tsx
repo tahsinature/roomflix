@@ -4,6 +4,7 @@ import { ArrowRight, Loader2 } from "lucide-react";
 import { AuthChrome } from "@/auth/AuthChrome";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { UnauthorizedError } from "@/lib/api";
 
 type Mode = "login" | "register";
 
@@ -38,7 +39,7 @@ export function AuthForm({
     try {
       await onSubmit({ username: username.trim(), password });
     } catch (err) {
-      setError((err as Error).message || "Something went wrong");
+      setError(authErrorMessage(mode, err));
       setPending(false);
     }
   };
@@ -46,9 +47,12 @@ export function AuthForm({
   return (
     <AuthChrome title={title} subtitle={subtitle}>
       <form onSubmit={handleSubmit} className="mt-8 space-y-3">
-        <label className="block">
-          <span className="section-label muted mb-1.5 block">Username</span>
+        <div>
+          <label htmlFor="auth-username" className="section-label muted mb-1.5 block">
+            Username
+          </label>
           <Input
+            id="auth-username"
             allowAutofill
             autoFocus
             autoCapitalize="off"
@@ -62,20 +66,13 @@ export function AuthForm({
             minLength={3}
             maxLength={32}
           />
-        </label>
-        <label className="block">
-          <span className="section-label muted mb-1.5 flex items-baseline justify-between">
-            <span>Password</span>
-            {mode === "login" && (
-              <Link
-                to="/reset-password"
-                className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground transition hover:text-foreground"
-              >
-                Forgot?
-              </Link>
-            )}
-          </span>
+        </div>
+        <div className="relative">
+          <label htmlFor="auth-password" className="section-label muted mb-1.5 block">
+            Password
+          </label>
           <Input
+            id="auth-password"
             allowAutofill
             type="password"
             autoComplete={mode === "login" ? "current-password" : "new-password"}
@@ -85,9 +82,21 @@ export function AuthForm({
             required
             minLength={mode === "register" ? 8 : undefined}
           />
-        </label>
+          {mode === "login" ? (
+            <Link
+              to="/reset-password"
+              className="absolute right-0 top-0 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/60"
+            >
+              Forgot?
+            </Link>
+          ) : null}
+        </div>
 
-        {error && <div className="border border-accent/40 bg-accent/10 px-3 py-2 font-mono text-[12px] text-foreground">{error}</div>}
+        {error ? (
+          <div role="alert" className="border border-accent/40 bg-accent/10 px-3 py-2 font-mono text-[12px] text-foreground">
+            {error}
+          </div>
+        ) : null}
 
         <Button type="submit" variant="accent" size="lg" className="w-full text-base" disabled={pending}>
           {pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
@@ -113,4 +122,10 @@ export function AuthForm({
       </p>
     </AuthChrome>
   );
+}
+
+function authErrorMessage(mode: Mode, error: unknown): string {
+  if (mode === "login" && error instanceof UnauthorizedError) return "Incorrect username or password.";
+  if (error instanceof Error && error.message) return error.message;
+  return "Something went wrong. Please try again.";
 }
