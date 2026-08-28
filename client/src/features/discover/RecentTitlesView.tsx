@@ -22,7 +22,7 @@ export function RecentTitlesView({
   library,
   onSelect,
   onClear,
-  onSearch,
+  onExplore,
   loading,
   error,
   onRetry,
@@ -31,7 +31,7 @@ export function RecentTitlesView({
   library: TitleLibraryItem[];
   onSelect: (selection: TitleSelection) => void;
   onClear: () => Promise<void>;
-  onSearch: () => void;
+  onExplore: () => void;
   loading: boolean;
   error: string;
   onRetry: () => void;
@@ -177,7 +177,7 @@ export function RecentTitlesView({
           <Clock3 className="mx-auto h-7 w-7 text-text-dim" />
           <p className="mt-3 text-sm font-semibold">No recently viewed titles</p>
           <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-muted-foreground">Titles appear here after you open their details.</p>
-          <button type="button" onClick={onSearch} className="mt-4 text-xs text-accent underline decoration-accent/40 underline-offset-4">
+          <button type="button" onClick={onExplore} className="mt-4 text-xs text-accent underline decoration-accent/40 underline-offset-4">
             Find something worth watching
           </button>
         </div>

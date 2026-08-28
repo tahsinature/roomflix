@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Bookmark, CheckCircle2, Clock3, GitCompareArrows, Loader2, Search, X } from "lucide-react";
+import { GitCompareArrows } from "lucide-react";
 import type { DiscoverImageKind, DiscoverPersonResult, DiscoverSearchResult, RecentTitleItem, TitleLibraryItem } from "@shared/protocol";
 import { useToast } from "@/components/Toast";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { DiscoverExplore } from "@/features/discover/DiscoverExplore";
@@ -11,6 +10,7 @@ import { DiscoverPersonView } from "@/features/discover/DiscoverPersonView";
 import { DiscoverPhotoGallery } from "@/features/discover/DiscoverPhotoGallery";
 import { DiscoverTitleView } from "@/features/discover/DiscoverTitleView";
 import { DiscoverEpisodeView } from "@/features/discover/DiscoverEpisodeView";
+import { DiscoverModeBar } from "@/features/discover/DiscoverModeBar";
 import { RecentTitlesView } from "@/features/discover/RecentTitlesView";
 import { TitleGrid } from "@/features/discover/TitleGrid";
 import { WatchlistCompareModal } from "@/features/discover/WatchlistCompareModal";
@@ -29,7 +29,7 @@ import {
   type EpisodeSelection,
   type TitleSelection,
 } from "@/features/discover/discover-utils";
-import { EmptyLibrary, LoadingGrid, PersonResult, ViewButton, type DiscoverView } from "@/features/discover/DiscoverPageParts";
+import { EmptyLibrary, LoadingGrid, PersonResult, type DiscoverView } from "@/features/discover/DiscoverPageParts";
 import { useCommandPalette } from "@/features/command-palette/CommandPaletteProvider";
 import { mergeRecordedRecentTitle } from "@/features/discover/recent-titles";
 import { useHistoryEntryState } from "@/navigation/history-entry-memory";
@@ -39,6 +39,11 @@ type DiscoverRouteState = AppReturnState & {
   discoverReturnTo?: unknown;
   galleryKind?: unknown;
 };
+
+// "search" was the old name for Explore. Keep accepting it in history
+// memory during hot reloads, then normalize it without exposing that legacy
+// name to the rest of the page.
+type StoredDiscoverRootView = Exclude<DiscoverView, "recent"> | "search";
 
 export default function Discover() {
   const toast = useToast();
@@ -53,7 +58,8 @@ export default function Discover() {
   }>();
   const [searchParams] = useSearchParams();
   const { libraryRevision } = useCommandPalette();
-  const [rootView, setRootView] = useHistoryEntryState<Exclude<DiscoverView, "recent">>("discover.root-view", "search");
+  const [storedRootView, setRootView] = useHistoryEntryState<StoredDiscoverRootView>("discover.root-view", "explore");
+  const rootView: Exclude<DiscoverView, "recent"> = storedRootView === "search" ? "explore" : storedRootView;
   const [query, setQuery] = useHistoryEntryState("discover.search-query", "");
   const [titles, setTitles] = useState<DiscoverSearchResult[]>([]);
   const [people, setPeople] = useState<DiscoverPersonResult[]>([]);
@@ -62,7 +68,6 @@ export default function Discover() {
   const [usedFuzzyFallback, setUsedFuzzyFallback] = useState(false);
   const [error, setError] = useState("");
   const [compareOpen, setCompareOpen] = useState(false);
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [recentTitles, setRecentTitles] = useState<RecentTitleItem[]>([]);
   const [recentLoading, setRecentLoading] = useState(true);
   const [recentError, setRecentError] = useState("");
@@ -234,18 +239,18 @@ export default function Discover() {
   };
 
   const selectView = (nextView: DiscoverView) => {
-    setMobileSearchOpen(nextView === "search");
     if (nextView === "recent") {
       navigate("/discover/recent");
       return;
     }
+    if (nextView === "explore") setQuery("");
     setRootView(nextView);
     if (isRecentRoute) navigate("/discover");
   };
 
-  const closeMobileSearch = () => {
-    setQuery("");
-    setMobileSearchOpen(false);
+  const activateSearch = () => {
+    setRootView("explore");
+    if (isRecentRoute) navigate("/discover");
   };
 
   const clearHistory = async () => {
@@ -321,42 +326,20 @@ export default function Discover() {
 
   return (
     <main className="mx-auto flex max-w-7xl flex-col gap-7 px-4 py-6 sm:px-6 sm:py-8">
-      <div
-        className={view === "search" && mobileSearchOpen ? "grid grid-cols-1 border border-border bg-card/35 sm:grid-cols-4" : "grid grid-cols-4 border border-border bg-card/35"}
-      >
-        {view === "search" ? (
-          <>
-            <DiscoverSearchField className="hidden sm:block" query={query} searching={searching} onQueryChange={setQuery} />
-            {mobileSearchOpen ? (
-              <DiscoverSearchField className="sm:hidden" query={query} searching={searching} onQueryChange={setQuery} onClose={closeMobileSearch} />
-            ) : (
-              <div className="contents sm:hidden">
-                <ViewButton active onClick={() => selectView("search")} icon={Search}>
-                  Search
-                </ViewButton>
-              </div>
-            )}
-          </>
-        ) : (
-          <ViewButton active={false} onClick={() => selectView("search")} icon={Search}>
-            Search
-          </ViewButton>
-        )}
-        <div className={view === "search" && mobileSearchOpen ? "hidden sm:contents" : "contents"}>
-          <ViewButton active={view === "shortlist"} onClick={() => selectView("shortlist")} icon={Bookmark} count={shortlist.length}>
-            Watchlist
-          </ViewButton>
-          <ViewButton active={view === "watched"} onClick={() => selectView("watched")} icon={CheckCircle2} count={watched.length}>
-            Watched
-          </ViewButton>
-          <ViewButton active={view === "recent"} onClick={() => selectView("recent")} icon={Clock3} count={recentTitles.length}>
-            Recent
-          </ViewButton>
-        </div>
-      </div>
+      <DiscoverModeBar
+        view={view}
+        shortlistCount={shortlist.length}
+        watchedCount={watched.length}
+        recentCount={recentTitles.length}
+        query={query}
+        searching={searching}
+        onQueryChange={setQuery}
+        onSelectView={selectView}
+        onActivateSearch={activateSearch}
+      />
 
-      {view === "search" ? (
-        <section>
+      {view === "explore" ? (
+        <section key="explore" className="view-enter">
           {error ? <div className="mt-4 border border-accent/30 bg-accent/10 p-3 text-xs text-accent">{error}</div> : null}
           {usedFuzzyFallback && !searching ? (
             <div className="mt-4 border border-cyan/30 bg-cyan/5 px-3 py-2 text-[10px] text-cyan">Showing typo-tolerant matches alongside TMDB results.</div>
@@ -402,13 +385,13 @@ export default function Discover() {
           library={library}
           onSelect={openTitle}
           onClear={clearHistory}
-          onSearch={() => selectView("search")}
+          onExplore={() => selectView("explore")}
           loading={recentLoading}
           error={recentError}
           onRetry={loadRecentHistory}
         />
       ) : (
-        <section>
+        <section key={view} className="view-enter">
           <div className="flex items-end justify-between gap-3">
             <div>
               <h2 className="section-label">{view === "shortlist" ? "My watchlist" : "My watched log"}</h2>
@@ -427,7 +410,7 @@ export default function Discover() {
             {libraryTitles.length ? (
               <TitleGrid titles={libraryTitles.map(libraryItemToSearchResult)} library={library} onSelect={openTitle} />
             ) : (
-              <EmptyLibrary view={view} onSearch={() => selectView("search")} />
+              <EmptyLibrary view={view} onExplore={() => selectView("explore")} />
             )}
           </div>
         </section>
@@ -435,49 +418,6 @@ export default function Discover() {
 
       <WatchlistCompareModal open={compareOpen} items={shortlist} onClose={() => setCompareOpen(false)} />
     </main>
-  );
-}
-
-function DiscoverSearchField({
-  query,
-  searching,
-  onQueryChange,
-  onClose,
-  className = "",
-}: {
-  query: string;
-  searching: boolean;
-  onQueryChange: (query: string) => void;
-  onClose?: () => void;
-  className?: string;
-}) {
-  const showAction = Boolean(onClose || query);
-  return (
-    <div className={`relative min-w-0 border-r border-border bg-accent/[0.06] ${className}`}>
-      <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-accent" aria-hidden="true" />
-      <Input
-        value={query}
-        onChange={(event) => onQueryChange(event.target.value)}
-        placeholder="Search movies or people…"
-        aria-label="Search movies, series, or people"
-        autoFocus={Boolean(onClose)}
-        className={`h-full min-h-11 border-0 bg-transparent pl-10 text-xs focus-visible:border-0 focus-visible:bg-accent/[0.04] ${showAction ? "pr-16" : "pr-3"}`}
-      />
-      {searching ? <Loader2 className={`absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-accent ${showAction ? "right-10" : "right-3.5"}`} /> : null}
-      {showAction ? (
-        <button
-          type="button"
-          onClick={() => {
-            onQueryChange("");
-            onClose?.();
-          }}
-          aria-label={onClose ? "Close search" : "Clear search"}
-          className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/60"
-        >
-          <X className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
-      ) : null}
-    </div>
   );
 }
 

@@ -5,19 +5,21 @@ import { posterUrl, type TitleSelection } from "./discover-utils";
 import { prefetchPersonDetails } from "./person-details-cache";
 import { prefetchImageGallery } from "./image-gallery-cache";
 
-export type DiscoverView = "search" | "shortlist" | "watched" | "recent";
+export type DiscoverView = "explore" | "shortlist" | "watched" | "recent";
 
 export function ViewButton({
   active,
   onClick,
   icon: Icon,
   count,
+  tabIndex,
   children,
 }: {
   active: boolean;
   onClick: () => void;
   icon: LucideIcon;
   count?: number;
+  tabIndex?: number;
   children: React.ReactNode;
 }) {
   return (
@@ -25,6 +27,7 @@ export function ViewButton({
       type="button"
       onClick={onClick}
       aria-pressed={active}
+      tabIndex={tabIndex}
       className={cn(
         "flex min-w-0 items-center justify-center gap-1 border-r border-border px-1.5 py-3 text-[10px] uppercase tracking-[0.11em] transition last:border-r-0 sm:gap-2 sm:px-2 sm:text-xs",
         active ? "bg-accent/10 text-accent" : "text-muted-foreground hover:bg-white/[0.02] hover:text-foreground",
@@ -105,12 +108,12 @@ export function LoadingGrid() {
   );
 }
 
-export function EmptyLibrary({ view, onSearch }: { view: Exclude<DiscoverView, "search" | "recent">; onSearch: () => void }) {
+export function EmptyLibrary({ view, onExplore }: { view: Exclude<DiscoverView, "explore" | "recent">; onExplore: () => void }) {
   return (
     <div className="border border-border bg-card/35 px-6 py-14 text-center">
       <Clapperboard className="mx-auto h-7 w-7 text-text-dim" />
       <p className="mt-3 text-sm font-semibold">Nothing {view === "watched" ? "watched" : "saved"} yet</p>
-      <button type="button" onClick={onSearch} className="mt-3 text-xs text-accent underline decoration-accent/40 underline-offset-4">
+      <button type="button" onClick={onExplore} className="mt-3 text-xs text-accent underline decoration-accent/40 underline-offset-4">
         Find something worth watching
       </button>
     </div>
