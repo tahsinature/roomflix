@@ -26,7 +26,7 @@ export function AccountMenu({ className }: { className?: string }) {
   const isActive = location.pathname.startsWith("/settings");
 
   // Close on real outside click (not window blur) and Escape — mirrors
-  // the ViewerPill behavior so multi-window testing isn't disrupted.
+  // the members-menu behavior so multi-window testing isn't disrupted.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {

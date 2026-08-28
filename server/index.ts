@@ -649,7 +649,7 @@ const server = Bun.serve<WsData>({
       // Initial presence status. Pre-presence-aware clients (legacy
       // /watch hook) don't send the query param — they default to
       // "watching" so existing behavior is preserved. The new global
-      // socket on dashboard/library will pass ?status=online.
+      // socket on Discover/Library will pass ?status=online.
       const rawStatus = url.searchParams.get("status");
       const status: "online" | "watching" = rawStatus === "online" ? "online" : "watching";
 

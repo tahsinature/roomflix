@@ -30,7 +30,7 @@ export function MemberRow({
   title,
 }: {
   name: string;
-  subtitle?: string;
+  subtitle?: React.ReactNode;
   isOwner?: boolean;
   isMe?: boolean;
   tone?: "member" | "guest";

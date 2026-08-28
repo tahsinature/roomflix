@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import { Compass, Database, HelpCircle, Library as LibraryIcon, Link2, LogOut, Menu, Radio, Search, SlidersHorizontal, Users2, X } from "lucide-react";
 import { AccountMenu } from "@/components/AccountMenu";
 import { SpaceChip } from "@/components/SpaceChip";
-import { ViewerPill } from "@/components/ViewerPill";
+import { SpaceMembersMenu } from "@/components/SpaceMembersMenu";
 import { useAuth } from "@/auth/AuthContext";
 import { cn } from "@/lib/utils";
 import { useCommandPalette } from "@/features/command-palette/CommandPaletteProvider";
@@ -23,8 +23,6 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) => cn("text-[13px] tr
 export function AppNav() {
   const { user, guest, isGuest, identityLabel, logout } = useAuth();
   const meId = user?.id ?? guest?.id ?? null;
-  const location = useLocation();
-  const onHome = location.pathname === "/";
   const [mobileOpen, setMobileOpen] = useState(false);
   const { openPalette } = useCommandPalette();
 
@@ -37,11 +35,7 @@ export function AppNav() {
       <nav className="fixed inset-x-0 top-0 z-40 border-b border-border bg-background/95 shadow-[0_8px_28px_-24px_rgba(0,0,0,0.9)]">
         <div className="flex items-center justify-between px-5 py-3.5 sm:px-8">
           <div className="flex min-w-0 items-center gap-2.5">
-            <Link
-              to="/"
-              className={cn("flex items-center gap-2.5 transition hover:opacity-80", onHome ? "text-accent" : "text-foreground")}
-              aria-current={onHome ? "page" : undefined}
-            >
+            <Link to={isGuest ? "/library" : "/discover"} className="flex items-center gap-2.5 text-foreground transition hover:opacity-80">
               <BrandMark />
               <span className="text-[15px] font-bold tracking-tight">
                 Roomflix<span className="text-accent">.</span>
@@ -54,7 +48,7 @@ export function AppNav() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-5">
-            <ViewerPill meId={meId} align="right" />
+            <SpaceMembersMenu meId={meId} align="right" />
             <div className="hidden items-center gap-5 sm:flex">
               {!isGuest && (
                 <button

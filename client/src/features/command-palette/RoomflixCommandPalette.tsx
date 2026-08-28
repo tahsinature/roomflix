@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Clapperboard, Compass, Database, History, Home, Library, Settings, UserRound } from "lucide-react";
+import { Clapperboard, Compass, Database, History, Library, Settings, UserRound, type LucideIcon } from "lucide-react";
 import type { DiscoverSearchResponse, DiscoverTitleDetails, TitleLibraryItem, TitleLibraryStatus } from "@shared/protocol";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toast";
@@ -121,7 +121,6 @@ export default function RoomflixCommandPalette({
 
             <CommandSeparator />
             <CommandGroup heading="Navigate">
-              <NavigationItem icon={Home} label="Home" path="/" goTo={goTo} />
               <NavigationItem icon={Compass} label="Discover" path="/discover" goTo={goTo} />
               <NavigationItem icon={Library} label="Library" path="/library" goTo={goTo} />
               <NavigationItem icon={History} label="History" path="/history" goTo={goTo} />
@@ -183,7 +182,7 @@ export default function RoomflixCommandPalette({
   );
 }
 
-function NavigationItem({ icon: Icon, label, path, goTo }: { icon: typeof Home; label: string; path: string; goTo: (path: string) => void }) {
+function NavigationItem({ icon: Icon, label, path, goTo }: { icon: LucideIcon; label: string; path: string; goTo: (path: string) => void }) {
   return (
     <CommandItem value={`navigate go ${label}`} onSelect={() => goTo(path)}>
       <Icon /> {label}

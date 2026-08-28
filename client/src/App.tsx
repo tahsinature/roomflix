@@ -1,7 +1,6 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import Home from "@/pages/Home";
 import Welcome from "@/pages/Welcome";
 import Watch from "@/pages/Watch";
 import Library from "@/pages/Library";
@@ -102,7 +101,9 @@ export default function App() {
           /welcome if not signed in) and renders the nav once above
           the outlet — page transitions never remount the nav. */}
         <Route element={<AuthedLayout />}>
-          <Route path="/" element={<Home />} />
+          {/* Discover is the signed-in home. Guests still enter through
+              Library because Discover is account-only. */}
+          <Route path="/" element={<Navigate to={user ? "/discover" : "/library"} replace />} />
           <Route path="/library" element={<Library />} />
           <Route path="/discover/:entityType/:tmdbId/season/:seasonNumber/episode/:episodeNumber" element={<DiscoverRoute />} />
           <Route path="/discover/:entityType?/:tmdbId?/:subview?" element={<DiscoverRoute />} />

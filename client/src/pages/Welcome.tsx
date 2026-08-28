@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/auth/AuthContext";
 
 // Marketing landing for logged-out visitors. Logged-in users hit `/` and
-// get the dashboard instead — this page lives at /welcome so it's still
+// continue to Discover — this page lives at /welcome so it's still
 // reachable for sharing or the rare logged-in user who lands here.
 
 export default function Welcome() {
@@ -54,7 +54,7 @@ function SiteNav() {
   const { user } = useAuth();
   return (
     <nav className="fade-up fixed inset-x-0 top-0 z-40 flex items-center justify-between border-b border-border bg-background/70 px-5 py-3.5 backdrop-blur-xl backdrop-saturate-150 sm:px-8">
-      <Link to={user ? "/" : "/welcome"} className="flex items-center gap-2.5 text-foreground transition hover:opacity-80">
+      <Link to={user ? "/discover" : "/welcome"} className="flex items-center gap-2.5 text-foreground transition hover:opacity-80">
         <BrandMark />
         <span className="text-[15px] font-bold tracking-tight">
           Roomflix<span className="text-accent">.</span>
@@ -65,8 +65,8 @@ function SiteNav() {
           <>
             <span className="hidden font-mono text-[12px] text-text-dim sm:inline">@{user.username}</span>
             <Button asChild variant="accent" size="sm">
-              <Link to="/">
-                Dashboard
+              <Link to="/discover">
+                Discover
                 <ArrowRight className="h-3 w-3" />
               </Link>
             </Button>

@@ -7,7 +7,7 @@
 //
 // The cache key is the lowercased trimmed city — same query string,
 // same cache slot. TTL is 30 min: weather is slow-moving and the
-// home page isn't a meteorology surface.
+// members menu isn't a meteorology surface.
 
 export type Weather = {
   tempC: number;
@@ -65,7 +65,7 @@ async function doFetch(city: string): Promise<Weather | null> {
 // Derive a usable city name from an IANA timezone. Most IANA names are
 // `Continent/City` (or `Continent/Region/City`) where the last segment
 // is literally a city — Open-Meteo's geocoder accepts those directly.
-// Lets the members panel still show weather + a sensible label when a
+// Lets the members menu still show weather + a sensible label when a
 // user hasn't set their city explicitly in Settings, including the
 // localhost case where IP-based geolocation has nothing to work with.
 //

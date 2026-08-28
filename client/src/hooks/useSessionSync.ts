@@ -10,7 +10,7 @@ const VOLUME_DEBOUNCE_MS = 200;
 // "online". Bundles typed playback actions over the shared socket.
 //
 // The provider owns the connection — this hook just specializes the
-// API for the player. Other surfaces (dashboard chip, library header)
+// API for the player. Other surfaces (members menu, library header)
 // use useSessionPresence() directly.
 
 export type SessionSync = {

@@ -298,7 +298,7 @@ export function viewersOf(session: Session): Viewer[] {
 
 // Everyone connected to the space, deduped by identity. When an
 // identity has multiple tabs in different states, the most-engaged
-// status wins ("watching" > "online") — so a dashboard tab + a watch
+// status wins ("watching" > "online") — so an app tab + a watch
 // tab from the same person shows as "watching" once.
 //
 // Volume is set only for watching identities. With multiple watching

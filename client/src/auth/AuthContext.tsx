@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Auto-detect the browser's IANA timezone and silently PATCH it onto
   // the user if it's missing or has drifted. Runs only for real
   // accounts (guests don't have a profile to update). Failures are
-  // swallowed — the home page falls back gracefully when timezone is
+  // swallowed — the members menu falls back gracefully when timezone is
   // null.
   useEffect(() => {
     if (state === "loading" || !state) return;
