@@ -9,16 +9,24 @@ export type ExternalTitleAction = {
   url: string;
 };
 
+type ExternalTitleActionSource = Pick<DiscoverTitleDetails, "mediaType" | "title" | "tmdbId" | "year"> & {
+  imdbId?: string | null;
+};
+
 export function externalTitleActions(details: DiscoverTitleDetails): ExternalTitleAction[] {
-  const title = encodeURIComponent(details.title);
-  const titleAndYear = encodeURIComponent([details.title, details.year].filter(Boolean).join(" "));
+  return externalTitleActionsForTitle(details);
+}
+
+export function externalTitleActionsForTitle(source: ExternalTitleActionSource): ExternalTitleAction[] {
+  const title = encodeURIComponent(source.title);
+  const titleAndYear = encodeURIComponent([source.title, source.year].filter(Boolean).join(" "));
   const actions: Array<ExternalTitleAction | null> = [
-    details.imdbId
+    source.imdbId
       ? {
           id: "extto",
           label: "extto",
           group: "download",
-          url: `https://search.extto.com/browse/?imdb_id=${encodeURIComponent(details.imdbId)}`,
+          url: `https://search.extto.com/browse/?imdb_id=${encodeURIComponent(source.imdbId)}`,
         }
       : null,
     {
@@ -27,12 +35,12 @@ export function externalTitleActions(details: DiscoverTitleDetails): ExternalTit
       group: "download",
       url: `https://1337x.to/search/${titleAndYear}/1/`,
     },
-    details.imdbId
+    source.imdbId
       ? {
           id: "imdb",
           label: "IMDb",
           group: "search",
-          url: `https://www.imdb.com/title/${encodeURIComponent(details.imdbId)}/`,
+          url: `https://www.imdb.com/title/${encodeURIComponent(source.imdbId)}/`,
         }
       : null,
     {
@@ -57,10 +65,14 @@ export function externalTitleActions(details: DiscoverTitleDetails): ExternalTit
       id: "tmdb",
       label: "TMDB",
       group: "search",
-      url: `https://www.themoviedb.org/${details.mediaType}/${details.tmdbId}`,
+      url: `https://www.themoviedb.org/${source.mediaType}/${source.tmdbId}`,
     },
   ];
   return actions.filter((action): action is ExternalTitleAction => action !== null);
+}
+
+export function imdbSearchUrl(title: string, year: string): string {
+  return `https://www.imdb.com/find/?q=${encodeURIComponent([title, year].filter(Boolean).join(" "))}`;
 }
 
 export function parentsGuideUrl(imdbId: string): string {
