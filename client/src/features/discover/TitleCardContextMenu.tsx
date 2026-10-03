@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
-import { ChevronRight, Download, ExternalLink, Film, LoaderCircle, Magnet } from "lucide-react";
+import { Check, GitCompareArrows, ChevronRight, Download, ExternalLink, Film, LoaderCircle, Magnet } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useComparison } from "@/features/compare/ComparisonProvider";
+import { useToast } from "@/components/Toast";
+import { titleIdentity } from "./discover-utils";
 import type { DiscoverSearchResult } from "@shared/protocol";
 import { cn } from "@/lib/utils";
 import { externalTitleActionsForTitle, imdbSearchUrl, openExternalAction } from "./title-actions";
@@ -18,6 +22,20 @@ const menuItem =
   "group flex min-h-9 select-none items-center gap-2.5 px-2.5 text-[11px] outline-none transition-colors data-[highlighted]:bg-accent/[0.12] data-[highlighted]:text-accent data-[disabled]:pointer-events-none data-[disabled]:text-text-dim";
 
 export function TitleCardContextMenu({ title, knownImdbId, children }: TitleCardContextMenuProps) {
+  const navigate = useNavigate();
+  const { addedIds, addingIds, addSelection, enabled } = useComparison();
+  const { success, error } = useToast();
+  const id = titleIdentity(title);
+  const added = addedIds.has(id);
+  const adding = addingIds.has(id);
+  const addToComparison = async () => {
+    try {
+      await addSelection(title);
+      success(`Added “${title.title}” to comparison.`, { label: "View comparison", onClick: () => navigate("/discover/compare") });
+    } catch (reason) {
+      error(reason instanceof Error ? reason.message : "Couldn't add this title to comparison.");
+    }
+  };
   const [imdbId, setImdbId] = useState<string | null | undefined>(knownImdbId);
   const [resolvingImdb, setResolvingImdb] = useState(false);
 
@@ -58,6 +76,22 @@ export function TitleCardContextMenu({ title, knownImdbId, children }: TitleCard
             {title.title}
             {title.year ? <span className="ml-2 text-text-dim">{title.year}</span> : null}
           </ContextMenu.Label>
+
+          {enabled ? (
+            <>
+              <ContextMenu.Item disabled={added || adding} className={cn(menuItem, "mt-1")} onSelect={() => void addToComparison()}>
+                {adding ? (
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                ) : added ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : (
+                  <GitCompareArrows className="h-3.5 w-3.5 text-muted-foreground group-data-[highlighted]:text-accent" />
+                )}
+                <span>{adding ? "Adding to comparison…" : added ? "Already in comparison" : "Add to comparison"}</span>
+              </ContextMenu.Item>
+              <ContextMenu.Separator className="my-1 h-px bg-white/[0.06]" />
+            </>
+          ) : null}
 
           <ContextMenu.Item disabled={!imdbUrl} className={cn(menuItem, "mt-1")} onSelect={() => imdbUrl && openExternalAction(imdbUrl)}>
             {resolvingImdb ? (
@@ -104,7 +138,7 @@ export function TitleCardContextMenu({ title, knownImdbId, children }: TitleCard
             </ContextMenu.Portal>
           </ContextMenu.Sub>
 
-          <p className="mt-1 border-t border-white/[0.06] px-2.5 pb-1 pt-2 text-[8px] uppercase tracking-[0.12em] text-text-dim">Opens in a new tab</p>
+          <p className="mt-1 border-t border-white/[0.06] px-2.5 pb-1 pt-2 text-[8px] uppercase tracking-[0.12em] text-text-dim">External links open in a new tab</p>
         </ContextMenu.Content>
       </ContextMenu.Portal>
     </ContextMenu.Root>

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { Compass, Database, HelpCircle, Library as LibraryIcon, Link2, LogOut, Menu, Radio, Search, SlidersHorizontal, Users2, X } from "lucide-react";
+import { Database, HelpCircle, Library as LibraryIcon, Link2, LogOut, Menu, Radio, Search, SlidersHorizontal, Users2, X } from "lucide-react";
+import { DiscoverNavMenu } from "./DiscoverNavMenu";
+import { DISCOVER_SECTIONS } from "@/features/discover/discover-navigation";
 import { AccountMenu } from "@/components/AccountMenu";
 import { SpaceChip } from "@/components/SpaceChip";
 import { SpaceMembersMenu } from "@/components/SpaceMembersMenu";
@@ -50,24 +52,7 @@ export function AppNav() {
           <div className="flex items-center gap-2 sm:gap-5">
             <SpaceMembersMenu meId={meId} align="right" />
             <div className="hidden items-center gap-5 sm:flex">
-              {!isGuest && (
-                <button
-                  type="button"
-                  onClick={openPalette}
-                  aria-label="Open quick find"
-                  title="Quick find · ⌘/Ctrl K or /"
-                  className="flex h-8 w-8 items-center justify-center gap-1.5 border border-border text-[11px] text-muted-foreground transition hover:border-border-hover hover:text-foreground lg:w-auto lg:px-2.5"
-                >
-                  <Search className="h-3.5 w-3.5" />
-                  <span className="hidden lg:inline">Quick find</span>
-                  <kbd className="ml-1 hidden border-l border-border pl-2 text-[9px] text-text-dim xl:inline">⌘K</kbd>
-                </button>
-              )}
-              {!isGuest && (
-                <NavLink to="/discover" className={navLinkClass}>
-                  Discover
-                </NavLink>
-              )}
+              {!isGuest && <DiscoverNavMenu />}
               <NavLink to="/library" className={navLinkClass}>
                 Library
               </NavLink>
@@ -103,14 +88,24 @@ export function AppNav() {
                 className="flex items-center gap-2 border-b border-border py-3 text-left text-sm text-foreground transition hover:text-accent"
               >
                 <Search className="h-4 w-4 text-accent" />
-                Quick find
+                Search
               </button>
             )}
             {!isGuest && (
-              <MobileNavLink to="/discover" onClick={() => setMobileOpen(false)}>
-                <Compass className="h-4 w-4 text-accent" />
-                Discover
-              </MobileNavLink>
+              <div className="border-b border-border py-2">
+                <p className="px-2 py-1 text-[9px] uppercase tracking-wider text-text-dim">Discover</p>
+                {DISCOVER_SECTIONS.map(({ label, path, icon: Icon }) => (
+                  <NavLink
+                    key={path}
+                    to={path}
+                    end
+                    onClick={() => setMobileOpen(false)}
+                    className={({ isActive }) => cn("flex items-center gap-2 rounded-[4px] px-2 py-2.5 text-xs", isActive ? "bg-accent/10 text-accent" : "text-foreground")}
+                  >
+                    <Icon className="size-3.5" /> {label}
+                  </NavLink>
+                ))}
+              </div>
             )}
             <MobileNavLink to="/library" onClick={() => setMobileOpen(false)}>
               <LibraryIcon className="h-4 w-4 text-accent" />

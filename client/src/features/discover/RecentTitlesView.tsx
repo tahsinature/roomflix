@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Check, Clapperboard, Clock3, Loader2, RotateCw, Search, Trash2, Tv } from "lucide-react";
-import { RECENT_TITLE_LIMIT, type RecentTitleItem, type TitleLibraryItem } from "@shared/protocol";
+import { type RecentTitleItem, type TitleLibraryItem } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -70,7 +70,6 @@ export function RecentTitlesView({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="section-label">Recently viewed</h1>
-          <p className="mt-2 text-xs text-muted-foreground">Synced to your Roomflix account · latest {RECENT_TITLE_LIMIT} unique titles.</p>
         </div>
         {titles.length ? (
           <Button
@@ -98,10 +97,10 @@ export function RecentTitlesView({
 
       {titles.length ? (
         <>
-          <div className="mt-5 grid gap-3 border border-border bg-card/30 p-3 lg:grid-cols-[minmax(15rem,1fr)_auto_auto] lg:items-center">
+          <div className="mt-3 grid gap-2 border border-border bg-card/30 p-3 lg:grid-cols-[minmax(15rem,1fr)_auto_auto] lg:items-center">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-dim" />
-              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter recent titles…" className="h-10 pl-9" aria-label="Filter recent titles" />
+              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter recent titles…" className="h-8 pl-9" aria-label="Filter recent titles" />
             </div>
 
             <div role="group" className="grid grid-cols-4 border border-border" aria-label="Viewed within">

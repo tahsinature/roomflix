@@ -1,10 +1,16 @@
 import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { DiscoverTitleDetails } from "@shared/protocol";
+import type { DiscoverSearchResult, DiscoverTitleDetails } from "@shared/protocol";
 
 const RoomflixCommandPalette = lazy(() => import("./RoomflixCommandPalette"));
 
+export type ComparisonSearchActions = {
+  addedIds: Set<string>;
+  onAdd: (title: DiscoverSearchResult) => Promise<void>;
+};
+
 type CommandPaletteContextValue = {
   openPalette: () => void;
+  openComparisonSearch: () => void;
   currentTitle: DiscoverTitleDetails | null;
   setCurrentTitle: (title: DiscoverTitleDetails | null) => void;
   libraryRevision: number;
@@ -15,18 +21,28 @@ const CommandPaletteContext = createContext<CommandPaletteContextValue | null>(n
 
 export function CommandPaletteProvider({ enabled, children }: { enabled: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [addToComparison, setAddToComparison] = useState(false);
   const [currentTitle, setCurrentTitle] = useState<DiscoverTitleDetails | null>(null);
   const [libraryRevision, setLibraryRevision] = useState(0);
-  const openPalette = useCallback(() => setOpen(true), []);
+  const openPalette = useCallback(() => {
+    setAddToComparison(false);
+    setOpen(true);
+  }, []);
+  const openComparisonSearch = useCallback(() => {
+    setAddToComparison(true);
+    setOpen(true);
+  }, []);
   const notifyLibraryChanged = useCallback(() => setLibraryRevision((revision) => revision + 1), []);
 
   useEffect(() => {
     if (!enabled) return;
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat || event.isComposing) return;
       const commandShortcut = event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey);
       const slashShortcut = event.key === "/" && !event.metaKey && !event.ctrlKey && !event.altKey && !isEditable(event.target);
       if (!commandShortcut && !slashShortcut) return;
       event.preventDefault();
+      setAddToComparison(false);
       setOpen((current) => (commandShortcut && current ? false : true));
     };
     window.addEventListener("keydown", onKeyDown);
@@ -34,8 +50,8 @@ export function CommandPaletteProvider({ enabled, children }: { enabled: boolean
   }, [enabled]);
 
   const value = useMemo(
-    () => ({ openPalette, currentTitle, setCurrentTitle, libraryRevision, notifyLibraryChanged }),
-    [openPalette, currentTitle, libraryRevision, notifyLibraryChanged],
+    () => ({ openPalette, openComparisonSearch, currentTitle, setCurrentTitle, libraryRevision, notifyLibraryChanged }),
+    [openPalette, openComparisonSearch, currentTitle, libraryRevision, notifyLibraryChanged],
   );
 
   return (
@@ -43,7 +59,7 @@ export function CommandPaletteProvider({ enabled, children }: { enabled: boolean
       {children}
       {enabled && open ? (
         <Suspense fallback={null}>
-          <RoomflixCommandPalette currentTitle={currentTitle} onClose={() => setOpen(false)} onLibraryChanged={notifyLibraryChanged} />
+          <RoomflixCommandPalette addToComparison={addToComparison} currentTitle={currentTitle} onClose={() => setOpen(false)} onLibraryChanged={notifyLibraryChanged} />
         </Suspense>
       ) : null}
     </CommandPaletteContext.Provider>

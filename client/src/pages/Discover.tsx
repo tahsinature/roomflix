@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { GitCompareArrows } from "lucide-react";
-import type { DiscoverImageKind, DiscoverPersonResult, DiscoverSearchResult, RecentTitleItem, TitleLibraryItem } from "@shared/protocol";
+import type { DiscoverImageKind, DiscoverSearchResult, RecentTitleItem, TitleLibraryItem } from "@shared/protocol";
 import { useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -10,7 +10,6 @@ import { DiscoverPersonView } from "@/features/discover/DiscoverPersonView";
 import { DiscoverPhotoGallery } from "@/features/discover/DiscoverPhotoGallery";
 import { DiscoverTitleView } from "@/features/discover/DiscoverTitleView";
 import { DiscoverEpisodeView } from "@/features/discover/DiscoverEpisodeView";
-import { DiscoverModeBar } from "@/features/discover/DiscoverModeBar";
 import { RecentTitlesView } from "@/features/discover/RecentTitlesView";
 import { TitleGrid } from "@/features/discover/TitleGrid";
 import { WatchlistCompareModal } from "@/features/discover/WatchlistCompareModal";
@@ -29,10 +28,9 @@ import {
   type EpisodeSelection,
   type TitleSelection,
 } from "@/features/discover/discover-utils";
-import { EmptyLibrary, LoadingGrid, PersonResult, type DiscoverView } from "@/features/discover/DiscoverPageParts";
+import { EmptyLibrary, type DiscoverView } from "@/features/discover/DiscoverPageParts";
 import { useCommandPalette } from "@/features/command-palette/CommandPaletteProvider";
 import { mergeRecordedRecentTitle } from "@/features/discover/recent-titles";
-import { useHistoryEntryState } from "@/navigation/history-entry-memory";
 import { useAppBack, type AppReturnState } from "@/navigation/use-app-back";
 
 type DiscoverRouteState = AppReturnState & {
@@ -40,10 +38,7 @@ type DiscoverRouteState = AppReturnState & {
   galleryKind?: unknown;
 };
 
-// "search" was the old name for Explore. Keep accepting it in history
-// memory during hot reloads, then normalize it without exposing that legacy
-// name to the rest of the page.
-type StoredDiscoverRootView = Exclude<DiscoverView, "recent"> | "search";
+const Compare = lazy(() => import("./Compare"));
 
 export default function Discover() {
   const toast = useToast();
@@ -58,14 +53,7 @@ export default function Discover() {
   }>();
   const [searchParams] = useSearchParams();
   const { libraryRevision } = useCommandPalette();
-  const [storedRootView, setRootView] = useHistoryEntryState<StoredDiscoverRootView>("discover.root-view", "explore");
-  const rootView: Exclude<DiscoverView, "recent"> = storedRootView === "search" ? "explore" : storedRootView;
-  const [query, setQuery] = useHistoryEntryState("discover.search-query", "");
-  const [titles, setTitles] = useState<DiscoverSearchResult[]>([]);
-  const [people, setPeople] = useState<DiscoverPersonResult[]>([]);
   const [library, setLibrary] = useState<TitleLibraryItem[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [usedFuzzyFallback, setUsedFuzzyFallback] = useState(false);
   const [error, setError] = useState("");
   const [compareOpen, setCompareOpen] = useState(false);
   const [recentTitles, setRecentTitles] = useState<RecentTitleItem[]>([]);
@@ -82,10 +70,17 @@ export default function Discover() {
   const legacyTitle = parseLegacyTitleParam(searchParams.get("title"));
   const legacyPersonId = parseLegacyPersonParam(searchParams.get("person"));
   const isRecentRoute = entityType === "recent" && !tmdbId;
+  const isCompareRoute = entityType === "compare" && !tmdbId;
   const wasRecentRoute = useRef(isRecentRoute);
-  const view: DiscoverView = isRecentRoute ? "recent" : rootView;
+  const isWatchlistRoute = entityType === "watchlist" && !tmdbId;
+  const isWatchedRoute = entityType === "watched" && !tmdbId;
+  const view: DiscoverView = isCompareRoute ? "compare" : isRecentRoute ? "recent" : isWatchlistRoute ? "shortlist" : isWatchedRoute ? "watched" : "explore";
   const routeState = location.state as DiscoverRouteState | null;
-  const discoverReturnTo = isRecentRoute || routeState?.discoverReturnTo === "/discover/recent" ? "/discover/recent" : "/discover";
+  const discoverReturnTo = ["recent", "watchlist", "watched", "compare"].includes(entityType ?? "")
+    ? location.pathname
+    : typeof routeState?.discoverReturnTo === "string" && /^\/discover(?:\/(recent|watchlist|watched|compare))?$/.test(routeState.discoverReturnTo)
+      ? routeState.discoverReturnTo
+      : "/discover";
   const defaultGalleryReturnTo = selectedTitle ? discoverTitlePath(selectedTitle) : selectedPersonId ? discoverPersonPath(selectedPersonId) : "/discover";
   const galleryKind = isDiscoverImageKind(routeState?.galleryKind) ? routeState.galleryKind : undefined;
   const episodeSeriesPath = selectedEpisode ? discoverTitlePath({ mediaType: "tv", tmdbId: selectedEpisode.seriesTmdbId }) : null;
@@ -137,41 +132,6 @@ export default function Discover() {
       cancelled = true;
     };
   }, [libraryRevision]);
-
-  useEffect(() => {
-    const trimmed = query.trim();
-    if (trimmed.length < 2) {
-      setTitles([]);
-      setPeople([]);
-      setSearching(false);
-      setUsedFuzzyFallback(false);
-      return;
-    }
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      setSearching(true);
-      setError("");
-      setUsedFuzzyFallback(false);
-      void api
-        .discoverSearch(trimmed)
-        .then((result) => {
-          if (controller.signal.aborted) return;
-          setTitles(result.titles);
-          setPeople(result.people);
-          setUsedFuzzyFallback(result.usedFuzzyFallback);
-        })
-        .catch((reason) => {
-          if (!controller.signal.aborted) setError((reason as Error).message);
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setSearching(false);
-        });
-    }, 320);
-    return () => {
-      controller.abort();
-      window.clearTimeout(timer);
-    };
-  }, [query]);
 
   const shortlist = useMemo(() => library.filter((item) => item.status === "shortlist"), [library]);
   const watched = useMemo(() => library.filter((item) => item.status === "watched"), [library]);
@@ -238,20 +198,7 @@ export default function Discover() {
     });
   };
 
-  const selectView = (nextView: DiscoverView) => {
-    if (nextView === "recent") {
-      navigate("/discover/recent");
-      return;
-    }
-    if (nextView === "explore") setQuery("");
-    setRootView(nextView);
-    if (isRecentRoute) navigate("/discover");
-  };
-
-  const activateSearch = () => {
-    setRootView("explore");
-    if (isRecentRoute) navigate("/discover");
-  };
+  const selectView = (nextView: DiscoverView) => navigate(nextView === "explore" ? "/discover" : `/discover/${nextView === "shortlist" ? "watchlist" : nextView}`);
 
   const clearHistory = async () => {
     if (recentTitles.length === 0) return;
@@ -273,7 +220,8 @@ export default function Discover() {
   if (!selectedTitle && !selectedPersonId && legacyPersonId) return <Navigate to={discoverPersonPath(legacyPersonId)} replace />;
   if (isEpisodePath && !selectedEpisode) return <Navigate to={selectedTitle ? discoverTitlePath(selectedTitle) : "/discover"} replace />;
   if (subview && subview !== "photos") return <Navigate to={defaultGalleryReturnTo} replace />;
-  if ((entityType || tmdbId) && !selectedTitle && !selectedPersonId && !isRecentRoute) return <Navigate to="/discover" replace />;
+  if ((entityType || tmdbId) && !selectedTitle && !selectedPersonId && !isRecentRoute && !isCompareRoute && !isWatchlistRoute && !isWatchedRoute)
+    return <Navigate to="/discover" replace />;
 
   if (isPhotoRoute && selectedTitle) {
     return <DiscoverPhotoGallery subject={{ type: selectedTitle.mediaType, tmdbId: selectedTitle.tmdbId }} initialKind={galleryKind} onBack={goBack} />;
@@ -324,60 +272,26 @@ export default function Discover() {
     );
   }
 
+  if (view === "compare") {
+    return (
+      <Suspense
+        fallback={
+          <p role="status" className="px-6 py-12 text-center text-xs text-muted-foreground">
+            Loading comparison…
+          </p>
+        }
+      >
+        <Compare />
+      </Suspense>
+    );
+  }
+
   return (
     <main className="mx-auto flex max-w-7xl flex-col gap-7 px-4 py-6 sm:px-6 sm:py-8">
-      <DiscoverModeBar
-        view={view}
-        shortlistCount={shortlist.length}
-        watchedCount={watched.length}
-        recentCount={recentTitles.length}
-        query={query}
-        searching={searching}
-        onQueryChange={setQuery}
-        onSelectView={selectView}
-        onActivateSearch={activateSearch}
-      />
-
       {view === "explore" ? (
         <section key="explore" className="view-enter">
           {error ? <div className="mt-4 border border-accent/30 bg-accent/10 p-3 text-xs text-accent">{error}</div> : null}
-          {usedFuzzyFallback && !searching ? (
-            <div className="mt-4 border border-cyan/30 bg-cyan/5 px-3 py-2 text-[10px] text-cyan">Showing typo-tolerant matches alongside TMDB results.</div>
-          ) : null}
-          {query.trim().length >= 2 && !searching && !error && titles.length === 0 && people.length === 0 ? (
-            <div className="mt-6 border border-border p-8 text-center text-xs text-muted-foreground">No supported people or titles found.</div>
-          ) : null}
-
-          {people.length > 0 ? (
-            <section className="mt-7">
-              <h2 className="section-label">People</h2>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {people.map((person) => (
-                  <PersonResult
-                    key={person.tmdbId}
-                    person={person}
-                    onSelect={() => openPerson(person.tmdbId)}
-                    onSelectPhotos={() => openPersonPhotos(person.tmdbId)}
-                    onSelectTitle={openTitle}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {query.trim().length >= 2 ? (
-            <section className="mt-7">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="section-label">Titles</h2>
-                <span className="text-[9px] uppercase tracking-[0.13em] text-text-dim">{titles.length} results</span>
-              </div>
-              <div className="mt-3">{searching && !titles.length ? <LoadingGrid /> : <TitleGrid titles={titles} library={library} onSelect={openTitle} />}</div>
-            </section>
-          ) : (
-            <div>
-              <DiscoverExplore library={library} onSelect={openTitle} />
-            </div>
-          )}
+          <DiscoverExplore library={library} onSelect={openTitle} />
         </section>
       ) : view === "recent" ? (
         <RecentTitlesView
@@ -395,7 +309,6 @@ export default function Discover() {
           <div className="flex items-end justify-between gap-3">
             <div>
               <h2 className="section-label">{view === "shortlist" ? "My watchlist" : "My watched log"}</h2>
-              <p className="mt-2 text-xs text-muted-foreground">Personal to your Roomflix account.</p>
             </div>
             <div className="flex items-center gap-3">
               {view === "shortlist" && shortlist.length >= 2 ? (
