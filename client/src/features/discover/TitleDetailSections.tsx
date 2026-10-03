@@ -1,8 +1,10 @@
-import { Clapperboard, Copy, ExternalLink, Images, Shield, Star, Tv, UserRound } from "lucide-react";
+import { TitleRatings } from "./TitleRatings";
+import { TitleComparisonStatus } from "./TitleComparisonStatus";
+import { Clapperboard, Copy, ExternalLink, Images, Shield, Tv, UserRound } from "lucide-react";
 import type { DiscoverImageKind, DiscoverTitleDetails } from "@shared/protocol";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/Toast";
-import { backdropUrl, formatRuntime, formatVotes, posterUrl } from "./discover-utils";
+import { backdropUrl, formatRuntime, posterUrl } from "./discover-utils";
 import { prefetchPersonDetails } from "./person-details-cache";
 import { prefetchImageGallery } from "./image-gallery-cache";
 import { certificationFor, parentsGuideUrl } from "./title-actions";
@@ -37,7 +39,7 @@ export function TitleHero({ details, onOpenGallery }: { details: DiscoverTitleDe
         </button>
       ) : null}
       <div className="relative grid min-w-0 grid-cols-[6.25rem_minmax(0,1fr)] items-end gap-4 p-4 pt-16 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-7 sm:p-7 sm:pt-20">
-        <div className="w-[6.25rem] shrink-0 sm:w-36">
+        <div className="w-[6.25rem] shrink-0 sm:row-span-2 sm:w-36">
           <button
             type="button"
             disabled={!poster}
@@ -67,23 +69,21 @@ export function TitleHero({ details, onOpenGallery }: { details: DiscoverTitleDe
           <TitlePosterActions details={details} />
         </div>
         <div className="min-w-0 self-end pb-0.5 sm:pb-1">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[8px] uppercase tracking-[0.14em] text-accent shadow-[0_0_22px_-10px_hsl(var(--accent)/0.8)] sm:text-[9px]">
-            <MediaIcon className="h-3 w-3" />
-            {details.mediaType === "tv" ? "Series" : "Film"}
-          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[8px] uppercase tracking-[0.14em] text-accent shadow-[0_0_22px_-10px_hsl(var(--accent)/0.8)] sm:text-[9px]">
+              <MediaIcon className="h-3 w-3" />
+              {details.mediaType === "tv" ? "Series" : "Film"}
+            </span>
+            <TitleComparisonStatus details={details} />
+          </div>
           <h1 className="mt-2.5 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xl font-bold leading-[1.16] tracking-[-0.035em] text-balance sm:mt-3 sm:gap-x-3 sm:text-4xl">
             <CopyableTitle title={details.title} />
             {details.year ? <span className="text-sm font-normal tracking-normal text-muted-foreground sm:text-base">({details.year})</span> : null}
           </h1>
           {details.tagline ? <p className="mt-2 line-clamp-2 max-w-xl text-[10px] italic leading-relaxed text-muted-foreground sm:text-xs">“{details.tagline}”</p> : null}
-          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[9px] sm:gap-2 sm:text-[10px]">
-            <span className="flex items-center gap-1 rounded-full border border-amber-300/15 bg-black/25 px-2 py-1 text-amber-300 backdrop-blur-sm">
-              <Star className="h-3.5 w-3.5 fill-current" />
-              {details.voteAverage.toFixed(1)}
-            </span>
-            <span className="rounded-full border border-white/[0.08] bg-black/25 px-2 py-1 text-cyan backdrop-blur-sm">{formatVotes(details.voteCount)} votes</span>
-            <span className="rounded-full border border-white/[0.08] bg-black/25 px-2 py-1 text-muted-foreground backdrop-blur-sm">{formatRuntime(details.runtime)}</span>
-          </div>
+        </div>
+        <div className="col-span-2 sm:col-span-1 sm:col-start-2">
+          <TitleRatings imdbId={details.imdbId} tmdbRating={details.voteAverage} tmdbVotes={details.voteCount} runtime={details.runtime} mediaType={details.mediaType} />
         </div>
       </div>
     </div>

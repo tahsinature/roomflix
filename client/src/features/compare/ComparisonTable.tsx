@@ -4,7 +4,6 @@ import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type Sor
 import { closestCenter, DndContext, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { SortableComparisonRow } from "./SortableComparisonRow";
-import { ComparisonDemoNote } from "./ComparisonDemoNote";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ComparisonTitle } from "./comparison-data";
@@ -50,12 +49,11 @@ export function ComparisonTable({
 
   return (
     <>
-      <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-x-1.5 gap-y-1 px-3 py-2 sm:flex sm:flex-wrap sm:gap-3 sm:px-5 sm:py-3">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-1.5 gap-y-1 px-3 py-2 sm:flex sm:flex-wrap sm:gap-3 sm:px-5 sm:py-3">
         <h1 className="col-start-1 row-start-1 flex items-center gap-1.5 text-xs font-medium sm:order-1 sm:gap-2 sm:text-sm sm:mr-auto">
           <GitCompareArrows className="size-3 text-accent sm:size-4" /> Compare <span className="text-[10px] tabular-nums text-muted-foreground">{titles.length}</span>
         </h1>
-        <ComparisonDemoNote />
-        <label className="col-start-3 row-start-1 flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground sm:order-3">
+        <label className="col-start-2 row-start-1 flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground sm:order-3">
           <span className="sr-only">Sort comparison</span>
           <select
             className="h-7 w-full min-w-0 rounded-[6px] border border-border-hover bg-card px-1.5 text-[9px] text-foreground focus-visible:outline-accent sm:h-8 sm:w-auto sm:max-w-[13rem] sm:px-2 sm:text-[10px]"
@@ -82,14 +80,14 @@ export function ComparisonTable({
           type="button"
           variant="accent"
           size="sm"
-          className="col-start-4 row-start-1 h-7 w-7 rounded-[6px] p-0 text-[10px] sm:order-4 sm:h-8 sm:w-auto sm:px-3"
+          className="col-start-3 row-start-1 h-7 w-7 rounded-[6px] p-0 text-[10px] sm:order-4 sm:h-8 sm:w-auto sm:px-3"
           onClick={onAdd}
           aria-label="Add title"
         >
           <Plus className="size-3.5" />
           <span className="hidden sm:inline">Add title</span>
         </Button>
-        <p className="col-span-4 row-start-2 text-[9px] leading-4 text-muted-foreground sm:order-5 sm:w-full sm:text-[10px]">
+        <p className="col-span-3 row-start-2 text-[9px] leading-4 text-muted-foreground sm:order-5 sm:w-full sm:text-[10px]">
           <span className="sm:hidden">Drag in My priority · Order saved.</span>
           <span className="hidden sm:inline">Use My priority to drag rows. Your saved order is preserved when sorting.</span>
         </p>
@@ -103,7 +101,7 @@ export function ComparisonTable({
         >
           <table className="w-full min-w-[52rem] table-fixed border-collapse text-left">
             <caption className="sr-only">
-              Compare movies and series. IMDb ratings and vote counts are simulated demo data. Select a column header to sort. In My priority, use a row handle to drag, or press
+              Compare movies and series. IMDb ratings and vote counts are supplied by OMDb. Select a column header to sort. In My priority, use a row handle to drag, or press
               Space, arrow keys, then Space to reorder.
             </caption>
             <thead>

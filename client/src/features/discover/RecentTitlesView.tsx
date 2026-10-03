@@ -1,3 +1,4 @@
+import { ComparisonIndicator } from "@/features/compare/ComparisonIndicator";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Check, Clapperboard, Clock3, Loader2, RotateCw, Search, Trash2, Tv } from "lucide-react";
 import { type RecentTitleItem, type TitleLibraryItem } from "@shared/protocol";
@@ -214,6 +215,7 @@ function RecentTitleRow({ title, savedLabel, onSelect }: { title: RecentTitleIte
             <MediaIcon className="h-4 w-4 text-text-dim" />
           </span>
         )}
+        <ComparisonIndicator titleId={titleIdentity(title)} />
       </div>
 
       <div className="min-w-0">

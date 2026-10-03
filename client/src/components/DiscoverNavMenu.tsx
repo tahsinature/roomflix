@@ -9,7 +9,7 @@ export function DiscoverNavMenu() {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const location = useLocation();
-  const { openPalette } = useCommandPalette();
+  const { openTitleSearch } = useCommandPalette();
 
   return (
     <div
@@ -65,11 +65,11 @@ export function DiscoverNavMenu() {
             type="button"
             onClick={() => {
               setOpen(false);
-              openPalette();
+              openTitleSearch();
             }}
             className="mt-1 flex w-full items-center gap-2.5 border-t border-border px-3 py-2.5 text-xs text-muted-foreground hover:text-foreground"
           >
-            <Search className="size-3.5" /> Search <kbd className="ml-auto text-[9px]">⌘ / Ctrl K</kbd>
+            <Search className="size-3.5" /> Search <kbd className="ml-auto text-[9px]">/</kbd>
           </button>
         </nav>
       ) : null}

@@ -8,14 +8,16 @@ export const Command = React.forwardRef<React.ElementRef<typeof CommandPrimitive
 ));
 Command.displayName = "Command";
 
-export const CommandInput = React.forwardRef<React.ElementRef<typeof CommandPrimitive.Input>, React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>>(
-  ({ className, ...props }, ref) => (
-    <div className="flex items-center gap-3 border-b border-border px-4" cmdk-input-wrapper="">
-      <Search className="h-5 w-5 shrink-0 text-accent" />
-      <CommandPrimitive.Input ref={ref} className={cn("h-14 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground", className)} {...props} />
-    </div>
-  ),
-);
+export const CommandInput = React.forwardRef<
+  React.ElementRef<typeof CommandPrimitive.Input>,
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input> & { trailingContent?: React.ReactNode }
+>(({ className, trailingContent, ...props }, ref) => (
+  <div className="flex items-center gap-3 border-b border-border px-4" cmdk-input-wrapper="">
+    <Search className="h-5 w-5 shrink-0 text-accent" />
+    <CommandPrimitive.Input ref={ref} className={cn("h-14 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground", className)} {...props} />
+    {trailingContent}
+  </div>
+));
 CommandInput.displayName = "CommandInput";
 
 export const CommandList = React.forwardRef<React.ElementRef<typeof CommandPrimitive.List>, React.ComponentPropsWithoutRef<typeof CommandPrimitive.List>>(

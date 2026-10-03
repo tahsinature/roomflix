@@ -1,3 +1,4 @@
+import { ComparisonIndicator } from "@/features/compare/ComparisonIndicator";
 import { useRef, useState } from "react";
 import { Check, Clapperboard, Loader2, Plus } from "lucide-react";
 import type { DiscoverSearchResult } from "@shared/protocol";
@@ -52,8 +53,9 @@ export function TitleSearchResults({
             disabled={Boolean(addingId) || (addToComparison && added)}
             onSelect={() => (addToComparison && comparisonActions ? void addTitle(title) : goTo(discoverTitlePath(title)))}
           >
-            <span className="grid h-10 w-7 shrink-0 place-items-center overflow-hidden rounded-[3px] bg-muted">
+            <span className="relative grid h-10 w-7 shrink-0 place-items-center overflow-hidden rounded-[3px] bg-muted">
               {poster ? <img src={poster} alt="" className="h-full w-full object-cover" /> : <Clapperboard />}
+              <ComparisonIndicator titleId={id} compact />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate">{title.title}</span>

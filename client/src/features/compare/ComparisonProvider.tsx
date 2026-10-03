@@ -2,11 +2,13 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState, type
 import type { DiscoverSearchResult } from "@shared/protocol";
 import { useAuth } from "@/auth/AuthContext";
 import { titleIdentity } from "@/features/discover/discover-utils";
+import { loadImdbRatings } from "@/features/discover/imdb-ratings-cache";
 import { loadComparisonTitle } from "./comparison-data";
 import { useComparisonList } from "./use-comparison-list";
 
 type ComparisonContextValue = ReturnType<typeof useComparisonList> & {
   enabled: boolean;
+  refreshRatings: () => Promise<void>;
   addedIds: Set<string>;
   addingIds: Set<string>;
   addSelection: (selection: DiscoverSearchResult) => Promise<void>;
@@ -25,7 +27,16 @@ export function ComparisonProvider({ children }: { children: ReactNode }) {
 
 function AccountComparisonProvider({ userId, children }: { userId: string | null; children: ReactNode }) {
   const list = useComparisonList(userId);
-  const { titles, addTitle } = list;
+  const { titles, addTitle, updateRatings } = list;
+  const currentTitles = useRef(titles);
+  currentTitles.current = titles;
+  const refreshRatings = useCallback(async () => {
+    await Promise.all(
+      currentTitles.current.map(async (title) => {
+        updateRatings(title.id, await loadImdbRatings(title.imdbId));
+      }),
+    );
+  }, [updateRatings]);
   const addedIds = useMemo(() => new Set(titles.map((title) => title.id)), [titles]);
   const pending = useRef(new Set<string>());
   const [addingIds, setAddingIds] = useState(new Set<string>());
@@ -47,7 +58,7 @@ function AccountComparisonProvider({ userId, children }: { userId: string | null
     [userId, addedIds, addTitle],
   );
 
-  return <ComparisonContext.Provider value={{ ...list, enabled: Boolean(userId), addedIds, addingIds, addSelection }}>{children}</ComparisonContext.Provider>;
+  return <ComparisonContext.Provider value={{ ...list, enabled: Boolean(userId), refreshRatings, addedIds, addingIds, addSelection }}>{children}</ComparisonContext.Provider>;
 }
 
 export function useComparison() {

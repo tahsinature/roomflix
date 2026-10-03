@@ -13,7 +13,9 @@ const title: ComparisonTitle = {
   imdbId: "tt2543164",
   imdbRating: 7.7,
   imdbVotes: 1_177_133,
-  imdbSource: "demo",
+  imdbSource: "omdb",
+  imdbStatus: "available",
+  imdbFetchedAt: "2026-10-01T00:00:00.000Z",
 };
 
 describe("saved comparison lists", () => {
@@ -27,6 +29,15 @@ describe("saved comparison lists", () => {
     for (const raw of [null, "not json", "{}", "[{}]", JSON.stringify([{ ...title, imdbRating: 11 }]), JSON.stringify([{ ...title, imdbSource: "unknown" }])]) {
       expect(decodeComparisonList(raw)).toEqual([]);
     }
+  });
+
+  test("keeps legacy titles and order but discards simulated IMDb values", () => {
+    const legacy = { ...title, imdbSource: "demo" };
+    const result = decodeComparisonList(JSON.stringify([legacy]));
+    expect(result[0]?.id).toBe(title.id);
+    expect(result[0]?.imdbRating).toBeNull();
+    expect(result[0]?.imdbVotes).toBeNull();
+    expect(result[0]?.imdbSource).toBe("omdb");
   });
 
   test("reports missing and invalid release dates as unknown", () => {

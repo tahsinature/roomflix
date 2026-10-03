@@ -5,6 +5,7 @@ import type { DiscoverImageKind, DiscoverSearchResult, RecentTitleItem, TitleLib
 import { useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { DiscoverSearchResults } from "@/features/discover/DiscoverSearchResults";
 import { DiscoverExplore } from "@/features/discover/DiscoverExplore";
 import { DiscoverPersonView } from "@/features/discover/DiscoverPersonView";
 import { DiscoverPhotoGallery } from "@/features/discover/DiscoverPhotoGallery";
@@ -69,6 +70,8 @@ export default function Discover() {
   const isEpisodePath = seasonNumber !== undefined || episodeNumber !== undefined;
   const legacyTitle = parseLegacyTitleParam(searchParams.get("title"));
   const legacyPersonId = parseLegacyPersonParam(searchParams.get("person"));
+  const isSearchRoute = entityType === "search" && !tmdbId;
+  const searchQuery = searchParams.get("q")?.trim() ?? "";
   const isRecentRoute = entityType === "recent" && !tmdbId;
   const isCompareRoute = entityType === "compare" && !tmdbId;
   const wasRecentRoute = useRef(isRecentRoute);
@@ -76,11 +79,13 @@ export default function Discover() {
   const isWatchedRoute = entityType === "watched" && !tmdbId;
   const view: DiscoverView = isCompareRoute ? "compare" : isRecentRoute ? "recent" : isWatchlistRoute ? "shortlist" : isWatchedRoute ? "watched" : "explore";
   const routeState = location.state as DiscoverRouteState | null;
-  const discoverReturnTo = ["recent", "watchlist", "watched", "compare"].includes(entityType ?? "")
-    ? location.pathname
-    : typeof routeState?.discoverReturnTo === "string" && /^\/discover(?:\/(recent|watchlist|watched|compare))?$/.test(routeState.discoverReturnTo)
-      ? routeState.discoverReturnTo
-      : "/discover";
+  const discoverReturnTo = isSearchRoute
+    ? location.pathname + location.search
+    : ["recent", "watchlist", "watched", "compare"].includes(entityType ?? "")
+      ? location.pathname
+      : typeof routeState?.discoverReturnTo === "string" && /^\/discover(?:\/(recent|watchlist|watched|compare)|\/search(?:\?q=[^#]*)?)?$/.test(routeState.discoverReturnTo)
+        ? routeState.discoverReturnTo
+        : "/discover";
   const defaultGalleryReturnTo = selectedTitle ? discoverTitlePath(selectedTitle) : selectedPersonId ? discoverPersonPath(selectedPersonId) : "/discover";
   const galleryKind = isDiscoverImageKind(routeState?.galleryKind) ? routeState.galleryKind : undefined;
   const episodeSeriesPath = selectedEpisode ? discoverTitlePath({ mediaType: "tv", tmdbId: selectedEpisode.seriesTmdbId }) : null;
@@ -220,7 +225,7 @@ export default function Discover() {
   if (!selectedTitle && !selectedPersonId && legacyPersonId) return <Navigate to={discoverPersonPath(legacyPersonId)} replace />;
   if (isEpisodePath && !selectedEpisode) return <Navigate to={selectedTitle ? discoverTitlePath(selectedTitle) : "/discover"} replace />;
   if (subview && subview !== "photos") return <Navigate to={defaultGalleryReturnTo} replace />;
-  if ((entityType || tmdbId) && !selectedTitle && !selectedPersonId && !isRecentRoute && !isCompareRoute && !isWatchlistRoute && !isWatchedRoute)
+  if ((entityType || tmdbId) && !selectedTitle && !selectedPersonId && !isRecentRoute && !isCompareRoute && !isWatchlistRoute && !isWatchedRoute && !isSearchRoute)
     return <Navigate to="/discover" replace />;
 
   if (isPhotoRoute && selectedTitle) {
@@ -288,7 +293,15 @@ export default function Discover() {
 
   return (
     <main className="mx-auto flex max-w-7xl flex-col gap-7 px-4 py-6 sm:px-6 sm:py-8">
-      {view === "explore" ? (
+      {isSearchRoute ? (
+        <DiscoverSearchResults
+          key={searchQuery}
+          query={searchQuery}
+          library={library}
+          onSelect={openTitle}
+          onSearch={(query) => navigate(`/discover/search?${new URLSearchParams({ q: query })}`)}
+        />
+      ) : view === "explore" ? (
         <section key="explore" className="view-enter">
           {error ? <div className="mt-4 border border-accent/30 bg-accent/10 p-3 text-xs text-accent">{error}</div> : null}
           <DiscoverExplore library={library} onSelect={openTitle} />

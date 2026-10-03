@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { ArrowRight, HardDrive } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { useCommandPalette } from "@/features/command-palette/CommandPaletteProvider";
@@ -7,9 +7,13 @@ import type { ComparisonTitle } from "@/features/compare/comparison-data";
 import { useComparison } from "@/features/compare/ComparisonProvider";
 
 export default function Compare() {
-  const { titles, addTitle, removeTitle, moveTitle, storageError } = useComparison();
+  const { titles, addTitle, removeTitle, moveTitle, refreshRatings, storageError } = useComparison();
   const { info } = useToast();
   const { openComparisonSearch } = useCommandPalette();
+
+  useEffect(() => {
+    void refreshRatings();
+  }, [refreshRatings]);
 
   const removeSelection = useCallback(
     (title: ComparisonTitle) => {

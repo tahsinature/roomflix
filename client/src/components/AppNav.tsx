@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { Database, HelpCircle, Library as LibraryIcon, Link2, LogOut, Menu, Radio, Search, SlidersHorizontal, Users2, X } from "lucide-react";
 import { DiscoverNavMenu } from "./DiscoverNavMenu";
-import { DISCOVER_SECTIONS } from "@/features/discover/discover-navigation";
+import { MobileDiscoverMenu } from "./MobileDiscoverMenu";
 import { AccountMenu } from "@/components/AccountMenu";
 import { SpaceChip } from "@/components/SpaceChip";
 import { SpaceMembersMenu } from "@/components/SpaceMembersMenu";
@@ -26,7 +26,7 @@ export function AppNav() {
   const { user, guest, isGuest, identityLabel, logout } = useAuth();
   const meId = user?.id ?? guest?.id ?? null;
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { openPalette } = useCommandPalette();
+  const { openTitleSearch } = useCommandPalette();
 
   const username = user?.username ?? null;
   const displayName = user?.displayName ?? null;
@@ -77,13 +77,13 @@ export function AppNav() {
         {/* Mobile dropdown panel. Mirrors the AccountMenu's contents
             inline since a nested dropdown at phone widths is awkward. */}
         {mobileOpen && (
-          <div className="flex flex-col border-t border-border bg-bg-elevated px-5 py-3 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.85)] sm:hidden">
+          <div className="flex max-h-[calc(100dvh-64px)] flex-col overflow-y-auto border-t border-border bg-bg-elevated px-5 py-3 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.85)] sm:hidden">
             {!isGuest && (
               <button
                 type="button"
                 onClick={() => {
                   setMobileOpen(false);
-                  openPalette();
+                  openTitleSearch();
                 }}
                 className="flex items-center gap-2 border-b border-border py-3 text-left text-sm text-foreground transition hover:text-accent"
               >
@@ -91,22 +91,7 @@ export function AppNav() {
                 Search
               </button>
             )}
-            {!isGuest && (
-              <div className="border-b border-border py-2">
-                <p className="px-2 py-1 text-[9px] uppercase tracking-wider text-text-dim">Discover</p>
-                {DISCOVER_SECTIONS.map(({ label, path, icon: Icon }) => (
-                  <NavLink
-                    key={path}
-                    to={path}
-                    end
-                    onClick={() => setMobileOpen(false)}
-                    className={({ isActive }) => cn("flex items-center gap-2 rounded-[4px] px-2 py-2.5 text-xs", isActive ? "bg-accent/10 text-accent" : "text-foreground")}
-                  >
-                    <Icon className="size-3.5" /> {label}
-                  </NavLink>
-                ))}
-              </div>
-            )}
+            {!isGuest && <MobileDiscoverMenu onNavigate={() => setMobileOpen(false)} />}
             <MobileNavLink to="/library" onClick={() => setMobileOpen(false)}>
               <LibraryIcon className="h-4 w-4 text-accent" />
               Library

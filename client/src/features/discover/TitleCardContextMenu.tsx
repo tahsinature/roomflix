@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
-import { Check, GitCompareArrows, ChevronRight, Download, ExternalLink, Film, LoaderCircle, Magnet } from "lucide-react";
+import { Minus, GitCompareArrows, ChevronRight, Download, ExternalLink, Film, LoaderCircle, Magnet } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useComparison } from "@/features/compare/ComparisonProvider";
 import { useToast } from "@/components/Toast";
@@ -23,12 +23,17 @@ const menuItem =
 
 export function TitleCardContextMenu({ title, knownImdbId, children }: TitleCardContextMenuProps) {
   const navigate = useNavigate();
-  const { addedIds, addingIds, addSelection, enabled } = useComparison();
+  const { addedIds, addingIds, addSelection, removeTitle, enabled } = useComparison();
   const { success, error } = useToast();
   const id = titleIdentity(title);
   const added = addedIds.has(id);
   const adding = addingIds.has(id);
-  const addToComparison = async () => {
+  const toggleComparison = async () => {
+    if (added) {
+      removeTitle(id);
+      success(`Removed “${title.title}” from comparison.`);
+      return;
+    }
     try {
       await addSelection(title);
       success(`Added “${title.title}” to comparison.`, { label: "View comparison", onClick: () => navigate("/discover/compare") });
@@ -79,15 +84,15 @@ export function TitleCardContextMenu({ title, knownImdbId, children }: TitleCard
 
           {enabled ? (
             <>
-              <ContextMenu.Item disabled={added || adding} className={cn(menuItem, "mt-1")} onSelect={() => void addToComparison()}>
+              <ContextMenu.Item disabled={adding} className={cn(menuItem, "mt-1")} onSelect={() => void toggleComparison()}>
                 {adding ? (
                   <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                 ) : added ? (
-                  <Check className="h-3.5 w-3.5" />
+                  <Minus className="h-3.5 w-3.5 text-muted-foreground group-data-[highlighted]:text-accent" />
                 ) : (
                   <GitCompareArrows className="h-3.5 w-3.5 text-muted-foreground group-data-[highlighted]:text-accent" />
                 )}
-                <span>{adding ? "Adding to comparison…" : added ? "Already in comparison" : "Add to comparison"}</span>
+                <span>{adding ? "Adding to comparison…" : added ? "Remove from comparison" : "Add to comparison"}</span>
               </ContextMenu.Item>
               <ContextMenu.Separator className="my-1 h-px bg-white/[0.06]" />
             </>

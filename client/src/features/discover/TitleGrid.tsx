@@ -1,3 +1,4 @@
+import { ComparisonIndicator } from "@/features/compare/ComparisonIndicator";
 import { Clapperboard, Star, Tv } from "lucide-react";
 import type { DiscoverSearchResult, TitleLibraryItem } from "@shared/protocol";
 import { cn } from "@/lib/utils";
@@ -64,12 +65,13 @@ export function TitleGrid({
                   </span>
                 ) : null}
                 {title.voteAverage > 0 ? (
-                  <span className="absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black via-black/85 to-transparent px-2 pb-2 pt-8 text-[10px] text-amber-300">
+                  <span className="absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black via-black/85 to-transparent px-2 pb-2 pr-8 pt-8 text-[10px] text-amber-300">
                     <Star className="h-3 w-3 fill-current" />
                     {title.voteAverage.toFixed(1)}
                     <span className="text-cyan-300/75">· {formatVotes(title.voteCount)}</span>
                   </span>
                 ) : null}
+                <ComparisonIndicator titleId={titleIdentity(title)} />
               </div>
               <div className="min-h-[4rem] p-2">
                 <p className="line-clamp-2 text-xs font-semibold leading-snug text-foreground">{title.title}</p>

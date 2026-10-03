@@ -1,32 +1,30 @@
 import { Link } from "react-router-dom";
-import { Clapperboard, Star, Trash2, Tv } from "lucide-react";
+import { Clapperboard, Trash2, Tv } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { discoverTitlePath, formatRuntime, posterUrl } from "@/features/discover/discover-utils";
 import { formatReleaseDate, type ComparisonTitle } from "./comparison-data";
 
-const voteFormatter = new Intl.NumberFormat();
+import { ImdbRatingDisplay } from "@/features/discover/ImdbRatingDisplay";
 
 export function createComparisonColumns(onRemove: (title: ComparisonTitle) => void): ColumnDef<ComparisonTitle>[] {
   return [
     { accessorKey: "title", header: "Title", size: 280, cell: ({ row }) => <TitleCell title={row.original} /> },
     {
-      accessorKey: "imdbRating",
+      id: "imdbRating",
+      accessorFn: (title) => title.imdbRating ?? undefined,
+      sortUndefined: "last",
       header: "IMDb",
       size: 145,
       sortDescFirst: true,
       cell: ({ row }) => (
-        <div>
-          <div className="flex items-baseline gap-1">
-            <Star className="size-3 self-center fill-amber-300 text-amber-300" aria-hidden="true" />
-            <span className="text-base font-medium tabular-nums text-foreground">{row.original.imdbRating.toFixed(1)}</span>
-            <span className="text-[9px] text-muted-foreground">/ 10</span>
-          </div>
-          <span className="block text-[10px] tabular-nums text-muted-foreground">{voteFormatter.format(row.original.imdbVotes)} votes</span>
-        </div>
+        <ImdbRatingDisplay
+          compact
+          ratings={{ rating: row.original.imdbRating, votes: row.original.imdbVotes, status: row.original.imdbStatus, fetchedAt: row.original.imdbFetchedAt }}
+        />
       ),
     },
-    { accessorKey: "imdbVotes", header: "IMDb votes", sortDescFirst: true },
+    { id: "imdbVotes", accessorFn: (title) => title.imdbVotes ?? undefined, header: "IMDb votes", sortUndefined: "last", sortDescFirst: true },
     {
       id: "releaseDate",
       accessorFn: (title) => title.releaseDate || undefined,

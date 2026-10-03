@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 
+import { loadImdbRatings } from "@/discovery/omdb-client.ts";
 import { requireUser } from "@/auth.ts";
 import { tmdbRequest, TmdbGatewayError } from "@/discovery/tmdb-client.ts";
 import { isTitle, toEpisodeDetails, toImageGallery, toPersonDetails, toSearchResult, toSeasonDetails, toTitleDetails } from "@/discovery/tmdb-normalizers.ts";
@@ -20,6 +21,12 @@ export function buildDiscoverTmdbRouter(storage: Storage) {
       return c.json({ error: error.message }, 502);
     }
     return c.json({ error: "The discovery service failed unexpectedly." }, 500);
+  });
+
+  app.get("/imdb/:imdbId", async (c) => {
+    const imdbId = c.req.param("imdbId");
+    if (!/^tt\d{7,10}$/.test(imdbId)) return c.json({ error: "invalid IMDb title identity" }, 400);
+    return c.json(await loadImdbRatings(imdbId));
   });
 
   app.get("/search", async (c) => {

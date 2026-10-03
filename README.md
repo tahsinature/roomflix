@@ -25,6 +25,19 @@ The TMDB credential stays on the server:
 TMDB_API_KEY=your-api-key
 ```
 
+For IMDb average ratings and vote counts, add an optional server-only key to
+`server/.env`, then restart the server:
+
+```bash
+OMDB_API_KEY=your-omdb-key
+```
+
+Get a key from [OMDb](https://www.omdbapi.com/apikey.aspx). Lookups run when you
+open a title, add it to Compare, or open saved comparison rows. Successful
+results are shared and cached in server memory for 24 hours; restarting the
+server clears that cache. Missing keys, exhausted quotas, and failed lookups
+show explanatory placeholders. TMDB discovery continues to work without OMDb.
+
 Discovery includes typo-tolerant search backed by a compact index generated
 from TMDB's official daily exports, genre exploration, regional watch-provider
 availability, trailers, and personal watchlist comparison. Refresh the bundled

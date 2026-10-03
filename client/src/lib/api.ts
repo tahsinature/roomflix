@@ -1,3 +1,4 @@
+import type { ImdbRatings } from "@shared/protocol";
 import type {
   AuthUser,
   ChatMessage,
@@ -109,6 +110,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   // Discover — TMDB requests are made by the Roomflix server so its
   // credential never enters the browser bundle.
+  imdbRatings: (imdbId: string) => request<ImdbRatings>(`/api/discover/imdb/${encodeURIComponent(imdbId)}`),
   discoverSearch: (query: string) => request<DiscoverSearchResponse>(`/api/discover/search?q=${encodeURIComponent(query)}`),
   discoverTrending: () => request<DiscoverSearchResult[]>("/api/discover/trending"),
   discoverGenres: (mediaType: DiscoverMediaType) => request<DiscoverGenre[]>(`/api/discover/genres/${mediaType}`),

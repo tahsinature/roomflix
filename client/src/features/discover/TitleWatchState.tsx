@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toLibraryPayload } from "./discover-utils";
 import { SectionLabel } from "./TitleDetailSections";
+import { TitleComparisonToggle } from "./TitleComparisonToggle";
 
 type LibraryPayload = Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt">;
 
@@ -50,6 +51,7 @@ export function TitleWatchState({
             <Check className="h-3.5 w-3.5" />
             {existing?.status === "watched" ? "Watched" : "Mark watched"}
           </Button>
+          <TitleComparisonToggle details={details} />
           {existing ? (
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => void onRemove(details.mediaType, details.tmdbId)} className="w-full sm:w-auto">
               <Trash2 className="h-3.5 w-3.5" />

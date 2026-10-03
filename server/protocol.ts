@@ -180,6 +180,13 @@ export type DiscoverRegionProviders = {
   buy: DiscoverWatchProvider[];
 };
 
+export type ImdbRatings = {
+  rating: number | null;
+  votes: number | null;
+  status: "available" | "not_found" | "not_configured" | "invalid_key" | "quota_exceeded" | "unauthorized" | "unavailable";
+  fetchedAt: string | null;
+};
+
 export type DiscoverTitleDetails = DiscoverSearchResult & {
   originalTitle: string;
   tagline: string;
