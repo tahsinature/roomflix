@@ -10,15 +10,16 @@ export function WhereToWatch({ providers }: { providers: Record<string, Discover
   const [region, setRegion] = useState(() => preferredRegion(regions));
   const selectedRegion = regions.includes(region) ? region : preferredRegion(regions);
   const current = providers[selectedRegion];
-  if (!regions.length || !current) return null;
 
-  const groups = [
-    { label: "Stream", items: current.stream },
-    { label: "Free", items: current.free },
-    { label: "With ads", items: current.ads },
-    { label: "Rent", items: current.rent },
-    { label: "Buy", items: current.buy },
-  ].filter((group) => group.items.length > 0);
+  const groups = current
+    ? [
+        { label: "Stream", items: current.stream },
+        { label: "Free", items: current.free },
+        { label: "With ads", items: current.ads },
+        { label: "Rent", items: current.rent },
+        { label: "Buy", items: current.buy },
+      ].filter((group) => group.items.length > 0)
+    : [];
 
   return (
     <section>
@@ -27,17 +28,19 @@ export function WhereToWatch({ providers }: { providers: Record<string, Discover
           <SectionLabel>Where to watch</SectionLabel>
           <p className="mt-1 text-[9px] text-text-dim">Availability supplied by JustWatch through TMDB.</p>
         </div>
-        <label className="flex items-center gap-2 text-[9px] uppercase tracking-[0.13em] text-muted-foreground">
-          <MapPin className="h-3.5 w-3.5" />
-          Region
-          <select value={selectedRegion} onChange={(event) => setRegion(event.target.value)} className="h-8 border border-border bg-input px-2 text-[10px] text-foreground">
-            {regions.map((code) => (
-              <option key={code} value={code}>
-                {regionName(code)}
-              </option>
-            ))}
-          </select>
-        </label>
+        {regions.length ? (
+          <label className="flex items-center gap-2 text-[9px] uppercase tracking-[0.13em] text-muted-foreground">
+            <MapPin className="h-3.5 w-3.5" />
+            Region
+            <select value={selectedRegion} onChange={(event) => setRegion(event.target.value)} className="h-8 border border-border bg-input px-2 text-[10px] text-foreground">
+              {regions.map((code) => (
+                <option key={code} value={code}>
+                  {regionName(code)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
 
       <div className="mt-3 border border-border bg-background/35 p-4">
@@ -48,9 +51,9 @@ export function WhereToWatch({ providers }: { providers: Record<string, Discover
             ))}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">No providers are listed for this region.</p>
+          <p className="text-xs text-muted-foreground">{regions.length ? "No providers are listed for this region." : "No watch availability is listed for this title."}</p>
         )}
-        {current.link ? (
+        {current?.link ? (
           <a
             href={current.link}
             target="_blank"

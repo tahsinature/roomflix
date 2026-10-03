@@ -3,7 +3,7 @@ import { Activity, Info, ListVideo, MapPin, Sparkles, UsersRound, Youtube, type 
 import type { DiscoverTitleDetails, TitleLibraryItem } from "@shared/protocol";
 import { cn } from "@/lib/utils";
 import { PulseLabPrototype } from "./PulseLabPrototype";
-import { TitleCastAndCrew, TitleFacts } from "./TitleDetailSections";
+import { TitleCastAndCrew, TitleFacts, TitleSectionEmptyState } from "./TitleDetailSections";
 import { TrailerGallery } from "./TrailerGallery";
 import { WhereToWatch } from "./TitleMediaSections";
 import { TitleWatchState } from "./TitleWatchState";
@@ -46,15 +46,16 @@ export function TitleDetailWorkspace({
   const panelRef = useRef<HTMLDivElement>(null);
   const options: SectionOption[] = [{ id: "overview", label: "Overview", icon: Info }];
 
-  if (details.mediaType === "tv" && details.seasons.length) options.push({ id: "episodes", label: "Episodes", icon: ListVideo });
-  if (details.directors.length || details.cast.length) options.push({ id: "cast", label: "Cast & Crew", icon: UsersRound });
-  if (details.trailers.length) options.push({ id: "trailers", label: "Trailers", icon: Youtube });
-  if (Object.keys(details.watchProviders).length) options.push({ id: "providers", label: "Where to Watch", icon: MapPin });
-  if (details.recommendations.length) options.push({ id: "recommendations", label: "More Like This", icon: Sparkles });
-  if (details.mediaType === "movie" && details.runtime) options.push({ id: "pulse", label: "Pulse Lab", icon: Activity });
+  if (details.mediaType === "tv") options.push({ id: "episodes", label: "Episodes", icon: ListVideo });
+  options.push({ id: "cast", label: "Cast & Crew", icon: UsersRound });
+  options.push({ id: "trailers", label: "Trailers", icon: Youtube });
+  options.push({ id: "providers", label: "Where to Watch", icon: MapPin });
+  options.push({ id: "recommendations", label: "More Like This", icon: Sparkles });
+  if (details.mediaType === "movie") options.push({ id: "pulse", label: "Pulse Lab", icon: Activity });
+  const displayedSection = options.some((option) => option.id === activeSection) ? activeSection : "overview";
 
   const selectSection = (section: DetailSection) => {
-    if (section === activeSection) return;
+    if (section === displayedSection) return;
     setActiveSection(section);
     window.requestAnimationFrame(() => {
       panelRef.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
@@ -70,7 +71,7 @@ export function TitleDetailWorkspace({
         >
           {options.map((option) => {
             const Icon = option.icon;
-            const active = activeSection === option.id;
+            const active = displayedSection === option.id;
             return (
               <button
                 key={option.id}
@@ -93,9 +94,9 @@ export function TitleDetailWorkspace({
       </aside>
 
       <div ref={panelRef} className="min-w-0 scroll-mt-[8rem] lg:scroll-mt-[6rem]">
-        <div key={activeSection} className="view-enter">
+        <div key={displayedSection} className="view-enter">
           <DetailContent
-            section={activeSection}
+            section={displayedSection}
             details={details}
             library={library}
             existing={existing}
@@ -145,7 +146,13 @@ function DetailContent({
   if (section === "cast") return <TitleCastAndCrew details={details} onSelectPerson={onSelectPerson} />;
   if (section === "trailers") return <TrailerGallery details={details} />;
   if (section === "providers") return <WhereToWatch providers={details.watchProviders} />;
-  if (section === "pulse" && details.runtime) return <PulseLabPrototype title={details.title} runtimeMinutes={details.runtime} />;
+  if (section === "pulse") {
+    return details.runtime ? (
+      <PulseLabPrototype title={details.title} runtimeMinutes={details.runtime} />
+    ) : (
+      <TitleSectionEmptyState title="Pulse Lab" message="Pulse Lab needs a movie runtime, which is not available for this title." />
+    );
+  }
   if (section === "recommendations") return <RecommendationSection details={details} library={library} onSelectTitle={onSelectTitle} />;
   return null;
 }

@@ -162,7 +162,9 @@ export function TitleFacts({ details }: { details: DiscoverTitleDetails }) {
 }
 
 export function TitleCastAndCrew({ details, onSelectPerson }: { details: DiscoverTitleDetails; onSelectPerson: (tmdbId: number) => void }) {
-  if (!details.directors.length && !details.cast.length) return null;
+  if (!details.directors.length && !details.cast.length) {
+    return <TitleSectionEmptyState title="Cast & Crew" message="No cast or crew information is available for this title." />;
+  }
 
   const creatorLabel = details.mediaType === "movie" ? "Directed by" : "Created by";
 
@@ -234,6 +236,15 @@ export function TitleCastAndCrew({ details, onSelectPerson }: { details: Discove
 
 export function SectionLabel({ children }: { children: React.ReactNode }) {
   return <h2 className="section-label">{children}</h2>;
+}
+
+export function TitleSectionEmptyState({ title, message }: { title: string; message: string }) {
+  return (
+    <section>
+      <SectionLabel>{title}</SectionLabel>
+      <div className="mt-3 border border-border bg-background/35 p-6 text-xs text-muted-foreground">{message}</div>
+    </section>
+  );
 }
 
 function FactRow({ label, children }: { label: string; children: React.ReactNode }) {

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { DiscoverTitleDetails, TitleLibraryItem } from "@shared/protocol";
 import { useAuth } from "@/auth/AuthContext";
 import { useToast } from "@/components/Toast";
-import { SectionLabel } from "./TitleDetailSections";
+import { SectionLabel, TitleSectionEmptyState } from "./TitleDetailSections";
 import { TitleGrid } from "./TitleGrid";
 import type { TitleSelection } from "./discover-utils";
 import { sortRecommendations, type RecommendationSort } from "./recommendation-sort";
@@ -20,6 +20,8 @@ export function RecommendationSection({
   const toast = useToast();
   const sort = user?.preferences.discover.moreLikeThisSort ?? "recommended";
   const titles = useMemo(() => sortRecommendations(details.recommendations, sort), [details.recommendations, sort]);
+
+  if (!titles.length) return <TitleSectionEmptyState title="More Like This" message="No related titles are available yet." />;
 
   const saveSort = (nextSort: RecommendationSort) => {
     void updatePreferences({ discover: { moreLikeThisSort: nextSort } }).catch(() => {

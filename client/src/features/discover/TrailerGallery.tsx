@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ExternalLink, Play, Youtube } from "lucide-react";
 import type { DiscoverTitleDetails, DiscoverTrailer } from "@shared/protocol";
 import { cn } from "@/lib/utils";
-import { SectionLabel } from "./TitleDetailSections";
+import { SectionLabel, TitleSectionEmptyState } from "./TitleDetailSections";
 
 export function TrailerGallery({ details }: { details: DiscoverTitleDetails }) {
   const trailers = details.trailers;
@@ -10,7 +10,7 @@ export function TrailerGallery({ details }: { details: DiscoverTitleDetails }) {
   const [playingTrailerId, setPlayingTrailerId] = useState<string | null>(null);
   const selectedTrailer = trailers.find((trailer) => trailer.id === selectedTrailerId) ?? trailers[0];
 
-  if (!selectedTrailer) return null;
+  if (!selectedTrailer) return <TitleSectionEmptyState title="Trailers" message="No trailers are available for this title." />;
 
   const playTrailer = (trailer: DiscoverTrailer) => {
     setSelectedTrailerId(trailer.id);
@@ -70,13 +70,7 @@ export function TrailerGallery({ details }: { details: DiscoverTitleDetails }) {
           </div>
           <div className="flex gap-2 overflow-x-auto overscroll-x-contain p-2 xl:max-h-[32rem] xl:flex-col xl:overflow-x-hidden xl:overflow-y-auto">
             {trailers.map((trailer, index) => (
-              <TrailerChoice
-                key={trailer.id}
-                trailer={trailer}
-                index={index}
-                selected={trailer.id === selectedTrailer.id}
-                onSelect={() => playTrailer(trailer)}
-              />
+              <TrailerChoice key={trailer.id} trailer={trailer} index={index} selected={trailer.id === selectedTrailer.id} onSelect={() => playTrailer(trailer)} />
             ))}
           </div>
         </aside>
@@ -116,17 +110,7 @@ function TrailerPoster({ trailer, onPlay }: { trailer: DiscoverTrailer; onPlay: 
   );
 }
 
-function TrailerChoice({
-  trailer,
-  index,
-  selected,
-  onSelect,
-}: {
-  trailer: DiscoverTrailer;
-  index: number;
-  selected: boolean;
-  onSelect: () => void;
-}) {
+function TrailerChoice({ trailer, index, selected, onSelect }: { trailer: DiscoverTrailer; index: number; selected: boolean; onSelect: () => void }) {
   return (
     <button
       type="button"
