@@ -35,42 +35,46 @@ export function TitleGrid({
         const MediaIcon = title.mediaType === "tv" ? Tv : Clapperboard;
         return (
           <TitleCardContextMenu key={titleIdentity(title)} title={title} knownImdbId={saved?.imdbId}>
-            <button
-              type="button"
-              onClick={() => onSelect(title)}
-              onPointerEnter={() => prefetchTitleDetails(title)}
-              onFocus={() => prefetchTitleDetails(title)}
-              className="group min-w-0 border border-border bg-card/45 text-left transition-[transform,border-color,box-shadow] duration-200 [content-visibility:auto] [contain-intrinsic-size:280px] hover:-translate-y-1 hover:border-accent/45 hover:shadow-[0_16px_40px_-24px_hsl(var(--accent)/0.65)]"
-            >
-              <div className="relative aspect-[2/3] overflow-hidden bg-bg-elevated">
-                {image ? (
-                  <img
-                    src={image}
-                    alt=""
-                    width={342}
-                    height={513}
-                    loading="lazy"
-                    decoding="async"
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.035]"
-                  />
-                ) : (
-                  <div className="grid h-full place-items-center">
-                    <MediaIcon className="h-8 w-8 text-text-dim" />
-                  </div>
-                )}
-                <span className="absolute left-2 top-2 inline-flex items-center gap-1 border border-white/20 bg-black/70 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/80 backdrop-blur">
-                  <MediaIcon className="h-2.5 w-2.5" />
-                  {title.mediaType === "tv" ? "Series" : "Film"}
-                </span>
+            <div className="group relative min-w-0 border border-border bg-card/45 text-left transition-[transform,border-color,box-shadow] duration-200 [content-visibility:auto] [contain-intrinsic-size:280px] hover:-translate-y-1 hover:border-accent/45 hover:shadow-[0_16px_40px_-24px_hsl(var(--accent)/0.65)]">
+              <button
+                type="button"
+                onClick={() => onSelect(title)}
+                onPointerEnter={() => prefetchTitleDetails(title)}
+                onFocus={() => prefetchTitleDetails(title)}
+                className="block w-full text-left focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent"
+              >
+                <div className="relative aspect-[2/3] overflow-hidden bg-bg-elevated">
+                  {image ? (
+                    <img
+                      src={image}
+                      alt=""
+                      width={342}
+                      height={513}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.035]"
+                    />
+                  ) : (
+                    <div className="grid h-full place-items-center">
+                      <MediaIcon className="h-8 w-8 text-text-dim" />
+                    </div>
+                  )}
+                  <span className="absolute left-2 top-2 inline-flex items-center gap-1 border border-white/20 bg-black/70 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/80 backdrop-blur">
+                    <MediaIcon className="h-2.5 w-2.5" />
+                    {title.mediaType === "tv" ? "Series" : "Film"}
+                  </span>
+                  <TitleStatusIndicators titleId={titleIdentity(title)} status={saved?.status} statusAt={titleLibraryStatusDate(saved)} />
+                  {title.mediaType === "tv" ? <SeriesCardStatus tmdbId={title.tmdbId} /> : null}
+                </div>
+                <div className="min-h-[4rem] p-2">
+                  <p className="line-clamp-2 text-xs font-semibold leading-snug text-foreground">{title.title}</p>
+                  <p className="mt-1 text-[10px] text-text-dim">{title.year || "Date unknown"}</p>
+                </div>
+              </button>
+              <div className="pointer-events-none absolute inset-x-0 top-0 aspect-[2/3]">
                 <TitleCardRatings title={title} knownImdbId={saved?.imdbId} />
-                <TitleStatusIndicators titleId={titleIdentity(title)} status={saved?.status} statusAt={titleLibraryStatusDate(saved)} />
-                {title.mediaType === "tv" ? <SeriesCardStatus tmdbId={title.tmdbId} /> : null}
               </div>
-              <div className="min-h-[4rem] p-2">
-                <p className="line-clamp-2 text-xs font-semibold leading-snug text-foreground">{title.title}</p>
-                <p className="mt-1 text-[10px] text-text-dim">{title.year || "Date unknown"}</p>
-              </div>
-            </button>
+            </div>
           </TitleCardContextMenu>
         );
       })}

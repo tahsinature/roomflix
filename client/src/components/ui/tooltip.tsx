@@ -21,7 +21,19 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function Tooltip({ content, children, side = "top" }: { content?: ReactNode; children: ReactElement; side?: "top" | "bottom" | "left" | "right" }) {
+export function Tooltip({
+  content,
+  children,
+  side = "top",
+  open,
+  onOpenChange,
+}: {
+  content?: ReactNode;
+  children: ReactElement;
+  side?: "top" | "bottom" | "left" | "right";
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const container = useContext(TooltipPortalContext);
   if (!content) return children;
   // Disabled buttons cannot receive pointer events. A span keeps their help available.
@@ -33,7 +45,7 @@ export function Tooltip({ content, children, side = "top" }: { content?: ReactNo
     children
   );
   return (
-    <TooltipPrimitive.Root>
+    <TooltipPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <TooltipPrimitive.Trigger
         asChild
         data-tooltip-trigger=""

@@ -14,14 +14,7 @@ export const imdbFailureMessages: Record<Exclude<ImdbRatings["status"], "availab
 
 export function ImdbRatingDisplay({ ratings, compact = false }: { ratings: ImdbRatings | null; compact?: boolean }) {
   const reason = ratings && ratings.status !== "available" ? imdbFailureMessages[ratings.status] : null;
-  const tooltip = (
-    <TooltipDetails
-      heading="IMDb rating"
-      tone="text-amber-300"
-      description={reason ?? "Average rating out of 10"}
-      footer={ratings?.fetchedAt ? `Updated ${new Date(ratings.fetchedAt).toLocaleString()}` : undefined}
-    />
-  );
+  const tooltip = <TooltipDetails heading="IMDb rating" tone="text-amber-300" description={reason ?? "Average rating out of 10"} />;
   return (
     <Tooltip content={tooltip}>
       <span className={compact ? "block" : "flex flex-wrap items-center gap-x-1.5 gap-y-0.5"} role="status">

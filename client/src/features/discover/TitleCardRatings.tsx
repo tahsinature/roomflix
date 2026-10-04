@@ -1,67 +1,87 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { DiscoverSearchResult, ImdbRatings } from "@shared/protocol";
 import { Star } from "lucide-react";
-import { Tooltip, TooltipDetails } from "@/components/ui/tooltip";
+import { Tooltip } from "@/components/ui/tooltip";
 import { loadCardRatings } from "./card-ratings-cache";
 import { imdbFailureMessages } from "./ImdbRatingDisplay";
+import { formatVotes } from "./discover-utils";
 
 export function TitleCardRatings({ title, knownImdbId }: { title: DiscoverSearchResult; knownImdbId?: string | null }) {
-  const anchor = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
   const [result, setResult] = useState<{ key: string; data: ImdbRatings } | null>(null);
   const key = `${title.mediaType}:${title.tmdbId}`;
   const ratings = result?.key === key ? result.data : null;
   useEffect(() => {
+    if (!open) return;
     let cancelled = false;
-    const observer = new IntersectionObserver((entries) => {
-      if (!entries.some((entry) => entry.isIntersecting)) return;
-      observer.disconnect();
-      void loadCardRatings(title.mediaType, title.tmdbId, knownImdbId).then((data) => {
-        if (!cancelled) setResult({ key, data });
-      });
+    void loadCardRatings(title.mediaType, title.tmdbId, knownImdbId).then((data) => {
+      if (!cancelled) setResult({ key, data });
     });
-    if (anchor.current) observer.observe(anchor.current);
     return () => {
       cancelled = true;
-      observer.disconnect();
     };
-  }, [key, title.mediaType, title.tmdbId, knownImdbId]);
+  }, [open, key, title.mediaType, title.tmdbId, knownImdbId]);
   const imdbReason = ratings && ratings.status !== "available" ? imdbFailureMessages[ratings.status] : null;
+  const tmdbRating = title.voteCount > 0 ? title.voteAverage : null;
   return (
-    <span
-      ref={anchor}
-      className="absolute inset-x-0 bottom-0 flex flex-col items-start gap-0.5 bg-gradient-to-t from-black via-black/85 to-transparent px-2 pb-2 pr-8 pt-8 text-[9px]"
-    >
-      <CardRating
-        source="IMDb"
-        tone="text-amber-300"
-        rating={ratings?.rating ?? null}
-        votes={ratings?.votes ?? null}
-        reason={imdbReason ?? (ratings ? "Rating unavailable" : "Loading IMDb rating…")}
-      />
-      <CardRating source="TMDB" tone="text-cyan" rating={title.voteCount > 0 ? title.voteAverage : null} votes={title.voteCount} reason="No TMDB ratings yet" />
+    <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/85 to-transparent px-2 pb-2 pr-8 pt-8">
+      <Tooltip
+        open={open}
+        onOpenChange={setOpen}
+        content={
+          <span className="block min-w-44">
+            <span className="mb-2 block text-[9px] uppercase tracking-wider text-muted-foreground">Audience ratings</span>
+            <RatingSummary
+              source="IMDb"
+              tone="text-amber-300"
+              rating={ratings?.rating ?? null}
+              votes={ratings?.votes ?? null}
+              reason={imdbReason ?? (ratings ? "Rating unavailable" : "Loading IMDb rating…")}
+            />
+            <span className="my-2 block border-t border-border-hover" />
+            <RatingSummary source="TMDB" tone="text-cyan" rating={tmdbRating} votes={title.voteCount} reason="No ratings yet" />
+          </span>
+        }
+      >
+        <button
+          type="button"
+          aria-label={`TMDB ${tmdbRating !== null ? `${tmdbRating.toFixed(1)} out of 10, ${title.voteCount.toLocaleString()} ratings` : "no ratings yet"}. View IMDb and TMDB ratings.`}
+          aria-expanded={open}
+          onPointerDown={(event) => event.preventDefault()}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setOpen((current) => !current);
+          }}
+          className="pointer-events-auto inline-flex items-center gap-1 rounded-sm text-[10px] text-cyan focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent"
+        >
+          <Star className="size-3 fill-current" aria-hidden="true" />
+          <span className="tabular-nums">{tmdbRating !== null ? tmdbRating.toFixed(1) : "—"}</span>
+          <span className="text-cyan/80">· {formatVotes(title.voteCount)}</span>
+        </button>
+      </Tooltip>
     </span>
   );
 }
 
-function CardRating({ source, tone, rating, votes, reason }: { source: string; tone: string; rating: number | null; votes: number | null; reason: string }) {
+function RatingSummary({ source, tone, rating, votes, reason }: { source: string; tone: string; rating: number | null; votes: number | null; reason: string }) {
   return (
-    <Tooltip
-      content={
-        <TooltipDetails
-          heading={`${source} rating`}
-          tone={tone}
-          description={rating !== null ? "Average rating out of 10" : reason}
-          footer={votes !== null ? `${votes.toLocaleString()} ratings` : undefined}
-        />
-      }
-    >
-      <span className={`inline-flex items-center gap-0.5 whitespace-nowrap ${tone}`} aria-label={`${source}: ${rating !== null ? `${rating.toFixed(1)} out of 10` : reason}`}>
-        <span className="w-6 text-[8px] font-medium">{source}</span>
-        <span className="size-2.5 shrink-0" aria-hidden="true">
-          {rating !== null ? <Star className="size-2.5 fill-current" /> : null}
-        </span>
-        <span className="tabular-nums">{rating !== null ? rating.toFixed(1) : "—"}</span>
+    <span className="block">
+      <span className={`flex items-center justify-between gap-4 font-medium ${tone}`}>
+        <span>{source}</span>
+        {rating !== null ? (
+          <span className="inline-flex items-center gap-1 tabular-nums">
+            <Star className="size-3 fill-current" aria-hidden="true" />
+            {rating.toFixed(1)}
+            <span className="text-[9px] font-normal text-muted-foreground">/ 10</span>
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
       </span>
-    </Tooltip>
+      <span className="mt-1 block text-[10px] text-muted-foreground">
+        {rating !== null ? (votes !== null ? `${votes.toLocaleString()} ratings` : "Rating count unavailable") : reason}
+      </span>
+    </span>
   );
 }
