@@ -1,11 +1,12 @@
 import { TitleStatusIndicators } from "@/features/discover/TitleStatusIndicators";
-import { Clapperboard, Star, Tv } from "lucide-react";
+import { Clapperboard, Tv } from "lucide-react";
 import type { DiscoverSearchResult, TitleLibraryItem } from "@shared/protocol";
 import { cn } from "@/lib/utils";
-import { formatVotes, posterUrl, titleIdentity, type TitleSelection } from "./discover-utils";
+import { posterUrl, titleIdentity, type TitleSelection } from "./discover-utils";
 import { prefetchTitleDetails } from "./title-details-cache";
 import { titleLibraryStatusDate } from "./status-tooltip";
 import { TitleCardContextMenu } from "./TitleCardContextMenu";
+import { TitleCardRatings } from "./TitleCardRatings";
 import { SeriesCardStatus } from "./SeriesCardStatus";
 
 export function TitleGrid({
@@ -61,13 +62,7 @@ export function TitleGrid({
                   <MediaIcon className="h-2.5 w-2.5" />
                   {title.mediaType === "tv" ? "Series" : "Film"}
                 </span>
-                {title.voteAverage > 0 ? (
-                  <span className="absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black via-black/85 to-transparent px-2 pb-2 pr-8 pt-8 text-[10px] text-amber-300">
-                    <Star className="h-3 w-3 fill-current" />
-                    {title.voteAverage.toFixed(1)}
-                    <span className="text-cyan-300/75">· {formatVotes(title.voteCount)}</span>
-                  </span>
-                ) : null}
+                <TitleCardRatings title={title} knownImdbId={saved?.imdbId} />
                 <TitleStatusIndicators titleId={titleIdentity(title)} status={saved?.status} statusAt={titleLibraryStatusDate(saved)} />
                 {title.mediaType === "tv" ? <SeriesCardStatus tmdbId={title.tmdbId} /> : null}
               </div>

@@ -22,3 +22,7 @@ export function loadImdbRatings(imdbId: string | null): Promise<ImdbRatings> {
   cache.set(imdbId, { promise, expiresAt: Infinity });
   return promise;
 }
+
+export function primeImdbRatings(imdbId: string, ratings: ImdbRatings) {
+  cache.set(imdbId, { promise: Promise.resolve(ratings), expiresAt: Date.now() + (ratings.status === "available" ? 10 * 60 * 1000 : 60 * 1000) });
+}

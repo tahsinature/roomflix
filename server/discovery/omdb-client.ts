@@ -1,10 +1,16 @@
+import { createPersistentCache, type PersistentCache } from "./persistent-cache.ts";
 import type { ImdbRatings } from "@/protocol.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RETRY_MS = 5 * 60 * 1000;
 const unavailable = (status: ImdbRatings["status"]): ImdbRatings => ({ rating: null, votes: null, status, fetchedAt: null });
 
-export function createOmdbClient({ apiKey = () => process.env.OMDB_API_KEY?.trim(), fetcher = fetch, now = Date.now } = {}) {
+export function createOmdbClient({
+  apiKey = () => process.env.OMDB_API_KEY?.trim(),
+  fetcher = fetch,
+  now = Date.now,
+  persistentCache = null,
+}: { apiKey?: () => string | undefined; fetcher?: typeof fetch; now?: () => number; persistentCache?: PersistentCache<ImdbRatings> | null } = {}) {
   const cache = new Map<string, { data: ImdbRatings; expiresAt: number }>();
   const pending = new Map<string, Promise<ImdbRatings>>();
   let quotaRetryAt = 0;
@@ -43,17 +49,23 @@ export function createOmdbClient({ apiKey = () => process.env.OMDB_API_KEY?.trim
     if (cached && cached.expiresAt > now()) return cached.data;
     const inFlight = pending.get(imdbId);
     if (inFlight) return inFlight;
-    if (quotaRetryAt > now()) return unavailable("quota_exceeded");
-    const promise = request(imdbId, key)
-      .then((data) => {
-        if (cache.size >= 2000) cache.delete(cache.keys().next().value!);
-        cache.set(imdbId, { data, expiresAt: now() + (data.status === "available" ? DAY_MS : data.status === "not_found" ? 60 * 60 * 1000 : RETRY_MS) });
-        return data;
-      })
-      .finally(() => pending.delete(imdbId));
+    const promise = (async () => {
+      const stored = await persistentCache?.get(imdbId).catch(() => null);
+      if (stored && stored.expiresAt > now()) {
+        cache.set(imdbId, stored);
+        return stored.data;
+      }
+      if (quotaRetryAt > now()) return unavailable("quota_exceeded");
+      const data = await request(imdbId, key);
+      const expiresAt = now() + (data.status === "available" ? DAY_MS : data.status === "not_found" ? 60 * 60 * 1000 : RETRY_MS);
+      if (cache.size >= 2000) cache.delete(cache.keys().next().value!);
+      cache.set(imdbId, { data, expiresAt });
+      if (data.status === "available" || data.status === "not_found") await persistentCache?.set(imdbId, data, expiresAt).catch(() => undefined);
+      return data;
+    })().finally(() => pending.delete(imdbId));
     pending.set(imdbId, promise);
     return promise;
   };
 }
 
-export const loadImdbRatings = createOmdbClient();
+export const loadImdbRatings = createOmdbClient({ persistentCache: createPersistentCache<ImdbRatings>("imdb-ratings") });

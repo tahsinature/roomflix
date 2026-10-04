@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 
+import { resolveImdbIdentity } from "@/discovery/imdb-identity.ts";
 import { loadImdbRatings } from "@/discovery/omdb-client.ts";
 import { loadSeriesStatus } from "@/discovery/series-status.ts";
 import { requireUser } from "@/auth.ts";
@@ -28,6 +29,15 @@ export function buildDiscoverTmdbRouter(storage: Storage) {
     const imdbId = c.req.param("imdbId");
     if (!/^tt\d{7,10}$/.test(imdbId)) return c.json({ error: "invalid IMDb title identity" }, 400);
     return c.json(await loadImdbRatings(imdbId));
+  });
+
+  app.get("/card-imdb/:mediaType/:tmdbId", async (c) => {
+    const mediaType = c.req.param("mediaType");
+    const tmdbId = parsePositiveInt(c.req.param("tmdbId"));
+    if ((mediaType !== "movie" && mediaType !== "tv") || !tmdbId) return c.json({ error: "invalid title identity" }, 400);
+    const imdbId = await resolveImdbIdentity(mediaType, tmdbId);
+    const ratings = imdbId ? await loadImdbRatings(imdbId) : { rating: null, votes: null, status: "not_found" as const, fetchedAt: null };
+    return c.json({ imdbId, ratings });
   });
 
   app.get("/search", async (c) => {

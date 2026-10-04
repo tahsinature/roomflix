@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { ImdbRatings } from "../server/protocol";
 import { createOmdbClient } from "../server/discovery/omdb-client";
 
 function response(body: Record<string, unknown>) {
@@ -37,6 +38,49 @@ describe("OMDb ratings adapter", () => {
     now += 24 * 60 * 60 * 1000 + 1;
     await client("tt2543164");
     expect(calls).toBe(2);
+  });
+
+  test("reuses persisted ratings across client restarts and refreshes expired results", async () => {
+    const records = new Map<string, { data: ImdbRatings; expiresAt: number }>();
+    let calls = 0;
+    let time = Date.now();
+    const options = {
+      apiKey: () => "test-key",
+      now: () => time,
+      persistentCache: {
+        get: async (key: string) => records.get(key) ?? null,
+        set: async (key: string, data: ImdbRatings, expiresAt: number) => {
+          records.set(key, { data, expiresAt });
+        },
+      },
+      fetcher: (async () => {
+        calls++;
+        return response(body);
+      }) as typeof fetch,
+    };
+    const first = await createOmdbClient(options)("tt2543164");
+    const restarted = createOmdbClient(options);
+    expect(await Promise.all([restarted("tt2543164"), restarted("tt2543164")])).toEqual([first, first]);
+    expect(calls).toBe(1);
+    time += 24 * 60 * 60 * 1000 + 1;
+    await createOmdbClient(options)("tt2543164");
+    expect(calls).toBe(2);
+  });
+
+  test("cache storage failures do not prevent loading valid ratings", async () => {
+    const client = createOmdbClient({
+      apiKey: () => "test-key",
+      persistentCache: {
+        get: async () => {
+          throw new Error("offline");
+        },
+        set: async () => {
+          throw new Error("offline");
+        },
+      },
+      fetcher: (async () => response(body)) as typeof fetch,
+    });
+    expect((await client("tt2543164")).rating).toBe(7.9);
   });
 
   test("does not send requests without a key or for invalid identities", async () => {
