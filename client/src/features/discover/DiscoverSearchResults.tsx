@@ -4,6 +4,7 @@ import type { DiscoverSearchResult, TitleLibraryItem } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
+import { useRecentSearches } from "./use-recent-searches";
 import { TitleGrid } from "./TitleGrid";
 import type { TitleSelection } from "./discover-utils";
 
@@ -18,6 +19,7 @@ export function DiscoverSearchResults({
   onSelect: (title: TitleSelection) => void;
   onSearch: (query: string) => void;
 }) {
+  const { rememberSearch } = useRecentSearches();
   const [draft, setDraft] = useState(query);
   const [titles, setTitles] = useState<DiscoverSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -57,7 +59,10 @@ export function DiscoverSearchResults({
         className="flex items-center gap-2"
         onSubmit={(event) => {
           event.preventDefault();
-          if (draft.trim().length >= 2) onSearch(draft.trim());
+          if (draft.trim().length >= 2) {
+            rememberSearch(draft.trim());
+            onSearch(draft.trim());
+          }
         }}
       >
         <Input

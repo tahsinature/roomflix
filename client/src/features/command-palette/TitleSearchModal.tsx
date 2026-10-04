@@ -6,6 +6,8 @@ import { Modal } from "@/components/Modal";
 import { Command, CommandEmpty, CommandInput, CommandList } from "@/components/ui/command";
 import { api } from "@/lib/api";
 import { useComparison } from "@/features/compare/ComparisonProvider";
+import { useRecentSearches } from "@/features/discover/use-recent-searches";
+import { RecentSearches } from "./RecentSearches";
 import { TitleSearchResults } from "./TitleSearchResults";
 
 export default function TitleSearchModal({ addToComparison, onClose }: { addToComparison: boolean; onClose: () => void }) {
@@ -19,6 +21,8 @@ export default function TitleSearchModal({ addToComparison, onClose }: { addToCo
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const trimmedQuery = query.trim();
+  const { terms, rememberSearch, removeSearch, clearSearches } = useRecentSearches();
+  const showingRecent = !trimmedQuery && terms.length > 0;
 
   useEffect(() => {
     setSearch(null);
@@ -45,10 +49,11 @@ export default function TitleSearchModal({ addToComparison, onClose }: { addToCo
     };
   }, [trimmedQuery]);
 
-  const submitSearch = () => {
-    if (trimmedQuery.length < 2) return;
+  const submitSearch = (term = trimmedQuery) => {
+    if (term.length < 2) return;
+    rememberSearch(term);
     onClose();
-    navigate(`/discover/search?${new URLSearchParams({ q: trimmedQuery })}`);
+    navigate(`/discover/search?${new URLSearchParams({ q: term })}`);
   };
   const goTo = (path: string) => {
     const previousState = location.state as { discoverReturnTo?: unknown } | null;
@@ -72,7 +77,7 @@ export default function TitleSearchModal({ addToComparison, onClose }: { addToCo
             !addToComparison && !selectedExplicitly ? "[&_[cmdk-item][data-selected=true]]:!bg-transparent [&_[cmdk-item][data-selected=true]]:!text-foreground" : undefined
           }
           onKeyDown={(event) => {
-            if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) && search?.titles.length) {
+            if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) && (search?.titles.length || showingRecent)) {
               if (!selectedExplicitly && (event.key === "ArrowDown" || event.key === "ArrowUp")) event.preventDefault();
               setSelectedExplicitly(true);
             }
@@ -93,7 +98,14 @@ export default function TitleSearchModal({ addToComparison, onClose }: { addToCo
             aria-label="Search movies and series"
             trailingContent={
               !addToComparison ? (
-                <Button type="button" size="sm" disabled={trimmedQuery.length < 2} onClick={submitSearch} onKeyDown={(event) => event.stopPropagation()} className="shrink-0">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={trimmedQuery.length < 2}
+                  onClick={() => submitSearch()}
+                  onKeyDown={(event) => event.stopPropagation()}
+                  className="shrink-0"
+                >
                   Search
                 </Button>
               ) : null
@@ -104,7 +116,21 @@ export default function TitleSearchModal({ addToComparison, onClose }: { addToCo
               if (event.target instanceof Element && event.target.closest("[cmdk-item]")) setSelectedExplicitly(true);
             }}
           >
-            <CommandEmpty>{message}</CommandEmpty>
+            {showingRecent ? (
+              <RecentSearches
+                terms={terms}
+                onSelect={(term) => {
+                  if (addToComparison) {
+                    setQuery(term);
+                    setSelectedExplicitly(false);
+                  } else submitSearch(term);
+                }}
+                onRemove={removeSearch}
+                onClear={clearSearches}
+              />
+            ) : (
+              <CommandEmpty>{message}</CommandEmpty>
+            )}
             {search?.titles.length ? (
               <TitleSearchResults
                 titles={search.titles}
@@ -118,7 +144,7 @@ export default function TitleSearchModal({ addToComparison, onClose }: { addToCo
           </CommandList>
           <div className="flex items-center gap-4 border-t border-border px-4 py-2 text-[9px] uppercase tracking-wider text-muted-foreground">
             <span>↑↓ Navigate</span>
-            <span>{addToComparison ? "↵ Add title" : selectedExplicitly ? "↵ Open title" : "↵ Search all"}</span>
+            <span>{addToComparison ? "↵ Add title" : selectedExplicitly ? (showingRecent ? "↵ Search again" : "↵ Open title") : "↵ Search all"}</span>
             <span className="ml-auto">Esc Close</span>
           </div>
         </Command>
