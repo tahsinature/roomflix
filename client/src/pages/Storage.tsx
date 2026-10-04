@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, Crown, Database, Loader2, Settings } from "lucide-react";
@@ -129,29 +130,30 @@ function ConnectionPill({ connection: c, active, mine, onClick }: { connection: 
   const ownerName = c.ownerDisplayName?.trim() || (c.ownerUsername ? `@${c.ownerUsername}` : "space owner");
   const ownerLabel = mine ? "yours" : `by ${ownerName}`;
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-current={active ? "page" : undefined}
-      title={mine ? "Owned by you" : `Shared by ${ownerName}`}
-      className={cn(
-        "flex items-center gap-2 border px-3 py-2 text-left transition",
-        active
-          ? "border-accent/50 bg-accent/10 text-foreground"
-          : "border-border bg-bg-elevated/40 text-muted-foreground hover:border-border-hover hover:bg-bg-elevated/70 hover:text-foreground",
-      )}
-    >
-      <Database className={cn("h-3.5 w-3.5 shrink-0", active ? "text-accent" : "text-text-dim")} />
-      <span className="flex min-w-0 flex-col leading-tight">
-        <span className="flex items-center gap-1.5 truncate text-sm">
-          <span className="truncate">{c.label}</span>
-          {mine && <Crown className="h-3 w-3 shrink-0 text-amber-300" aria-label="Owned by you" />}
+    <Tooltip content={mine ? "Owned by you" : `Shared by ${ownerName}`}>
+      <button
+        type="button"
+        onClick={onClick}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "flex items-center gap-2 border px-3 py-2 text-left transition",
+          active
+            ? "border-accent/50 bg-accent/10 text-foreground"
+            : "border-border bg-bg-elevated/40 text-muted-foreground hover:border-border-hover hover:bg-bg-elevated/70 hover:text-foreground",
+        )}
+      >
+        <Database className={cn("h-3.5 w-3.5 shrink-0", active ? "text-accent" : "text-text-dim")} />
+        <span className="flex min-w-0 flex-col leading-tight">
+          <span className="flex items-center gap-1.5 truncate text-sm">
+            <span className="truncate">{c.label}</span>
+            {mine && <Crown className="h-3 w-3 shrink-0 text-amber-300" aria-label="Owned by you" />}
+          </span>
+          <span className="truncate font-mono text-[10px] text-text-dim">
+            {ownerLabel} · {c.provider} · {c.bucket}
+          </span>
         </span>
-        <span className="truncate font-mono text-[10px] text-text-dim">
-          {ownerLabel} · {c.provider} · {c.bucket}
-        </span>
-      </span>
-    </button>
+      </button>
+    </Tooltip>
   );
 }
 

@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Pause, Play, Users } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -51,35 +52,37 @@ export function SpaceMembersMenu({ meId, className, align = "left" }: { meId?: s
             hasActiveTheater ? "border-accent/40 bg-accent/10 text-foreground" : "border-border bg-bg-elevated/50 text-foreground",
           )}
         >
-          <Link
-            to="/watch"
-            onClick={() => setOpen(false)}
-            aria-label={`Open theater. ${onlineCount} online${theaterActivity}`}
-            title="Open the theater"
-            className="flex h-full items-center gap-1.5 px-3 transition hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent/60"
-          >
-            <Users className={cn("h-3 w-3", onlineCount > 0 ? "text-accent" : "text-text-dim/70")} />
-            <span className="tabular-nums">{onlineCount}</span>
-            <span className="hidden text-text-dim lg:inline">online</span>
-            {hasActiveTheater ? (
-              state?.playing ? (
-                <Play className="h-2.5 w-2.5 fill-current text-accent" aria-hidden />
-              ) : (
-                <Pause className="h-2.5 w-2.5 fill-current text-accent" aria-hidden />
-              )
-            ) : null}
-          </Link>
-          <button
-            type="button"
-            onClick={() => setOpen((current) => !current)}
-            aria-haspopup="dialog"
-            aria-expanded={open}
-            aria-label={`View space members: ${onlineCount} online, ${totalPeople} total`}
-            title={`View all ${totalPeople} members of ${currentSpace?.name ?? "this space"}`}
-            className="flex h-full items-center border-l border-white/10 px-2 transition hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent/60"
-          >
-            <ChevronDown className={cn("h-3 w-3 text-text-dim transition", open && "rotate-180")} />
-          </button>
+          <Tooltip content="Open the theater">
+            <Link
+              to="/watch"
+              onClick={() => setOpen(false)}
+              aria-label={`Open theater. ${onlineCount} online${theaterActivity}`}
+              className="flex h-full items-center gap-1.5 px-3 transition hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent/60"
+            >
+              <Users className={cn("h-3 w-3", onlineCount > 0 ? "text-accent" : "text-text-dim/70")} />
+              <span className="tabular-nums">{onlineCount}</span>
+              <span className="hidden text-text-dim lg:inline">online</span>
+              {hasActiveTheater ? (
+                state?.playing ? (
+                  <Play className="h-2.5 w-2.5 fill-current text-accent" aria-hidden />
+                ) : (
+                  <Pause className="h-2.5 w-2.5 fill-current text-accent" aria-hidden />
+                )
+              ) : null}
+            </Link>
+          </Tooltip>
+          <Tooltip content={`View all ${totalPeople} members of ${currentSpace?.name ?? "this space"}`}>
+            <button
+              type="button"
+              onClick={() => setOpen((current) => !current)}
+              aria-haspopup="dialog"
+              aria-expanded={open}
+              aria-label={`View space members: ${onlineCount} online, ${totalPeople} total`}
+              className="flex h-full items-center border-l border-white/10 px-2 transition hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent/60"
+            >
+              <ChevronDown className={cn("h-3 w-3 text-text-dim transition", open && "rotate-180")} />
+            </button>
+          </Tooltip>
         </div>
 
         {open ? (

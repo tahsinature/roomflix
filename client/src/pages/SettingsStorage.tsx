@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
 import { AlertTriangle, Cloud, Database, HardDrive, Loader2, Pencil, Plus, Sparkles, Trash2, Users2, X } from "lucide-react";
 import type { StorageConnectionDetail } from "@shared/protocol";
@@ -321,25 +322,22 @@ function ConnectionCard({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            onClick={onEdit}
-            aria-label="Edit"
-            title="Edit connection"
-            className="flex h-8 w-8 items-center justify-center text-text-dim transition hover:text-foreground"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => void triggerDelete()}
-            disabled={busy}
-            aria-label={armed ? "Click again to confirm delete" : "Delete"}
-            title={armed ? "Click again to confirm" : "Delete connection"}
-            className={cn("flex h-8 w-8 items-center justify-center transition", armed ? "animate-pulse-soft bg-accent text-white" : "text-text-dim hover:text-accent")}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          <Tooltip content="Edit connection">
+            <button type="button" onClick={onEdit} aria-label="Edit" className="flex h-8 w-8 items-center justify-center text-text-dim transition hover:text-foreground">
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          </Tooltip>
+          <Tooltip content={armed ? "Click again to confirm" : "Delete connection"}>
+            <button
+              type="button"
+              onClick={() => void triggerDelete()}
+              disabled={busy}
+              aria-label={armed ? "Click again to confirm delete" : "Delete"}
+              className={cn("flex h-8 w-8 items-center justify-center transition", armed ? "animate-pulse-soft bg-accent text-white" : "text-text-dim hover:text-accent")}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </Tooltip>
         </div>
       </header>
       <div className="p-4">
@@ -460,20 +458,20 @@ function TriToggle({ value, busy, onChange }: { value: "off" | "members" | "gues
       {opts.map((o) => {
         const active = value === o.id;
         return (
-          <button
-            key={o.id}
-            type="button"
-            onClick={() => onChange(o.id)}
-            disabled={busy || active}
-            className={cn(
-              "relative z-10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors duration-200",
-              active ? "text-white" : "text-muted-foreground hover:text-foreground disabled:opacity-50",
-            )}
-            aria-pressed={active}
-            title={o.hint}
-          >
-            {o.label}
-          </button>
+          <Tooltip content={o.hint} key={o.id}>
+            <button
+              type="button"
+              onClick={() => onChange(o.id)}
+              disabled={busy || active}
+              className={cn(
+                "relative z-10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors duration-200",
+                active ? "text-white" : "text-muted-foreground hover:text-foreground disabled:opacity-50",
+              )}
+              aria-pressed={active}
+            >
+              {o.label}
+            </button>
+          </Tooltip>
         );
       })}
     </div>
@@ -507,28 +505,29 @@ function ManagedConnectionCard({ label, providerHint, quotaHint }: { label: stri
     // "Coming soon" pill removes any ambiguity. When the feature
     // ships, drop the wrapper classes and swap the pill back to a live
     // "managed" tag.
-    <div
-      aria-disabled="true"
-      title="Not available yet"
-      className="relative overflow-hidden border border-accent/30 bg-gradient-to-br from-accent/[0.06] via-bg-elevated/40 to-bg-elevated/40 opacity-60 grayscale select-none"
-    >
-      <span aria-hidden className="absolute inset-y-0 left-0 w-[2px] bg-accent/70" />
-      <div className="flex flex-wrap items-center gap-3 px-4 py-3 pl-5">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <Sparkles className="h-4 w-4 shrink-0 text-accent" />
-          <div className="flex min-w-0 flex-col">
-            <span className="flex items-center gap-2 truncate text-sm font-medium text-foreground">
-              {label}
-              <span className="border border-foreground/30 bg-foreground/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-foreground/80">Coming soon</span>
-            </span>
-            <span className="font-mono text-[11px] text-text-dim">
-              {providerHint} · {quotaHint}
-            </span>
+    <Tooltip content="Not available yet">
+      <div
+        aria-disabled="true"
+        className="relative overflow-hidden border border-accent/30 bg-gradient-to-br from-accent/[0.06] via-bg-elevated/40 to-bg-elevated/40 opacity-60 grayscale select-none"
+      >
+        <span aria-hidden className="absolute inset-y-0 left-0 w-[2px] bg-accent/70" />
+        <div className="flex flex-wrap items-center gap-3 px-4 py-3 pl-5">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <Sparkles className="h-4 w-4 shrink-0 text-accent" />
+            <div className="flex min-w-0 flex-col">
+              <span className="flex items-center gap-2 truncate text-sm font-medium text-foreground">
+                {label}
+                <span className="border border-foreground/30 bg-foreground/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-foreground/80">Coming soon</span>
+              </span>
+              <span className="font-mono text-[11px] text-text-dim">
+                {providerHint} · {quotaHint}
+              </span>
+            </div>
           </div>
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-dim">managed</span>
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-dim">managed</span>
       </div>
-    </div>
+    </Tooltip>
   );
 }
 

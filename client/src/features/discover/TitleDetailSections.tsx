@@ -1,7 +1,8 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { TitleRatings } from "./TitleRatings";
-import { TitleComparisonStatus } from "./TitleComparisonStatus";
+import { TitleStatusBadges } from "./TitleStatusBadges";
 import { Clapperboard, Copy, ExternalLink, Images, Shield, Tv, UserRound } from "lucide-react";
-import type { DiscoverImageKind, DiscoverTitleDetails } from "@shared/protocol";
+import type { DiscoverImageKind, DiscoverTitleDetails, TitleLibraryStatus } from "@shared/protocol";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/Toast";
 import { backdropUrl, formatRuntime, posterUrl } from "./discover-utils";
@@ -10,8 +11,19 @@ import { prefetchImageGallery } from "./image-gallery-cache";
 import { certificationFor, parentsGuideUrl } from "./title-actions";
 import { TitlePosterActions } from "./TitleActions";
 import { CopyableTitle } from "./CopyableTitle";
+import { SeriesStatusIndicator } from "./SeriesStatusIndicator";
 
-export function TitleHero({ details, onOpenGallery }: { details: DiscoverTitleDetails; onOpenGallery: (kind: DiscoverImageKind) => void }) {
+export function TitleHero({
+  details,
+  status,
+  statusAt,
+  onOpenGallery,
+}: {
+  details: DiscoverTitleDetails;
+  status?: TitleLibraryStatus;
+  statusAt?: number | null;
+  onOpenGallery: (kind: DiscoverImageKind) => void;
+}) {
   const backdrop = backdropUrl(details.backdropPath);
   const poster = posterUrl(details.posterPath, "w342");
   const MediaIcon = details.mediaType === "tv" ? Tv : Clapperboard;
@@ -74,7 +86,8 @@ export function TitleHero({ details, onOpenGallery }: { details: DiscoverTitleDe
               <MediaIcon className="h-3 w-3" />
               {details.mediaType === "tv" ? "Series" : "Film"}
             </span>
-            <TitleComparisonStatus details={details} />
+            <TitleStatusBadges details={details} status={status} statusAt={statusAt} />
+            {details.mediaType === "tv" ? <SeriesStatusIndicator data={{ ...details, firstAirDate: details.releaseDate }} labelled /> : null}
           </div>
           <h1 className="mt-2.5 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xl font-bold leading-[1.16] tracking-[-0.035em] text-balance sm:mt-3 sm:gap-x-3 sm:text-4xl">
             <CopyableTitle title={details.title} />
@@ -101,22 +114,25 @@ export function TitleFacts({ details }: { details: DiscoverTitleDetails }) {
           <div className="flex min-w-0 items-start gap-2">
             <p className="min-w-0 flex-1 text-xs leading-relaxed text-foreground/80 [overflow-wrap:anywhere]">{details.overview || "No description available."}</p>
             {details.overview ? (
-              <button
-                type="button"
-                aria-label="Copy description"
-                title="Copy description"
-                onClick={() => void navigator.clipboard.writeText(details.overview).then(() => toast.success("Description copied."))}
-                className="shrink-0 p-1 text-muted-foreground hover:text-accent"
-              >
-                <Copy className="h-3.5 w-3.5" />
-              </button>
+              <Tooltip content="Copy description">
+                <button
+                  type="button"
+                  aria-label="Copy description"
+                  onClick={() => void navigator.clipboard.writeText(details.overview).then(() => toast.success("Description copied."))}
+                  className="shrink-0 p-1 text-muted-foreground hover:text-accent"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+              </Tooltip>
             ) : null}
           </div>
         </FactRow>
         <FactRow label="Release">
           <div className="flex flex-wrap items-center gap-2">
             <span>{details.releaseDate || "Date unknown"}</span>
-            {details.status ? <span className="border border-border px-2 py-0.5 text-[9px] uppercase tracking-[0.12em] text-muted-foreground">{details.status}</span> : null}
+            {details.mediaType === "movie" && details.status ? (
+              <span className="border border-border px-2 py-0.5 text-[9px] uppercase tracking-[0.12em] text-muted-foreground">{details.status}</span>
+            ) : null}
           </div>
         </FactRow>
         <FactRow label="Runtime">

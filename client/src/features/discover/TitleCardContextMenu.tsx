@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { Minus, GitCompareArrows, ChevronRight, Download, ExternalLink, Film, LoaderCircle, Magnet } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { useComparison } from "@/features/compare/ComparisonProvider";
 import { useToast } from "@/components/Toast";
 import { titleIdentity } from "./discover-utils";
@@ -22,21 +21,18 @@ const menuItem =
   "group flex min-h-9 select-none items-center gap-2.5 px-2.5 text-[11px] outline-none transition-colors data-[highlighted]:bg-accent/[0.12] data-[highlighted]:text-accent data-[disabled]:pointer-events-none data-[disabled]:text-text-dim";
 
 export function TitleCardContextMenu({ title, knownImdbId, children }: TitleCardContextMenuProps) {
-  const navigate = useNavigate();
   const { addedIds, addingIds, addSelection, removeTitle, enabled } = useComparison();
-  const { success, error } = useToast();
+  const { error } = useToast();
   const id = titleIdentity(title);
   const added = addedIds.has(id);
   const adding = addingIds.has(id);
   const toggleComparison = async () => {
     if (added) {
       removeTitle(id);
-      success(`Removed “${title.title}” from comparison.`);
       return;
     }
     try {
       await addSelection(title);
-      success(`Added “${title.title}” to comparison.`, { label: "View comparison", onClick: () => navigate("/discover/compare") });
     } catch (reason) {
       error(reason instanceof Error ? reason.message : "Couldn't add this title to comparison.");
     }

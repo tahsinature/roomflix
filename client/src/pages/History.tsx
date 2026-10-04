@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, Film, ImageIcon, Loader2, Music, PlayCircle, Trash2 } from "lucide-react";
@@ -147,25 +148,29 @@ function HistoryRow({ entry, onPlay }: { entry: WatchHistoryEntry; onPlay: () =>
           <KindIcon kind={kind} />
         </div>
         {entry.completed && (
-          <span title="Watched to the end" className="absolute right-1 top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500/85 text-black">
-            <Check className="h-2.5 w-2.5" />
-          </span>
+          <Tooltip content="Watched to the end">
+            <span className="absolute right-1 top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500/85 text-black">
+              <Check className="h-2.5 w-2.5" />
+            </span>
+          </Tooltip>
         )}
       </div>
 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          <p className="truncate text-sm text-foreground" title={title}>
-            {title}
-          </p>
+          <Tooltip content={title}>
+            <p className="truncate text-sm text-foreground">{title}</p>
+          </Tooltip>
           <span className="shrink-0 font-mono text-[10px] text-text-dim">{relativeTime(entry.startedAt)}</span>
         </div>
         <div className="mt-0.5 flex items-center gap-2 font-mono text-[10px] text-text-dim">
           {entry.collectionTitle && (
-            <span className="truncate" title={entry.collectionTitle}>
-              {entry.collectionTitle}
-              {entry.collectionIndex !== null ? ` · ${entry.collectionIndex + 1}` : ""}
-            </span>
+            <Tooltip content={entry.collectionTitle}>
+              <span className="truncate">
+                {entry.collectionTitle}
+                {entry.collectionIndex !== null ? ` · ${entry.collectionIndex + 1}` : ""}
+              </span>
+            </Tooltip>
           )}
           {entry.duration && entry.duration > 0 && (
             <span className="shrink-0">
@@ -180,15 +185,16 @@ function HistoryRow({ entry, onPlay }: { entry: WatchHistoryEntry; onPlay: () =>
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={onPlay}
-        aria-label={`Play ${title}`}
-        title="Play in the theater"
-        className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-border bg-bg-elevated/50 text-muted-foreground transition hover:border-accent/40 hover:text-accent"
-      >
-        <PlayCircle className="h-4 w-4" />
-      </button>
+      <Tooltip content="Play in the theater">
+        <button
+          type="button"
+          onClick={onPlay}
+          aria-label={`Play ${title}`}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-border bg-bg-elevated/50 text-muted-foreground transition hover:border-accent/40 hover:text-accent"
+        >
+          <PlayCircle className="h-4 w-4" />
+        </button>
+      </Tooltip>
     </div>
   );
 }

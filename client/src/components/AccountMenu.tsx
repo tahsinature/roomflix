@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ChevronDown, History as HistoryIcon, Link2, LogOut, Radio, SlidersHorizontal, Users2 } from "lucide-react";
@@ -53,17 +54,21 @@ export function AccountMenu({ className }: { className?: string }) {
 
   return (
     <div ref={rootRef} className={cn("relative inline-flex", className)}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className={cn("inline-flex max-w-[12rem] items-center gap-1.5 truncate font-mono text-[12px] transition", isActive ? "text-accent" : "text-text-dim hover:text-foreground")}
-        title={isGuest ? `Guest — ${triggerLabel}` : `Signed in as ${triggerLabel}`}
-      >
-        <span className={cn("truncate", isGuest && "italic")}>{triggerLabel}</span>
-        <ChevronDown className={cn("h-3 w-3 transition", open && "rotate-180")} />
-      </button>
+      <Tooltip content={isGuest ? `Guest — ${triggerLabel}` : `Signed in as ${triggerLabel}`}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          className={cn(
+            "inline-flex max-w-[12rem] items-center gap-1.5 truncate font-mono text-[12px] transition",
+            isActive ? "text-accent" : "text-text-dim hover:text-foreground",
+          )}
+        >
+          <span className={cn("truncate", isGuest && "italic")}>{triggerLabel}</span>
+          <ChevronDown className={cn("h-3 w-3 transition", open && "rotate-180")} />
+        </button>
+      </Tooltip>
 
       {open && (
         <div className="absolute right-0 top-8 z-40 min-w-[16rem] border border-border bg-bg-elevated/95 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl" role="menu">
@@ -168,13 +173,12 @@ function VersionRow() {
   if (!info) return null;
   const started = new Date(info.startedAt);
   return (
-    <div
-      className="flex items-baseline justify-between gap-2 border-t border-border px-3 py-1.5 font-mono text-[10px] text-text-dim"
-      title={`Server started: ${started.toLocaleString()}`}
-    >
-      <span>v {info.version}</span>
-      <span>up {uptime(started)}</span>
-    </div>
+    <Tooltip content={`Server started: ${started.toLocaleString()}`}>
+      <div className="flex items-baseline justify-between gap-2 border-t border-border px-3 py-1.5 font-mono text-[10px] text-text-dim">
+        <span>v {info.version}</span>
+        <span>up {uptime(started)}</span>
+      </div>
+    </Tooltip>
   );
 }
 

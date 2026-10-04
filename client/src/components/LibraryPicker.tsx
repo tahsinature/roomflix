@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useRef, useState } from "react";
 import { Ban, ListVideo } from "lucide-react";
 import type { LibraryHealth, Video } from "@shared/protocol";
@@ -105,37 +106,37 @@ export function LibraryPicker({ onPick, onOpenChange }: Props) {
                 const reason = isGone ? "URL is unreachable" : notMedia ? "Doesn't look like a media file" : undefined;
                 return (
                   <li key={v.id}>
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      title={reason}
-                      onClick={() => pick(v.url)}
-                      className={cn("flex w-full items-start gap-2 px-3 py-2 text-left transition", disabled ? "cursor-not-allowed opacity-50" : "hover:bg-white/[0.04]")}
-                    >
-                      {disabled ? (
-                        <Ban className="mt-1 h-3 w-3 shrink-0 text-muted-foreground" />
-                      ) : (
-                        <span className="mt-1.5">
-                          <HealthDot status={vh?.video} />
+                    <Tooltip content={reason}>
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => pick(v.url)}
+                        className={cn("flex w-full items-start gap-2 px-3 py-2 text-left transition", disabled ? "cursor-not-allowed opacity-50" : "hover:bg-white/[0.04]")}
+                      >
+                        {disabled ? (
+                          <Ban className="mt-1 h-3 w-3 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <span className="mt-1.5">
+                            <HealthDot status={vh?.video} />
+                          </span>
+                        )}
+                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span className="truncate text-sm text-foreground">{v.title}</span>
+                            <SubtitleBadge subtitles={v.subtitles} health={vh} />
+                          </span>
+                          <Tooltip content={v.url}>
+                            <span className="w-full truncate font-mono text-[11px] text-text-dim">{urlFilename(v.url)}</span>
+                          </Tooltip>
+                          {reason && <span className="truncate text-[10px] text-amber-300/80">{reason}</span>}
                         </span>
-                      )}
-                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="flex min-w-0 items-center gap-1.5">
-                          <span className="truncate text-sm text-foreground">{v.title}</span>
-                          <SubtitleBadge subtitles={v.subtitles} health={vh} />
-                        </span>
-                        <span className="w-full truncate font-mono text-[11px] text-text-dim" title={v.url}>
-                          {urlFilename(v.url)}
-                        </span>
-                        {reason && <span className="truncate text-[10px] text-amber-300/80">{reason}</span>}
-                      </span>
-                    </button>
+                      </button>
+                    </Tooltip>
                   </li>
                 );
               })}
             </ul>
           )}
-
         </div>
       )}
     </div>

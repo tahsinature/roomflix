@@ -15,12 +15,10 @@ export function TitleComparisonToggle({ details }: { details: DiscoverTitleDetai
   const toggle = async () => {
     if (added) {
       removeTitle(id);
-      toast.success(`Removed “${details.title}” from comparison.`);
       return;
     }
     try {
       await addSelection(details);
-      toast.success(`Added “${details.title}” to comparison.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not add this title to comparison.");
     }

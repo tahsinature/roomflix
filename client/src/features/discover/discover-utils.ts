@@ -110,7 +110,7 @@ export function toLibraryPayload(
   details: DiscoverTitleDetails,
   status: TitleLibraryStatus,
   existing?: TitleLibraryItem,
-): Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt"> {
+): Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt" | "watchlistedAt"> {
   return {
     tmdbId: details.tmdbId,
     mediaType: details.mediaType,

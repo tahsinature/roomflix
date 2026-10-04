@@ -15,7 +15,7 @@ import { EpisodeBrowser } from "./EpisodeBrowser";
 import type { EpisodeSelection } from "./discover-utils";
 
 type DetailSection = "overview" | "episodes" | "cast" | "trailers" | "providers" | "recommendations" | "pulse";
-type LibraryPayload = Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt">;
+type LibraryPayload = Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt" | "watchlistedAt">;
 
 type SectionOption = {
   id: DetailSection;

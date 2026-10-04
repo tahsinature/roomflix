@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { useCommandPalette } from "@/features/command-palette/CommandPaletteProvider";
 import { DiscoverDetailHeader } from "./DiscoverDetailHeader";
 import { TitleDetailWorkspace } from "./TitleDetailWorkspace";
+import { titleLibraryStatusDate } from "./status-tooltip";
 import { TitleHero } from "./TitleDetailSections";
 import { backdropUrl, posterUrl, titleIdentity, type EpisodeSelection, type TitleSelection } from "./discover-utils";
 import { invalidateTitleDetails, loadTitleDetails } from "./title-details-cache";
 
-type LibraryPayload = Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt">;
+type LibraryPayload = Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt" | "watchlistedAt">;
 
 export function DiscoverTitleView({
   selection,
@@ -90,7 +91,7 @@ export function DiscoverTitleView({
           </div>
         ) : details ? (
           <div className="view-enter overflow-hidden rounded-2xl border border-white/[0.08] bg-card/25 shadow-[0_28px_80px_-45px_rgba(0,0,0,0.95)]">
-            <TitleHero details={details} onOpenGallery={onOpenGallery} />
+            <TitleHero details={details} status={existing?.status} statusAt={titleLibraryStatusDate(existing)} onOpenGallery={onOpenGallery} />
             <div className="px-4 py-5 sm:px-6 sm:py-7">
               <TitleDetailWorkspace
                 key={identity}

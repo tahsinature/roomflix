@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Bell, BellOff, ChevronDown, Clock, FastForward, Loader2, Pause, Play, Repeat, Rewind, SkipBack, SkipForward, Trash2, Tv } from "lucide-react";
@@ -322,55 +323,58 @@ export default function Remote() {
           <p className="mt-0.5 truncate text-sm text-foreground">{playingTitle ? `${viewers.length} watching · ${playingTitle}` : "Nothing playing"}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setChimeEnabled((v) => !v)}
-            aria-label={chimeEnabled ? "Mute chime" : "Enable chime"}
-            title={chimeEnabled ? "Chime on — click to mute" : "Chime off — click to enable"}
-            aria-pressed={chimeEnabled}
-            className={cn(
-              "inline-flex h-7 w-7 items-center justify-center border transition",
-              chimeEnabled
-                ? "border-accent/40 bg-accent/10 text-accent hover:border-accent/60"
-                : "border-border bg-bg-elevated/50 text-muted-foreground hover:border-accent/30 hover:text-foreground",
-            )}
-          >
-            {chimeEnabled ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
-          </button>
+          <Tooltip content={chimeEnabled ? "Chime on — click to mute" : "Chime off — click to enable"}>
+            <button
+              type="button"
+              onClick={() => setChimeEnabled((v) => !v)}
+              aria-label={chimeEnabled ? "Mute chime" : "Enable chime"}
+              aria-pressed={chimeEnabled}
+              className={cn(
+                "inline-flex h-7 w-7 items-center justify-center border transition",
+                chimeEnabled
+                  ? "border-accent/40 bg-accent/10 text-accent hover:border-accent/60"
+                  : "border-border bg-bg-elevated/50 text-muted-foreground hover:border-accent/30 hover:text-foreground",
+              )}
+            >
+              {chimeEnabled ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
+            </button>
+          </Tooltip>
           {/* Owner-only chat wipe. Two-step confirm so a fat-finger
               doesn't nuke the thread — first click flips to confirm
               state, second commits. The chatCleared broadcast from
               the server then resets every connected viewer's thread,
               not just the owner's. */}
           {canClearChat && messages.length > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                if (confirmingClearChat) clearChat();
-                else setConfirmingClearChat(true);
-              }}
-              disabled={clearingChat}
-              aria-label={confirmingClearChat ? "Confirm clear chat" : "Clear chat"}
-              title={confirmingClearChat ? "Click again to confirm" : "Clear chat (owner only)"}
-              className={cn(
-                "inline-flex h-7 w-7 items-center justify-center border transition disabled:opacity-50",
-                confirmingClearChat
-                  ? "border-accent bg-accent/15 text-accent hover:bg-accent/20"
-                  : "border-border bg-bg-elevated/50 text-muted-foreground hover:border-accent/30 hover:text-foreground",
-              )}
-            >
-              {clearingChat ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-            </button>
+            <Tooltip content={confirmingClearChat ? "Click again to confirm" : "Clear chat (owner only)"}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirmingClearChat) clearChat();
+                  else setConfirmingClearChat(true);
+                }}
+                disabled={clearingChat}
+                aria-label={confirmingClearChat ? "Confirm clear chat" : "Clear chat"}
+                className={cn(
+                  "inline-flex h-7 w-7 items-center justify-center border transition disabled:opacity-50",
+                  confirmingClearChat
+                    ? "border-accent bg-accent/15 text-accent hover:bg-accent/20"
+                    : "border-border bg-bg-elevated/50 text-muted-foreground hover:border-accent/30 hover:text-foreground",
+                )}
+              >
+                {clearingChat ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              </button>
+            </Tooltip>
           )}
           {!embedded && (
-            <Link
-              to="/watch"
-              className="inline-flex items-center gap-1.5 border border-border bg-bg-elevated/50 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground transition hover:border-accent/40 hover:text-foreground"
-              title="Open theater on this device"
-            >
-              <Tv className="h-3.5 w-3.5" />
-              Open here
-            </Link>
+            <Tooltip content="Open theater on this device">
+              <Link
+                to="/watch"
+                className="inline-flex items-center gap-1.5 border border-border bg-bg-elevated/50 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground transition hover:border-accent/40 hover:text-foreground"
+              >
+                <Tv className="h-3.5 w-3.5" />
+                Open here
+              </Link>
+            </Tooltip>
           )}
         </div>
       </header>
@@ -418,36 +422,26 @@ export default function Remote() {
             scrolled away from the tail. Sits above the composer, with
             a subtle backdrop so it reads against any background. */}
         {!loadingHistory && messages.length > 0 && !atBottom && (
-          <button
-            type="button"
-            onClick={scrollToBottom}
-            aria-label="Scroll to latest message"
-            title="Scroll to latest"
-            className="absolute bottom-3 right-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-accent/40 bg-bg-elevated/95 text-accent shadow-[0_8px_24px_-8px_rgba(0,0,0,0.7)] backdrop-blur transition hover:border-accent/70 hover:bg-bg-elevated"
-          >
-            <ChevronDown className="h-4 w-4" />
-          </button>
+          <Tooltip content="Scroll to latest">
+            <button
+              type="button"
+              onClick={scrollToBottom}
+              aria-label="Scroll to latest message"
+              className="absolute bottom-3 right-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-accent/40 bg-bg-elevated/95 text-accent shadow-[0_8px_24px_-8px_rgba(0,0,0,0.7)] backdrop-blur transition hover:border-accent/70 hover:bg-bg-elevated"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </button>
+          </Tooltip>
         )}
       </div>
 
-      <ReactionBar
-        onSend={sendMessage}
-        attachedMoment={attachedMoment}
-        onAttachMoment={() => setAttachedMoment(captureMoment())}
-        onClearMoment={() => setAttachedMoment(null)}
-      />
+      <ReactionBar onSend={sendMessage} attachedMoment={attachedMoment} onAttachMoment={() => setAttachedMoment(captureMoment())} onClearMoment={() => setAttachedMoment(null)} />
 
       {/* Progress + transport controls. Hidden when embedded as a /watch
           sidebar — the host page already owns the player's seek bar and
           control buttons, so rendering them again here would just
           duplicate chrome and steal vertical room from the chat. */}
-      {!embedded && hasMedia && (
-        <ProgressIndicator
-          state={state!}
-          skewRef={skewRef}
-          onSeek={(t) => send({ type: "seek", currentTime: Math.max(0, t) })}
-        />
-      )}
+      {!embedded && hasMedia && <ProgressIndicator state={state!} skewRef={skewRef} onSeek={(t) => send({ type: "seek", currentTime: Math.max(0, t) })} />}
 
       {!embedded && (
         <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border bg-black/30 px-3 py-3 backdrop-blur sm:px-4 sm:py-4">
@@ -493,15 +487,7 @@ export default function Remote() {
 // renders at 4 Hz while the room is playing so the unfilled state ticks
 // smoothly; idle when paused. Photos (no timeline) and not-yet-loaded
 // metadata render the rail as a disabled placeholder with em-dashes.
-function ProgressIndicator({
-  state,
-  skewRef,
-  onSeek,
-}: {
-  state: SessionState;
-  skewRef: React.MutableRefObject<number>;
-  onSeek: (currentTime: number) => void;
-}) {
+function ProgressIndicator({ state, skewRef, onSeek }: { state: SessionState; skewRef: React.MutableRefObject<number>; onSeek: (currentTime: number) => void }) {
   const [, setTick] = useState(0);
   useEffect(() => {
     if (!state.playing) return;
@@ -569,10 +555,7 @@ function ProgressIndicator({
         onPointerMove={onPointerMove}
         onPointerUp={commit}
         onPointerCancel={commit}
-        className={cn(
-          "relative h-1 w-full select-none touch-none",
-          canScrub ? "cursor-pointer" : "cursor-not-allowed opacity-50",
-        )}
+        className={cn("relative h-1 w-full select-none touch-none", canScrub ? "cursor-pointer" : "cursor-not-allowed opacity-50")}
         style={{ touchAction: "none" }}
       >
         {/* Expanded hit area for fingers — purely a touch target, doesn't
@@ -654,9 +637,7 @@ function MessageRow({ msg, prev, isMe, onJump }: { msg: ChatMessage; prev: ChatM
             when grouped so the bubble alignment stays consistent. */}
         {!isMe && (
           <div className="w-7 shrink-0">
-            {!sameSender && (
-              <span className={cn("flex h-7 w-7 items-center justify-center rounded-full border text-[11px] font-semibold uppercase", tone.avatar)}>{initial}</span>
-            )}
+            {!sameSender && <span className={cn("flex h-7 w-7 items-center justify-center rounded-full border text-[11px] font-semibold uppercase", tone.avatar)}>{initial}</span>}
           </div>
         )}
 
@@ -675,16 +656,17 @@ function MessageRow({ msg, prev, isMe, onJump }: { msg: ChatMessage; prev: ChatM
           >
             {msg.text && <p className="whitespace-pre-wrap break-words">{msg.text}</p>}
             {msg.moment && (
-              <button
-                type="button"
-                onClick={() => onJump(msg.moment!)}
-                className="mt-1.5 inline-flex w-fit items-center gap-1.5 border border-accent/40 bg-accent/[0.06] px-2 py-1 text-[11px] text-accent transition hover:border-accent/70 hover:bg-accent/10 active:bg-accent/15"
-                title="Jump the room to this scene"
-              >
-                <Clock className="h-3 w-3 shrink-0" />
-                <span className="max-w-[180px] truncate">{msg.moment.mediaTitle || "Scene"}</span>
-                {msg.moment.currentTime > 0.5 && <span className="font-mono text-[10px] text-accent/80">{formatMomentTime(msg.moment.currentTime)}</span>}
-              </button>
+              <Tooltip content="Jump the room to this scene">
+                <button
+                  type="button"
+                  onClick={() => onJump(msg.moment!)}
+                  className="mt-1.5 inline-flex w-fit items-center gap-1.5 border border-accent/40 bg-accent/[0.06] px-2 py-1 text-[11px] text-accent transition hover:border-accent/70 hover:bg-accent/10 active:bg-accent/15"
+                >
+                  <Clock className="h-3 w-3 shrink-0" />
+                  <span className="max-w-[180px] truncate">{msg.moment.mediaTitle || "Scene"}</span>
+                  {msg.moment.currentTime > 0.5 && <span className="font-mono text-[10px] text-accent/80">{formatMomentTime(msg.moment.currentTime)}</span>}
+                </button>
+              </Tooltip>
             )}
           </div>
         </div>
@@ -731,4 +713,3 @@ function formatMomentTime(seconds: number): string {
   const pad = (n: number) => n.toString().padStart(2, "0");
   return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
 }
-

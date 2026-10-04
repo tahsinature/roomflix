@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ArrowRightLeft, CheckCircle2, Plus } from "lucide-react";
@@ -193,21 +194,22 @@ function SpaceStrip({
 
 function SpacePill({ space, selected, active, onClick }: { space: SpaceSummary; selected: boolean; active: boolean; onClick: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-current={selected ? "page" : undefined}
-      title={active ? "Your active space" : `View ${space.name}'s settings`}
-      className={cn(
-        "flex items-center gap-1.5 border px-2.5 py-1.5 transition",
-        selected
-          ? "border-accent/50 bg-accent/10 text-foreground"
-          : "border-border bg-bg-elevated/40 text-muted-foreground hover:border-border-hover hover:bg-bg-elevated/70 hover:text-foreground",
-      )}
-    >
-      <span className="text-sm">{space.name}</span>
-      <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-text-dim">{space.role}</span>
-      {active && <span className="border border-accent/40 bg-accent/15 px-1 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-accent">active</span>}
-    </button>
+    <Tooltip content={active ? "Your active space" : `View ${space.name}'s settings`}>
+      <button
+        type="button"
+        onClick={onClick}
+        aria-current={selected ? "page" : undefined}
+        className={cn(
+          "flex items-center gap-1.5 border px-2.5 py-1.5 transition",
+          selected
+            ? "border-accent/50 bg-accent/10 text-foreground"
+            : "border-border bg-bg-elevated/40 text-muted-foreground hover:border-border-hover hover:bg-bg-elevated/70 hover:text-foreground",
+        )}
+      >
+        <span className="text-sm">{space.name}</span>
+        <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-text-dim">{space.role}</span>
+        {active && <span className="border border-accent/40 bg-accent/15 px-1 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-accent">active</span>}
+      </button>
+    </Tooltip>
   );
 }

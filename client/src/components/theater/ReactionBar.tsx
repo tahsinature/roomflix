@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { forwardRef, useState, type FormEvent } from "react";
 import { Clock, Send, X } from "lucide-react";
 import type { ChatMoment, ReactionContent } from "@shared/protocol";
@@ -43,12 +44,7 @@ export const ReactionBar = forwardRef<
 
   return (
     <div className="flex flex-col gap-2 border-t border-white/[0.06] bg-black/70 px-3 py-2.5 backdrop-blur sm:px-4">
-      {attachedMoment && (
-        <MomentChip
-          moment={attachedMoment}
-          onClear={onClearMoment}
-        />
-      )}
+      {attachedMoment && <MomentChip moment={attachedMoment} onClear={onClearMoment} />}
 
       {/* Emoji rail — 8 equal columns so the quick reactions distribute
           evenly across whatever width the surface has. Borderless cells
@@ -80,35 +76,37 @@ export const ReactionBar = forwardRef<
           className="h-9 min-w-0 flex-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-sm text-white placeholder:text-white/35 transition focus:border-accent/45 focus:bg-black/40 focus:outline-none"
         />
         {canAttach && (
+          <Tooltip content={attachedMoment ? "Replace attached scene" : "Attach current scene"}>
+            <button
+              type="button"
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={onAttachMoment}
+              aria-label="Attach current scene"
+              className={
+                attachedMoment
+                  ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-accent/55 bg-accent/15 text-accent transition hover:border-accent hover:bg-accent/20"
+                  : "flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-white/55 transition hover:bg-white/[0.07] hover:text-white"
+              }
+            >
+              <Clock className="h-4 w-4" />
+            </button>
+          </Tooltip>
+        )}
+        <Tooltip content="Send">
           <button
-            type="button"
+            type="submit"
             onPointerDown={(e) => e.preventDefault()}
-            onClick={onAttachMoment}
-            aria-label="Attach current scene"
-            title={attachedMoment ? "Replace attached scene" : "Attach current scene"}
+            disabled={!canSend}
+            aria-label="Send message"
             className={
-              attachedMoment
-                ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-accent/55 bg-accent/15 text-accent transition hover:border-accent hover:bg-accent/20"
-                : "flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-white/55 transition hover:bg-white/[0.07] hover:text-white"
+              canSend
+                ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground transition hover:bg-accent-bright"
+                : "flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-white/30 disabled:cursor-not-allowed"
             }
           >
-            <Clock className="h-4 w-4" />
+            <Send className="h-4 w-4" />
           </button>
-        )}
-        <button
-          type="submit"
-          onPointerDown={(e) => e.preventDefault()}
-          disabled={!canSend}
-          aria-label="Send message"
-          title="Send"
-          className={
-            canSend
-              ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground transition hover:bg-accent-bright"
-              : "flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-white/30 disabled:cursor-not-allowed"
-          }
-        >
-          <Send className="h-4 w-4" />
-        </button>
+        </Tooltip>
       </form>
     </div>
   );
@@ -119,9 +117,9 @@ function MomentChip({ moment, onClear }: { moment: ChatMoment; onClear?: () => v
   return (
     <div className="flex items-center gap-2 self-start border border-accent/40 bg-accent/[0.08] px-2 py-1 text-xs text-accent">
       <Clock className="h-3 w-3 shrink-0" />
-      <span className="max-w-[220px] truncate" title={moment.mediaTitle || "Scene"}>
-        {moment.mediaTitle || "Scene"}
-      </span>
+      <Tooltip content={moment.mediaTitle || "Scene"}>
+        <span className="max-w-[220px] truncate">{moment.mediaTitle || "Scene"}</span>
+      </Tooltip>
       {showTime && <span className="font-mono text-[10px] text-accent/80">{formatTimestamp(moment.currentTime)}</span>}
       {onClear && (
         <button

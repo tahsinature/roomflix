@@ -1,17 +1,26 @@
-import type { DiscoverMediaType, DiscoverSearchResult, ImdbRatings } from "@shared/protocol";
+import type { DiscoverMediaType, DiscoverNextEpisode, DiscoverSearchResult, DiscoverTitleDetails, ImdbRatings } from "@shared/protocol";
+import { isCalendarDate, seriesAirDates } from "@/features/discover/series-air-dates";
 import { titleIdentity } from "@/features/discover/discover-utils";
 import { loadImdbRatings } from "@/features/discover/imdb-ratings-cache";
 import { loadTitleDetails } from "@/features/discover/title-details-cache";
 
 export type ComparisonTitle = {
   id: string;
+  addedAt: number | null;
   tmdbId: number;
   mediaType: DiscoverMediaType;
   title: string;
   posterPath: string | null;
   releaseDate: string;
+  lastAirDate: string | null;
   genres: string[];
   runtime: number | null;
+  numberOfSeasons: number | null;
+  numberOfEpisodes: number | null;
+  seriesStatus: string | null;
+  nextEpisode: DiscoverNextEpisode | null;
+  tmdbRating: number | null;
+  tmdbVotes: number | null;
   imdbId: string | null;
   imdbRating: number | null;
   imdbVotes: number | null;
@@ -24,18 +33,38 @@ export function comparisonRatings(ratings: ImdbRatings) {
   return { imdbRating: ratings.rating, imdbVotes: ratings.votes, imdbSource: "omdb" as const, imdbStatus: ratings.status, imdbFetchedAt: ratings.fetchedAt };
 }
 
+export function comparisonDetails(
+  details: Pick<DiscoverTitleDetails, "mediaType" | "runtime" | "numberOfSeasons" | "numberOfEpisodes" | "status" | "nextEpisode" | "lastAirDate" | "voteAverage" | "voteCount">,
+) {
+  return {
+    tmdbRating: decodeRating(details.voteAverage),
+    tmdbVotes: decodeCount(details.voteCount),
+    lastAirDate: details.mediaType === "tv" ? (details.lastAirDate ?? null) : null,
+    runtime: details.runtime,
+    numberOfSeasons: details.mediaType === "tv" ? details.numberOfSeasons : null,
+    numberOfEpisodes: details.mediaType === "tv" ? details.numberOfEpisodes : null,
+    seriesStatus: details.mediaType === "tv" ? details.status || null : null,
+    nextEpisode: details.mediaType === "tv" ? (details.nextEpisode ?? null) : null,
+  };
+}
+
+function decodeCount(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
 export async function loadComparisonTitle(selection: DiscoverSearchResult): Promise<ComparisonTitle> {
   const details = await loadTitleDetails(selection);
   const ratings = await loadImdbRatings(details.imdbId);
   return {
     id: titleIdentity(details),
+    addedAt: Date.now(),
     tmdbId: details.tmdbId,
     mediaType: details.mediaType,
     title: details.title,
     posterPath: details.posterPath,
     releaseDate: details.releaseDate,
     genres: details.genres,
-    runtime: details.runtime,
+    ...comparisonDetails(details),
     imdbId: details.imdbId,
     ...comparisonRatings(ratings),
   };
@@ -53,17 +82,30 @@ export function decodeComparisonList(raw: string | null): ComparisonTitle[] {
         seen.add(value.id);
         return true;
       })
-      .map((row) =>
-        row.imdbSource === "demo"
-          ? {
-              ...row,
-              ...comparisonRatings({ rating: null, votes: null, status: "unavailable", fetchedAt: null }),
-            }
-          : row,
-      );
+      .map((row) => ({
+        ...row,
+        tmdbRating: decodeRating(row.tmdbRating),
+        tmdbVotes: decodeCount(row.tmdbVotes),
+        lastAirDate: isCalendarDate(row.lastAirDate) ? row.lastAirDate : null,
+        numberOfSeasons: decodeCount(row.numberOfSeasons),
+        numberOfEpisodes: decodeCount(row.numberOfEpisodes),
+        seriesStatus: typeof row.seriesStatus === "string" ? row.seriesStatus : null,
+        nextEpisode: decodeNextEpisode(row.nextEpisode),
+        addedAt: typeof row.addedAt === "number" && Number.isFinite(row.addedAt) && row.addedAt > 0 ? row.addedAt : null,
+        ...(row.imdbSource === "demo" ? comparisonRatings({ rating: null, votes: null, status: "unavailable", fetchedAt: null }) : {}),
+      }));
   } catch {
     return [];
   }
+}
+
+function decodeNextEpisode(value: unknown): DiscoverNextEpisode | null {
+  if (!value || typeof value !== "object") return null;
+  const episode = value as Record<string, unknown>;
+  const seasonNumber = decodeCount(episode.seasonNumber);
+  const episodeNumber = decodeCount(episode.episodeNumber);
+  if (!seasonNumber || !episodeNumber || typeof episode.airDate !== "string") return null;
+  return { seasonNumber, episodeNumber, airDate: episode.airDate };
 }
 
 function isComparisonTitle(value: unknown): value is ComparisonTitle | (Omit<ComparisonTitle, "imdbSource" | "imdbStatus" | "imdbFetchedAt"> & { imdbSource: "demo" }) {
@@ -96,4 +138,16 @@ export function formatReleaseDate(value: string): string {
   if (!value) return "Unknown";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Unknown" : releaseDateFormatter.format(date);
+}
+
+export function comparisonFinalAirDate(
+  title: Pick<ComparisonTitle, "mediaType" | "seriesStatus" | "releaseDate" | "lastAirDate">,
+  today = new Date().toISOString().slice(0, 10),
+): string | null {
+  if (title.mediaType !== "tv") return null;
+  return seriesAirDates({ status: title.seriesStatus ?? "", firstAirDate: title.releaseDate, lastAirDate: title.lastAirDate }, today).final;
+}
+
+function decodeRating(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 10 ? value : null;
 }

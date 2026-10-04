@@ -1,4 +1,8 @@
-import { ComparisonIndicator } from "@/features/compare/ComparisonIndicator";
+import { Tooltip } from "@/components/ui/tooltip";
+import { TitleStatusIndicators } from "@/features/discover/TitleStatusIndicators";
+import { SeriesCardStatus } from "@/features/discover/SeriesCardStatus";
+import { titleLibraryStatusDate } from "@/features/discover/status-tooltip";
+import { useTitleLibraryStatuses } from "@/features/discover/use-title-library-statuses";
 import { useRef, useState } from "react";
 import { Check, Clapperboard, Loader2, Plus } from "lucide-react";
 import type { DiscoverSearchResult } from "@shared/protocol";
@@ -10,6 +14,7 @@ import type { ComparisonSearchActions } from "./CommandPaletteProvider";
 export function TitleSearchResults({
   titles,
   fuzzy,
+  heading,
   comparisonActions,
   addToComparison,
   goTo,
@@ -17,11 +22,13 @@ export function TitleSearchResults({
 }: {
   titles: DiscoverSearchResult[];
   fuzzy: boolean;
+  heading?: string;
   comparisonActions: ComparisonSearchActions | null;
   addToComparison: boolean;
   goTo: (path: string) => void;
   onClose: () => void;
 }) {
+  const libraryStatuses = useTitleLibraryStatuses();
   const [addingId, setAddingId] = useState<string | null>(null);
   const adding = useRef(false);
   const { error } = useToast();
@@ -41,7 +48,7 @@ export function TitleSearchResults({
   };
 
   return (
-    <CommandGroup heading={fuzzy ? "Closest titles" : "Movies & series"}>
+    <CommandGroup heading={heading ?? (fuzzy ? "Closest titles" : "Movies & series")}>
       {titles.slice(0, 10).map((title) => {
         const id = titleIdentity(title);
         const added = comparisonActions?.addedIds.has(id);
@@ -55,31 +62,35 @@ export function TitleSearchResults({
           >
             <span className="relative grid h-10 w-7 shrink-0 place-items-center overflow-hidden rounded-[3px] bg-muted">
               {poster ? <img src={poster} alt="" className="h-full w-full object-cover" /> : <Clapperboard />}
-              <ComparisonIndicator titleId={id} compact />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate">{title.title}</span>
-              <span className="mt-0.5 block text-[9px] opacity-60">
-                {title.mediaType === "tv" ? "Series" : "Movie"} · {title.year || "Year unknown"}
+              <span className="mt-0.5 flex flex-wrap items-center gap-2 text-[9px]">
+                <span className="opacity-60">
+                  {title.mediaType === "tv" ? "Series" : "Movie"} · {title.year || "Year unknown"}
+                </span>
+                <TitleStatusIndicators titleId={id} status={libraryStatuses.get(id)?.status} statusAt={titleLibraryStatusDate(libraryStatuses.get(id))} compact inline />
+                {title.mediaType === "tv" ? <SeriesCardStatus tmdbId={title.tmdbId} inline /> : null}
               </span>
             </span>
             {comparisonActions ? (
               addToComparison ? (
                 <CommandShortcut>{addingId === id ? "Adding…" : added ? "Added" : "+ Add"}</CommandShortcut>
               ) : (
-                <button
-                  type="button"
-                  disabled={added || Boolean(addingId)}
-                  aria-label={added ? `${title.title} already in comparison` : `Add ${title.title} to comparison`}
-                  title="Add to comparison"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void addTitle(title);
-                  }}
-                  className="grid size-8 shrink-0 place-items-center rounded-[4px] hover:bg-black/15 disabled:opacity-40"
-                >
-                  {addingId === id ? <Loader2 className="animate-spin" /> : added ? <Check /> : <Plus />}
-                </button>
+                <Tooltip content="Add to comparison">
+                  <button
+                    type="button"
+                    disabled={added || Boolean(addingId)}
+                    aria-label={added ? `${title.title} already in comparison` : `Add ${title.title} to comparison`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void addTitle(title);
+                    }}
+                    className="grid size-8 shrink-0 place-items-center rounded-[4px] hover:bg-black/15 disabled:opacity-40"
+                  >
+                    {addingId === id ? <Loader2 className="animate-spin" /> : added ? <Check /> : <Plus />}
+                  </button>
+                </Tooltip>
               )
             ) : null}
           </CommandItem>

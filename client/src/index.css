@@ -71,6 +71,47 @@
 }
 
 @layer utilities {
+  .app-tooltip {
+    z-index: 11000;
+    max-width: min(20rem, var(--radix-tooltip-content-available-width));
+    max-height: var(--radix-tooltip-content-available-height);
+    border: 1px solid hsl(var(--border-hover));
+    border-radius: 8px;
+    background: hsl(var(--bg-elevated) / 0.98);
+    padding: 9px 12px;
+    color: hsl(var(--foreground));
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: normal;
+    text-transform: none;
+    overflow-wrap: anywhere;
+    box-shadow:
+      0 8px 28px rgb(0 0 0 / 0.4),
+      inset 0 1px 0 rgb(255 255 255 / 0.03);
+    transform-origin: var(--radix-tooltip-content-transform-origin);
+  }
+  .app-tooltip[data-state="delayed-open"],
+  .app-tooltip[data-state="instant-open"] {
+    animation: tooltip-in 120ms ease-out;
+  }
+  @keyframes tooltip-in {
+    from {
+      opacity: 0;
+      transform: translateY(2px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .app-tooltip {
+      animation: none !important;
+    }
+  }
+
   /* ── Glow orbs ── huge blurred radial gradients dropped behind the hero.
      Fixed-positioned so the warmth carries past the fold; pointer-events:none
      keeps them out of the way of clicks. */

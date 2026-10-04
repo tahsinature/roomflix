@@ -1,4 +1,4 @@
-import type { ImdbRatings } from "@shared/protocol";
+import type { DiscoverSeriesStatus, ImdbRatings } from "@shared/protocol";
 import type {
   AuthUser,
   ChatMessage,
@@ -117,6 +117,7 @@ export const api = {
   discoverByGenre: (mediaType: DiscoverMediaType, genreId: number, minimumVotes = 0) =>
     request<DiscoverSearchResult[]>(`/api/discover/genre/${mediaType}/${genreId}?minimumVotes=${minimumVotes}`),
   discoverTitle: (mediaType: DiscoverMediaType, tmdbId: number) => request<DiscoverTitleDetails>(`/api/discover/title/${mediaType}/${tmdbId}`),
+  discoverSeriesStatus: (tmdbId: number) => request<DiscoverSeriesStatus>(`/api/discover/series-status/${tmdbId}`),
   discoverSeason: (tmdbId: number, seasonNumber: number) => request<DiscoverSeasonDetails>(`/api/discover/title/tv/${tmdbId}/season/${seasonNumber}`),
   discoverEpisode: (tmdbId: number, seasonNumber: number, episodeNumber: number) =>
     request<DiscoverEpisodeDetails>(`/api/discover/title/tv/${tmdbId}/season/${seasonNumber}/episode/${episodeNumber}`),
@@ -127,7 +128,7 @@ export const api = {
   // Personal title intent — account-scoped, deliberately separate from the
   // space-scoped playable video library below.
   listTitleLibrary: (status?: TitleLibraryStatus) => request<TitleLibraryItem[]>(`/api/title-library${status ? `?status=${status}` : ""}`),
-  saveTitleLibraryItem: (mediaType: DiscoverMediaType, tmdbId: number, item: Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt">) =>
+  saveTitleLibraryItem: (mediaType: DiscoverMediaType, tmdbId: number, item: Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt" | "watchlistedAt">) =>
     request<TitleLibraryItem>(`/api/title-library/${mediaType}/${tmdbId}`, {
       method: "PUT",
       body: JSON.stringify(item),

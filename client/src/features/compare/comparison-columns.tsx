@@ -1,9 +1,13 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { Link } from "react-router-dom";
 import { Clapperboard, Trash2, Tv } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { discoverTitlePath, formatRuntime, posterUrl } from "@/features/discover/discover-utils";
-import { formatReleaseDate, type ComparisonTitle } from "./comparison-data";
+import { discoverTitlePath, posterUrl } from "@/features/discover/discover-utils";
+import { TmdbRatingDisplay } from "./TmdbRatingDisplay";
+import { ComparisonReleaseDates } from "./ComparisonReleaseDates";
+import { ComparisonLength } from "./ComparisonLength";
+import { type ComparisonTitle } from "./comparison-data";
 
 import { ImdbRatingDisplay } from "@/features/discover/ImdbRatingDisplay";
 
@@ -24,16 +28,25 @@ export function createComparisonColumns(onRemove: (title: ComparisonTitle) => vo
         />
       ),
     },
+    {
+      id: "tmdbRating",
+      accessorFn: (title) => (title.tmdbVotes !== 0 ? (title.tmdbRating ?? undefined) : undefined),
+      header: "TMDB",
+      size: 145,
+      sortUndefined: "last",
+      sortDescFirst: true,
+      cell: ({ row }) => <TmdbRatingDisplay rating={row.original.tmdbRating} votes={row.original.tmdbVotes} />,
+    },
     { id: "imdbVotes", accessorFn: (title) => title.imdbVotes ?? undefined, header: "IMDb votes", sortUndefined: "last", sortDescFirst: true },
     {
       id: "releaseDate",
       accessorFn: (title) => title.releaseDate || undefined,
       header: "Released",
-      size: 155,
+      size: 230,
       sortingFn: "basic",
       sortUndefined: "last",
       sortDescFirst: true,
-      cell: ({ row }) => <span className="text-[11px] tabular-nums text-foreground/80">{formatReleaseDate(row.original.releaseDate)}</span>,
+      cell: ({ row }) => <ComparisonReleaseDates title={row.original} />,
     },
     {
       accessorKey: "genres",
@@ -61,12 +74,7 @@ export function createComparisonColumns(onRemove: (title: ComparisonTitle) => vo
       size: 110,
       sortUndefined: "last",
       sortDescFirst: false,
-      cell: ({ row }) => (
-        <div>
-          <span className="text-[11px] text-foreground/80">{row.original.runtime ? formatRuntime(row.original.runtime) : "Unknown"}</span>
-          {row.original.mediaType === "tv" && row.original.runtime ? <span className="mt-1 block text-[9px] text-muted-foreground">per episode</span> : null}
-        </div>
-      ),
+      cell: ({ row }) => <ComparisonLength title={row.original} />,
     },
     {
       id: "actions",
@@ -94,31 +102,33 @@ function TitleCell({ title }: { title: ComparisonTitle }) {
   const poster = posterUrl(title.posterPath, "w92");
   const Icon = title.mediaType === "tv" ? Tv : Clapperboard;
   return (
-    <Link to={discoverTitlePath(title)} state={{ hasAppReturn: true }} className="group/title flex items-center min-w-0 gap-2 rounded-[8px]" title={title.title}>
-      {poster ? (
-        <img
-          src={poster}
-          alt=""
-          width={92}
-          height={138}
-          loading="lazy"
-          decoding="async"
-          className="hidden h-10 w-7 shrink-0 rounded-[5px] border border-border object-cover sm:block"
-        />
-      ) : (
-        <span className="hidden h-10 w-7 shrink-0 place-items-center rounded-[5px] border border-border bg-muted sm:grid">
-          <Icon className="size-4 text-muted-foreground" />
+    <Tooltip content={title.title}>
+      <Link to={discoverTitlePath(title)} state={{ hasAppReturn: true }} className="group/title flex items-center min-w-0 gap-2 rounded-[8px]">
+        {poster ? (
+          <img
+            src={poster}
+            alt=""
+            width={92}
+            height={138}
+            loading="lazy"
+            decoding="async"
+            className="hidden h-10 w-7 shrink-0 rounded-[5px] border border-border object-cover sm:block"
+          />
+        ) : (
+          <span className="hidden h-10 w-7 shrink-0 place-items-center rounded-[5px] border border-border bg-muted sm:grid">
+            <Icon className="size-4 text-muted-foreground" />
+          </span>
+        )}
+        <span className="min-w-0">
+          <span className="line-clamp-1 text-xs font-medium leading-4 text-foreground transition-colors group-hover/title:text-accent">{title.title}</span>
+          <span className="mt-0.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">
+            <Icon className="size-3" />
+            {title.mediaType === "tv" ? "Series" : "Movie"}
+            <span className="text-text-dim">·</span>
+            {title.releaseDate.slice(0, 4) || "Year unknown"}
+          </span>
         </span>
-      )}
-      <span className="min-w-0">
-        <span className="line-clamp-1 text-xs font-medium leading-4 text-foreground transition-colors group-hover/title:text-accent">{title.title}</span>
-        <span className="mt-0.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">
-          <Icon className="size-3" />
-          {title.mediaType === "tv" ? "Series" : "Movie"}
-          <span className="text-text-dim">·</span>
-          {title.releaseDate.slice(0, 4) || "Year unknown"}
-        </span>
-      </span>
-    </Link>
+      </Link>
+    </Tooltip>
   );
 }

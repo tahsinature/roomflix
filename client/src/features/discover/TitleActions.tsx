@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { Clapperboard, Copy, Download, Film, Globe2, Link2, Magnet, Star, Youtube } from "lucide-react";
 import type { DiscoverTitleDetails } from "@shared/protocol";
 import { Button } from "@/components/ui/button";
@@ -83,14 +84,15 @@ export function TitleActionBar({ details }: { details: DiscoverTitleDetails }) {
 
 function PosterButton({ label, onClick, icon: Icon }: { label: string; onClick: () => void; icon: typeof Copy }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className="grid h-9 place-items-center rounded-lg border border-white/10 bg-black/25 text-muted-foreground transition-[color,border-color,background-color] hover:border-accent/40 hover:bg-accent/10 hover:text-accent"
-    >
-      <Icon className="h-4 w-4" />
-    </button>
+    <Tooltip content={label}>
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={label}
+        className="grid h-9 place-items-center rounded-lg border border-white/10 bg-black/25 text-muted-foreground transition-[color,border-color,background-color] hover:border-accent/40 hover:bg-accent/10 hover:text-accent"
+      >
+        <Icon className="h-4 w-4" />
+      </button>
+    </Tooltip>
   );
 }

@@ -1,5 +1,6 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useRef, useState } from "react";
-import { Controls as VControls, FullscreenButton, MuteButton, PIPButton, PlayButton, Time, TimeSlider, Tooltip, VolumeSlider, useMediaState } from "@vidstack/react";
+import { Controls as VControls, FullscreenButton, MuteButton, PIPButton, PlayButton, Time, TimeSlider, VolumeSlider, useMediaState } from "@vidstack/react";
 import { ExternalLink, Maximize, Minimize, PanelRight, Pause, PictureInPicture, Play, Radio, Replace, Smile, Volume2, VolumeX } from "lucide-react";
 
 import type { Subtitle } from "@shared/protocol";
@@ -62,26 +63,17 @@ export function Controls({ subtitles, activeSubtitleId, onSelectSubtitle, onReac
             <SubtitleToggle subtitles={subtitles} activeId={activeSubtitleId} onSelect={onSelectSubtitle} />
 
             {onReact && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <button type="button" onClick={onReact} aria-label="Send a reaction" className={ICON_BTN}>
-                    <Smile className="h-5 w-5" />
-                  </button>
-                </Tooltip.Trigger>
-                <Tooltip.Content className={tooltipClass} placement="top">
-                  Send a reaction
-                </Tooltip.Content>
-              </Tooltip.Root>
+              <Tooltip content="Send a reaction">
+                <button type="button" onClick={onReact} aria-label="Send a reaction" className={ICON_BTN}>
+                  <Smile className="h-5 w-5" />
+                </button>
+              </Tooltip>
             )}
 
             {onOpenRemote && <RemoteLauncher onOpen={onOpenRemote} sidebarOpen={remoteSidebarOpen ?? false} />}
 
             <PiPControl />
-            {onToggleFullscreen ? (
-              <CustomFullscreenControl onToggle={onToggleFullscreen} isFullscreen={!!isFullscreen} />
-            ) : (
-              <FullscreenControl />
-            )}
+            {onToggleFullscreen ? <CustomFullscreenControl onToggle={onToggleFullscreen} isFullscreen={!!isFullscreen} /> : <FullscreenControl />}
           </div>
         </div>
       </VControls.Group>
@@ -92,16 +84,11 @@ export function Controls({ subtitles, activeSubtitleId, onSelectSubtitle, onReac
 function PlayPauseButton() {
   const paused = useMediaState("paused");
   return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <PlayButton className={ICON_BTN} aria-label={paused ? "Play" : "Pause"}>
-          {paused ? <Play className="h-5 w-5 fill-current" /> : <Pause className="h-5 w-5 fill-current" />}
-        </PlayButton>
-      </Tooltip.Trigger>
-      <Tooltip.Content className={tooltipClass} placement="top">
-        {paused ? "Play" : "Pause"}
-      </Tooltip.Content>
-    </Tooltip.Root>
+    <Tooltip content={paused ? "Play" : "Pause"}>
+      <PlayButton className={ICON_BTN} aria-label={paused ? "Play" : "Pause"}>
+        {paused ? <Play className="h-5 w-5 fill-current" /> : <Pause className="h-5 w-5 fill-current" />}
+      </PlayButton>
+    </Tooltip>
   );
 }
 
@@ -122,16 +109,11 @@ function VolumeControl() {
 
   return (
     <div className="group flex items-center">
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <MuteButton className={ICON_BTN} aria-label={effectivelyMuted ? "Unmute" : "Mute"}>
-            {effectivelyMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-          </MuteButton>
-        </Tooltip.Trigger>
-        <Tooltip.Content className={tooltipClass} placement="top">
-          {effectivelyMuted ? "Unmute" : "Mute"}
-        </Tooltip.Content>
-      </Tooltip.Root>
+      <Tooltip content={effectivelyMuted ? "Unmute" : "Mute"}>
+        <MuteButton className={ICON_BTN} aria-label={effectivelyMuted ? "Unmute" : "Mute"}>
+          {effectivelyMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+        </MuteButton>
+      </Tooltip>
 
       <VolumeSlider.Root className="relative hidden h-9 w-0 items-center overflow-hidden transition-[width] duration-200 outline-none group-hover:w-20 group-focus-within:w-20 focus:outline-none focus-visible:outline-none sm:flex">
         <VolumeSlider.Track className="relative mx-2 h-1 flex-1 rounded-full bg-white/20">
@@ -150,32 +132,22 @@ function PiPControl() {
   const canPip = useMediaState("canPictureInPicture");
   if (!canPip) return null;
   return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <PIPButton className={ICON_BTN} aria-label="Picture-in-picture">
-          <PictureInPicture className="h-5 w-5" />
-        </PIPButton>
-      </Tooltip.Trigger>
-      <Tooltip.Content className={tooltipClass} placement="top">
-        Picture-in-picture
-      </Tooltip.Content>
-    </Tooltip.Root>
+    <Tooltip content="Picture-in-picture">
+      <PIPButton className={ICON_BTN} aria-label="Picture-in-picture">
+        <PictureInPicture className="h-5 w-5" />
+      </PIPButton>
+    </Tooltip>
   );
 }
 
 function FullscreenControl() {
   const isFullscreen = useMediaState("fullscreen");
   return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <FullscreenButton className={ICON_BTN} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
-          {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
-        </FullscreenButton>
-      </Tooltip.Trigger>
-      <Tooltip.Content className={tooltipClass} placement="top">
-        {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-      </Tooltip.Content>
-    </Tooltip.Root>
+    <Tooltip content={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+      <FullscreenButton className={ICON_BTN} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
+        {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+      </FullscreenButton>
+    </Tooltip>
   );
 }
 
@@ -184,16 +156,11 @@ function FullscreenControl() {
 // fullscreen surface.
 function CustomFullscreenControl({ onToggle, isFullscreen }: { onToggle: () => void; isFullscreen: boolean }) {
   return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <button type="button" onClick={onToggle} className={ICON_BTN} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
-          {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
-        </button>
-      </Tooltip.Trigger>
-      <Tooltip.Content className={tooltipClass} placement="top">
-        {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-      </Tooltip.Content>
-    </Tooltip.Root>
+    <Tooltip content={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+      <button type="button" onClick={onToggle} className={ICON_BTN} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
+        {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -211,8 +178,6 @@ function TimeScrubber() {
     </TimeSlider.Root>
   );
 }
-
-const tooltipClass = "border border-border bg-black/90 px-2.5 py-1 font-mono text-[11px] font-medium text-white/90 shadow-lg backdrop-blur";
 
 // In-player launcher for /remote. Click → popover with three open
 // modes. Closes on outside click + Escape. Lives inside the Vidstack
@@ -245,24 +210,11 @@ function RemoteLauncher({ onOpen, sidebarOpen }: { onOpen: (mode: RemoteOpenMode
 
   return (
     <div ref={wrapRef} className="relative">
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <button
-            type="button"
-            onClick={() => setOpen((o) => !o)}
-            aria-label="Open chat"
-            aria-haspopup="menu"
-            aria-expanded={open}
-            title="Open chat (C)"
-            className={cn(ICON_BTN, open && "bg-white/10")}
-          >
-            <Radio className="h-5 w-5" />
-          </button>
-        </Tooltip.Trigger>
-        <Tooltip.Content className={tooltipClass} placement="top">
-          Open chat <span className="ml-1 font-mono text-[10px] uppercase tracking-[0.12em] text-white/55">C</span>
-        </Tooltip.Content>
-      </Tooltip.Root>
+      <Tooltip content="Open chat (C)">
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-label="Open chat" aria-haspopup="menu" aria-expanded={open} className={cn(ICON_BTN, open && "bg-white/10")}>
+          <Radio className="h-5 w-5" />
+        </button>
+      </Tooltip>
 
       {open && (
         <div
@@ -285,12 +237,7 @@ function RemoteLauncher({ onOpen, sidebarOpen }: { onOpen: (mode: RemoteOpenMode
             hint="Detached popup — keep on a second screen"
             onClick={() => pick("newWindow")}
           />
-          <RemoteLauncherOption
-            icon={<Replace className="h-3.5 w-3.5" />}
-            label="Replace this tab"
-            hint="Navigate this tab to /remote"
-            onClick={() => pick("sameWindow")}
-          />
+          <RemoteLauncherOption icon={<Replace className="h-3.5 w-3.5" />} label="Replace this tab" hint="Navigate this tab to /remote" onClick={() => pick("sameWindow")} />
         </div>
       )}
     </div>

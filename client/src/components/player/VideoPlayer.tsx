@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Captions, Gesture, MediaPlayer, MediaPlayerInstance, MediaProvider, Track, useMediaState } from "@vidstack/react";
 import { AlertTriangle, HelpCircle, Link2, Loader2, Play, RefreshCw } from "lucide-react";
@@ -414,9 +415,9 @@ export function VideoPlayer({
             <Play className="h-7 w-7 fill-current" />
           </span>
           <span className="flex max-w-[42rem] flex-col items-center gap-1.5 text-center">
-            <span className="line-clamp-2 font-mono text-base font-medium text-white/95 sm:text-lg" title={videoTitle || urlFilename(videoUrl)}>
-              {videoTitle || urlFilename(videoUrl)}
-            </span>
+            <Tooltip content={videoTitle || urlFilename(videoUrl)}>
+              <span className="line-clamp-2 font-mono text-base font-medium text-white/95 sm:text-lg">{videoTitle || urlFilename(videoUrl)}</span>
+            </Tooltip>
             <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-white/45">Tap to play</span>
           </span>
         </button>

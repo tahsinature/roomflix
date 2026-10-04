@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Ban, Eye, EyeOff, Film, ListVideo, Loader2, Music, PanelLeftClose, Pencil, Repeat, Search, Shuffle, SkipBack, SkipForward, X } from "lucide-react";
 import type { Collection, CollectionHealth, CollectionItem } from "@shared/protocol";
@@ -52,10 +53,7 @@ export function CollectionPanel({
   const hasActiveFilter = !!savedFilter && savedFilter.kinds.length > 0 && savedFilter.kinds.length < 3;
   // Saved kinds normalized for the per-URL "is this filtered out?"
   // check. When no filter is active everything matches.
-  const savedKinds = useMemo<MediaKind[]>(
-    () => (hasActiveFilter ? (savedFilter!.kinds as MediaKind[]) : ["video", "audio", "image"]),
-    [hasActiveFilter, savedFilter],
-  );
+  const savedKinds = useMemo<MediaKind[]>(() => (hasActiveFilter ? (savedFilter!.kinds as MediaKind[]) : ["video", "audio", "image"]), [hasActiveFilter, savedFilter]);
 
   // Lazily fetch the unfiltered list the first time the user turns
   // the override on. Refetch on collection swap.
@@ -88,7 +86,7 @@ export function CollectionPanel({
   // Which list backs the rendered rows. Override needs the
   // unfiltered list to be loaded; until then we keep showing the
   // canonical list to avoid a flash.
-  const displayItems = showFiltered && unfilteredItems ? unfilteredItems : collection?.items ?? [];
+  const displayItems = showFiltered && unfilteredItems ? unfilteredItems : (collection?.items ?? []);
 
   // The currently-playing item's URL (per the canonical list). In
   // override mode the rendered list's indices won't match
@@ -143,20 +141,17 @@ export function CollectionPanel({
           <ListVideo className="h-3.5 w-3.5 shrink-0 text-accent" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <span className="truncate text-sm font-medium text-white/90" title={collection.title}>
-                {collection.title}
-              </span>
+              <Tooltip content={collection.title}>
+                <span className="truncate text-sm font-medium text-white/90">{collection.title}</span>
+              </Tooltip>
               {/* Synced (folder-mirrored) collections — items live in
                   the bucket, the title tracks the folder name, and
                   the list is read-only. Same cyan badge style as the
                   Collections grid card so the cue carries through. */}
               {collection.source && (
-                <span
-                  className="shrink-0 border border-cyan/40 bg-cyan/15 px-1 py-0.5 font-mono text-[9px] uppercase tracking-wider text-cyan"
-                  title="Synced with a storage folder — items update automatically"
-                >
-                  Synced
-                </span>
+                <Tooltip content="Synced with a storage folder — items update automatically">
+                  <span className="shrink-0 border border-cyan/40 bg-cyan/15 px-1 py-0.5 font-mono text-[9px] uppercase tracking-wider text-cyan">Synced</span>
+                </Tooltip>
               )}
             </div>
             <div className="font-mono text-[10px] text-white/45">
@@ -165,15 +160,16 @@ export function CollectionPanel({
             </div>
           </div>
           {onHide && (
-            <button
-              type="button"
-              onClick={onHide}
-              aria-label="Hide collection panel"
-              title="Hide panel"
-              className="flex h-7 w-7 shrink-0 items-center justify-center text-white/55 transition hover:text-white"
-            >
-              <PanelLeftClose className="h-3.5 w-3.5" />
-            </button>
+            <Tooltip content="Hide panel">
+              <button
+                type="button"
+                onClick={onHide}
+                aria-label="Hide collection panel"
+                className="flex h-7 w-7 shrink-0 items-center justify-center text-white/55 transition hover:text-white"
+              >
+                <PanelLeftClose className="h-3.5 w-3.5" />
+              </button>
+            </Tooltip>
           )}
         </div>
         <div className="mt-2 flex items-center gap-1">
@@ -183,24 +179,26 @@ export function CollectionPanel({
           <PanelButton label="Next" onClick={onNext}>
             <SkipForward className="h-3.5 w-3.5" />
           </PanelButton>
-          <button
-            type="button"
-            aria-label={loop ? "Disable loop" : "Enable loop"}
-            title={loop ? "Loop is on" : "Loop is off"}
-            onClick={() => onToggleLoop(!loop)}
-            className={cn("flex h-7 w-7 items-center justify-center transition", loop ? "text-accent" : "text-white/55 hover:text-white")}
-          >
-            <Repeat className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            aria-label={shuffle ? "Disable shuffle" : "Enable shuffle"}
-            title={shuffle ? "Shuffle is on" : "Shuffle is off"}
-            onClick={() => onToggleShuffle(!shuffle)}
-            className={cn("flex h-7 w-7 items-center justify-center transition", shuffle ? "text-accent" : "text-white/55 hover:text-white")}
-          >
-            <Shuffle className="h-3.5 w-3.5" />
-          </button>
+          <Tooltip content={loop ? "Loop is on" : "Loop is off"}>
+            <button
+              type="button"
+              aria-label={loop ? "Disable loop" : "Enable loop"}
+              onClick={() => onToggleLoop(!loop)}
+              className={cn("flex h-7 w-7 items-center justify-center transition", loop ? "text-accent" : "text-white/55 hover:text-white")}
+            >
+              <Repeat className="h-3.5 w-3.5" />
+            </button>
+          </Tooltip>
+          <Tooltip content={shuffle ? "Shuffle is on" : "Shuffle is off"}>
+            <button
+              type="button"
+              aria-label={shuffle ? "Disable shuffle" : "Enable shuffle"}
+              onClick={() => onToggleShuffle(!shuffle)}
+              className={cn("flex h-7 w-7 items-center justify-center transition", shuffle ? "text-accent" : "text-white/55 hover:text-white")}
+            >
+              <Shuffle className="h-3.5 w-3.5" />
+            </button>
+          </Tooltip>
           {onEdit && (
             <PanelButton label="Edit collection" onClick={onEdit}>
               <Pencil className="h-3.5 w-3.5" />
@@ -210,20 +208,21 @@ export function CollectionPanel({
               media filter actually hides something. View-only lens;
               the canonical play list and sync are unaffected. */}
           {hasActiveFilter && (
-            <button
-              type="button"
-              aria-label={showFiltered ? "Hide filtered items" : "Show filtered items"}
-              title={showFiltered ? "Hide what the saved filter is hiding" : "Show what the saved filter is hiding"}
-              onClick={() => setShowFiltered((v) => !v)}
-              disabled={overrideLoading}
-              className={cn(
-                "flex h-7 w-7 items-center justify-center transition",
-                showFiltered ? "text-accent" : "text-white/55 hover:text-white",
-                overrideLoading && "opacity-60",
-              )}
-            >
-              {overrideLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : showFiltered ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-            </button>
+            <Tooltip content={showFiltered ? "Hide what the saved filter is hiding" : "Show what the saved filter is hiding"}>
+              <button
+                type="button"
+                aria-label={showFiltered ? "Hide filtered items" : "Show filtered items"}
+                onClick={() => setShowFiltered((v) => !v)}
+                disabled={overrideLoading}
+                className={cn(
+                  "flex h-7 w-7 items-center justify-center transition",
+                  showFiltered ? "text-accent" : "text-white/55 hover:text-white",
+                  overrideLoading && "opacity-60",
+                )}
+              >
+                {overrideLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : showFiltered ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
+            </Tooltip>
           )}
         </div>
       </header>
@@ -288,9 +287,11 @@ export function CollectionPanel({
 
 function PanelButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" aria-label={label} title={label} onClick={onClick} className="flex h-7 w-7 items-center justify-center text-white/55 transition hover:text-white">
-      {children}
-    </button>
+    <Tooltip content={label}>
+      <button type="button" aria-label={label} onClick={onClick} className="flex h-7 w-7 items-center justify-center text-white/55 transition hover:text-white">
+        {children}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -313,41 +314,42 @@ function CollectionRow({
   const title = filteredOut ? `Hidden by the saved filter — ${name}` : broken ? `Unavailable — ${name}` : name;
   return (
     <li>
-      <button
-        type="button"
-        data-index={index}
-        data-url={item.url}
-        onClick={onClick}
-        title={title}
-        aria-current={active}
-        disabled={filteredOut}
-        className={cn(
-          "flex w-full items-center gap-2 border px-2 py-1.5 text-left transition",
-          filteredOut
-            ? "cursor-not-allowed border-white/[0.04] bg-bg-elevated/10 opacity-45"
-            : active
-              ? "border-accent/60 bg-accent/10"
-              : broken
-                ? "border-accent/30 bg-bg-elevated/20 opacity-70"
-                : "border-white/[0.06] bg-bg-elevated/30 hover:border-accent/40 hover:bg-bg-elevated/50",
-        )}
-      >
-        <div className="relative h-10 w-10 shrink-0 overflow-hidden border border-white/10">
-          <Thumb item={item} />
-          <span className="absolute left-0.5 top-0.5 bg-black/70 px-1 font-mono text-[9px] text-white/80">{index + 1}</span>
-          {broken && !filteredOut && (
-            <span className="absolute inset-0 flex items-center justify-center bg-black/50">
-              <Ban className="h-4 w-4 text-accent" />
-            </span>
+      <Tooltip content={title}>
+        <button
+          type="button"
+          data-index={index}
+          data-url={item.url}
+          onClick={onClick}
+          aria-current={active}
+          disabled={filteredOut}
+          className={cn(
+            "flex w-full items-center gap-2 border px-2 py-1.5 text-left transition",
+            filteredOut
+              ? "cursor-not-allowed border-white/[0.04] bg-bg-elevated/10 opacity-45"
+              : active
+                ? "border-accent/60 bg-accent/10"
+                : broken
+                  ? "border-accent/30 bg-bg-elevated/20 opacity-70"
+                  : "border-white/[0.06] bg-bg-elevated/30 hover:border-accent/40 hover:bg-bg-elevated/50",
           )}
-          {filteredOut && (
-            <span className="absolute inset-0 flex items-center justify-center bg-black/55">
-              <EyeOff className="h-3.5 w-3.5 text-white/60" />
-            </span>
-          )}
-        </div>
-        <span className="line-clamp-2 text-[12px] leading-tight text-white/85">{name}</span>
-      </button>
+        >
+          <div className="relative h-10 w-10 shrink-0 overflow-hidden border border-white/10">
+            <Thumb item={item} />
+            <span className="absolute left-0.5 top-0.5 bg-black/70 px-1 font-mono text-[9px] text-white/80">{index + 1}</span>
+            {broken && !filteredOut && (
+              <span className="absolute inset-0 flex items-center justify-center bg-black/50">
+                <Ban className="h-4 w-4 text-accent" />
+              </span>
+            )}
+            {filteredOut && (
+              <span className="absolute inset-0 flex items-center justify-center bg-black/55">
+                <EyeOff className="h-3.5 w-3.5 text-white/60" />
+              </span>
+            )}
+          </div>
+          <span className="line-clamp-2 text-[12px] leading-tight text-white/85">{name}</span>
+        </button>
+      </Tooltip>
     </li>
   );
 }

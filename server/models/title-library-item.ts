@@ -23,6 +23,7 @@ const titleLibraryItemSchema = new Schema(
     userRating: { type: Number, default: null },
     notes: { type: String, default: "" },
     addedAt: { type: Number, required: true },
+    watchlistedAt: { type: Number, default: null },
     watchedAt: { type: Number, default: null },
     updatedAt: { type: Number, required: true },
   },

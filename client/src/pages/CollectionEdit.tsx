@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -155,15 +156,16 @@ export default function CollectionEdit() {
       {/* Sticky action bar — title + save stay reachable while scrolling. */}
       <div className="sticky top-0 z-20 -mx-4 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
         <div className="flex items-center gap-2 sm:gap-3">
-          <button
-            type="button"
-            onClick={leave}
-            aria-label="Back to library"
-            title="Back to library"
-            className="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-bg-elevated/50 text-foreground transition hover:bg-bg-elevated/80"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
+          <Tooltip content="Back to library">
+            <button
+              type="button"
+              onClick={leave}
+              aria-label="Back to library"
+              className="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-bg-elevated/50 text-foreground transition hover:bg-bg-elevated/80"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+          </Tooltip>
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -321,15 +323,16 @@ function SyncedCollectionEditor({ original, onReplace, leave }: { original: Coll
     <main className="mx-auto max-w-5xl px-4 pb-10 sm:px-6">
       <div className="sticky top-0 z-20 -mx-4 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
         <div className="flex items-center gap-2 sm:gap-3">
-          <button
-            type="button"
-            onClick={leave}
-            aria-label="Back to library"
-            title="Back to library"
-            className="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-bg-elevated/50 text-foreground transition hover:bg-bg-elevated/80"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
+          <Tooltip content="Back to library">
+            <button
+              type="button"
+              onClick={leave}
+              aria-label="Back to library"
+              className="flex h-10 w-10 shrink-0 items-center justify-center border border-border bg-bg-elevated/50 text-foreground transition hover:bg-bg-elevated/80"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+          </Tooltip>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium text-foreground">{original.title}</div>
             <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-dim">Synced with folder</div>
@@ -360,11 +363,34 @@ function SyncedCollectionEditor({ original, onReplace, leave }: { original: Coll
           {savingFilter && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
-          <KindChip kind="video" label="Videos" icon={<Film className="h-3.5 w-3.5" />} enabled={savedKinds.includes("video")} disabled={savingFilter} onToggle={() => void toggleKind("video")} />
-          <KindChip kind="audio" label="Audio" icon={<Music className="h-3.5 w-3.5" />} enabled={savedKinds.includes("audio")} disabled={savingFilter} onToggle={() => void toggleKind("audio")} />
-          <KindChip kind="image" label="Images" icon={<ImageIcon className="h-3.5 w-3.5" />} enabled={savedKinds.includes("image")} disabled={savingFilter} onToggle={() => void toggleKind("image")} />
+          <KindChip
+            kind="video"
+            label="Videos"
+            icon={<Film className="h-3.5 w-3.5" />}
+            enabled={savedKinds.includes("video")}
+            disabled={savingFilter}
+            onToggle={() => void toggleKind("video")}
+          />
+          <KindChip
+            kind="audio"
+            label="Audio"
+            icon={<Music className="h-3.5 w-3.5" />}
+            enabled={savedKinds.includes("audio")}
+            disabled={savingFilter}
+            onToggle={() => void toggleKind("audio")}
+          />
+          <KindChip
+            kind="image"
+            label="Images"
+            icon={<ImageIcon className="h-3.5 w-3.5" />}
+            enabled={savedKinds.includes("image")}
+            disabled={savingFilter}
+            onToggle={() => void toggleKind("image")}
+          />
         </div>
-        <p className="mt-2.5 font-mono text-[11px] text-text-dim">Files in the folder whose kind isn't checked are hidden from this collection. Playback skips them automatically.</p>
+        <p className="mt-2.5 font-mono text-[11px] text-text-dim">
+          Files in the folder whose kind isn't checked are hidden from this collection. Playback skips them automatically.
+        </p>
       </div>
 
       <div className="mt-3">
@@ -378,16 +404,17 @@ function SyncedCollectionEditor({ original, onReplace, leave }: { original: Coll
               there's nothing being filtered (saved filter is "all
               kinds"). */}
           {original.mediaFilter && original.mediaFilter.kinds.length > 0 && original.mediaFilter.kinds.length < 3 && (
-            <button
-              type="button"
-              onClick={() => setShowFiltered((v) => !v)}
-              disabled={overrideLoading}
-              title={showFiltered ? "Hide filtered items" : "Show what the saved filter is hiding"}
-              className="inline-flex items-center gap-1.5 border border-border bg-bg-elevated/50 px-2 py-1 font-mono text-[11px] text-foreground transition hover:bg-bg-elevated disabled:opacity-60"
-            >
-              {overrideLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : showFiltered ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-              {showFiltered ? "Hide filtered" : "Show filtered"}
-            </button>
+            <Tooltip content={showFiltered ? "Hide filtered items" : "Show what the saved filter is hiding"}>
+              <button
+                type="button"
+                onClick={() => setShowFiltered((v) => !v)}
+                disabled={overrideLoading}
+                className="inline-flex items-center gap-1.5 border border-border bg-bg-elevated/50 px-2 py-1 font-mono text-[11px] text-foreground transition hover:bg-bg-elevated disabled:opacity-60"
+              >
+                {overrideLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : showFiltered ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                {showFiltered ? "Hide filtered" : "Show filtered"}
+              </button>
+            </Tooltip>
           )}
         </div>
         {displayItems.length === 0 ? (
@@ -420,21 +447,22 @@ function KindChip({
   onToggle: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      disabled={disabled}
-      aria-pressed={enabled}
-      title={enabled ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
-      data-kind={kind}
-      className={cn(
-        "inline-flex items-center gap-1.5 border px-2.5 py-1.5 text-[12px] transition disabled:cursor-not-allowed",
-        enabled ? "border-accent/50 bg-accent/15 text-foreground" : "border-border bg-bg-elevated/40 text-text-dim hover:border-border-hover hover:text-foreground",
-      )}
-    >
-      {icon}
-      {label}
-    </button>
+    <Tooltip content={enabled ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}>
+      <button
+        type="button"
+        onClick={onToggle}
+        disabled={disabled}
+        aria-pressed={enabled}
+        data-kind={kind}
+        className={cn(
+          "inline-flex items-center gap-1.5 border px-2.5 py-1.5 text-[12px] transition disabled:cursor-not-allowed",
+          enabled ? "border-accent/50 bg-accent/15 text-foreground" : "border-border bg-bg-elevated/40 text-text-dim hover:border-border-hover hover:text-foreground",
+        )}
+      >
+        {icon}
+        {label}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -456,17 +484,16 @@ function ReadOnlyTile({ item, index, filtered = false }: { item: CollectionItem;
         )}
         <span className="absolute left-1 top-1 bg-black/70 px-1 font-mono text-[10px] text-white/80">{index + 1}</span>
         {filtered && (
-          <span
-            className="absolute right-1 top-1 border border-border bg-black/80 px-1 py-0.5 font-mono text-[9px] uppercase tracking-wider text-text-dim backdrop-blur"
-            title="Hidden by the saved filter — change the filter above to include this kind"
-          >
-            Filtered
-          </span>
+          <Tooltip content="Hidden by the saved filter — change the filter above to include this kind">
+            <span className="absolute right-1 top-1 border border-border bg-black/80 px-1 py-0.5 font-mono text-[9px] uppercase tracking-wider text-text-dim backdrop-blur">
+              Filtered
+            </span>
+          </Tooltip>
         )}
       </div>
-      <div className="block w-full truncate border-t border-border px-2 py-1.5 text-[11px] text-foreground" title={label}>
-        {label}
-      </div>
+      <Tooltip content={label}>
+        <div className="block w-full truncate border-t border-border px-2 py-1.5 text-[11px] text-foreground">{label}</div>
+      </Tooltip>
     </li>
   );
 }
@@ -502,14 +529,15 @@ function SortableTile({ item, index, onRename, onRemove }: { item: CollectionIte
           onCancel={() => setEditing(false)}
         />
       ) : (
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          title="Click to rename"
-          className="block w-full truncate border-t border-border px-2 py-1.5 text-left text-[11px] text-foreground transition hover:bg-white/[0.04]"
-        >
-          {label}
-        </button>
+        <Tooltip content="Click to rename">
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="block w-full truncate border-t border-border px-2 py-1.5 text-left text-[11px] text-foreground transition hover:bg-white/[0.04]"
+          >
+            {label}
+          </button>
+        </Tooltip>
       )}
       <button
         type="button"

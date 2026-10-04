@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import WaveSurfer from "wavesurfer.js";
 import { AlertTriangle, Loader2, Pause, Play } from "lucide-react";
@@ -236,9 +237,9 @@ function NowPlayingChip({ playing, loading }: { playing: boolean; loading: boole
 function Title({ text, url }: { text: string; url: string }) {
   return (
     <div className="flex max-w-xl flex-col items-center gap-1.5 text-center">
-      <h2 className="line-clamp-2 break-words font-mono text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-2xl" title={url}>
-        {text}
-      </h2>
+      <Tooltip content={url}>
+        <h2 className="line-clamp-2 break-words font-mono text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-2xl">{text}</h2>
+      </Tooltip>
     </div>
   );
 }

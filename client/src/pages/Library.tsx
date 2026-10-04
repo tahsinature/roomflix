@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, ChevronDown, HelpCircle, Library as LibraryIcon, Loader2, Pencil, Plus, Share2, Trash2, Upload, XCircle } from "lucide-react";
@@ -638,9 +639,9 @@ function VideoRow({
           {/* Subtitle URL — hide when it just repeats the title, which is
               the case for most freshly-added entries and reads as noise. */}
           {urlFilename(video.url) !== video.title && (
-            <p className="mt-1 truncate font-mono text-xs text-text-dim" title={video.url}>
-              {urlFilename(video.url)}
-            </p>
+            <Tooltip content={video.url}>
+              <p className="mt-1 truncate font-mono text-xs text-text-dim">{urlFilename(video.url)}</p>
+            </Tooltip>
           )}
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">

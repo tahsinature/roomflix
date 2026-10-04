@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useRef } from "react";
 import { Ban } from "lucide-react";
 import type { Collection, CollectionHealth } from "@shared/protocol";
@@ -36,40 +37,32 @@ export function MobileCollectionStrip({
 
   return (
     <div className="border-t border-white/10 bg-black/95 md:hidden">
-      <div
-        ref={scrollerRef}
-        className="flex gap-1.5 overflow-x-auto px-2 py-2"
-        style={{ scrollbarWidth: "none" }}
-      >
+      <div ref={scrollerRef} className="flex gap-1.5 overflow-x-auto px-2 py-2" style={{ scrollbarWidth: "none" }}>
         {collection.items.map((item, i) => {
           const active = i === currentIndex;
           const broken = health?.items[item.url] === "gone";
           const name = item.name || urlFilename(item.url) || "Untitled";
           return (
-            <button
-              key={`${item.url}-${i}`}
-              type="button"
-              data-index={i}
-              onClick={() => onJumpTo(i)}
-              aria-current={active}
-              title={broken ? `Unavailable — ${name}` : name}
-              className={cn(
-                "relative h-12 w-12 shrink-0 overflow-hidden border transition",
-                active
-                  ? "border-accent ring-2 ring-accent/50"
-                  : broken
-                    ? "border-accent/30 opacity-60"
-                    : "border-white/15",
-              )}
-            >
-              <Thumb item={item} />
-              <span className="absolute left-0.5 top-0.5 bg-black/70 px-1 font-mono text-[9px] text-white/85">{i + 1}</span>
-              {broken && (
-                <span className="absolute inset-0 flex items-center justify-center bg-black/50">
-                  <Ban className="h-3.5 w-3.5 text-accent" />
-                </span>
-              )}
-            </button>
+            <Tooltip content={broken ? `Unavailable — ${name}` : name} key={`${item.url}-${i}`}>
+              <button
+                type="button"
+                data-index={i}
+                onClick={() => onJumpTo(i)}
+                aria-current={active}
+                className={cn(
+                  "relative h-12 w-12 shrink-0 overflow-hidden border transition",
+                  active ? "border-accent ring-2 ring-accent/50" : broken ? "border-accent/30 opacity-60" : "border-white/15",
+                )}
+              >
+                <Thumb item={item} />
+                <span className="absolute left-0.5 top-0.5 bg-black/70 px-1 font-mono text-[9px] text-white/85">{i + 1}</span>
+                {broken && (
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/50">
+                    <Ban className="h-3.5 w-3.5 text-accent" />
+                  </span>
+                )}
+              </button>
+            </Tooltip>
           );
         })}
       </div>

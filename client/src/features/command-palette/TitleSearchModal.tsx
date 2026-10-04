@@ -6,8 +6,7 @@ import { Modal } from "@/components/Modal";
 import { Command, CommandEmpty, CommandInput, CommandList } from "@/components/ui/command";
 import { api } from "@/lib/api";
 import { useComparison } from "@/features/compare/ComparisonProvider";
-import { useRecentSearches } from "@/features/discover/use-recent-searches";
-import { RecentSearches } from "./RecentSearches";
+import { useRecentTitleSuggestions } from "@/features/discover/use-recent-title-suggestions";
 import { TitleSearchResults } from "./TitleSearchResults";
 
 export default function TitleSearchModal({ addToComparison, onClose }: { addToComparison: boolean; onClose: () => void }) {
@@ -21,8 +20,8 @@ export default function TitleSearchModal({ addToComparison, onClose }: { addToCo
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const trimmedQuery = query.trim();
-  const { terms, rememberSearch, removeSearch, clearSearches } = useRecentSearches();
-  const showingRecent = !trimmedQuery && terms.length > 0;
+  const recent = useRecentTitleSuggestions();
+  const visibleTitles = !trimmedQuery ? recent.titles : (search?.titles ?? []);
 
   useEffect(() => {
     setSearch(null);
@@ -51,7 +50,6 @@ export default function TitleSearchModal({ addToComparison, onClose }: { addToCo
 
   const submitSearch = (term = trimmedQuery) => {
     if (term.length < 2) return;
-    rememberSearch(term);
     onClose();
     navigate(`/discover/search?${new URLSearchParams({ q: term })}`);
   };
@@ -65,7 +63,11 @@ export default function TitleSearchModal({ addToComparison, onClose }: { addToCo
     onClose();
     navigate(path, { state: { discoverReturnTo, hasAppReturn: true } });
   };
-  const message = error ?? (trimmedQuery.length < 2 ? "Search a movie or series by title." : searching ? "Searching movies and series…" : "No movies or series found.");
+  const message = !trimmedQuery
+    ? recent.loading
+      ? "Loading recently viewed titles…"
+      : recent.error || "Search a movie or series by title."
+    : (error ?? (trimmedQuery.length < 2 ? "Search a movie or series by title." : searching ? "Searching movies and series…" : "No movies or series found."));
 
   return (
     <Modal open title={addToComparison ? "Add to comparison" : "Search titles"} onClose={onClose} className="max-w-2xl" overlayClassName="z-[200]">
@@ -74,14 +76,16 @@ export default function TitleSearchModal({ addToComparison, onClose }: { addToCo
           loop
           shouldFilter={false}
           className={
-            !addToComparison && !selectedExplicitly ? "[&_[cmdk-item][data-selected=true]]:!bg-transparent [&_[cmdk-item][data-selected=true]]:!text-foreground" : undefined
+            !addToComparison && trimmedQuery && !selectedExplicitly
+              ? "[&_[cmdk-item][data-selected=true]]:!bg-transparent [&_[cmdk-item][data-selected=true]]:!text-foreground"
+              : undefined
           }
           onKeyDown={(event) => {
-            if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) && (search?.titles.length || showingRecent)) {
-              if (!selectedExplicitly && (event.key === "ArrowDown" || event.key === "ArrowUp")) event.preventDefault();
+            if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) && visibleTitles.length) {
+              if (trimmedQuery && !selectedExplicitly && (event.key === "ArrowDown" || event.key === "ArrowUp")) event.preventDefault();
               setSelectedExplicitly(true);
             }
-            if (event.key === "Enter" && !event.nativeEvent.isComposing && !addToComparison && !selectedExplicitly) {
+            if (event.key === "Enter" && !event.nativeEvent.isComposing && !addToComparison && trimmedQuery && !selectedExplicitly) {
               event.preventDefault();
               submitSearch();
             }
@@ -116,25 +120,12 @@ export default function TitleSearchModal({ addToComparison, onClose }: { addToCo
               if (event.target instanceof Element && event.target.closest("[cmdk-item]")) setSelectedExplicitly(true);
             }}
           >
-            {showingRecent ? (
-              <RecentSearches
-                terms={terms}
-                onSelect={(term) => {
-                  if (addToComparison) {
-                    setQuery(term);
-                    setSelectedExplicitly(false);
-                  } else submitSearch(term);
-                }}
-                onRemove={removeSearch}
-                onClear={clearSearches}
-              />
-            ) : (
-              <CommandEmpty>{message}</CommandEmpty>
-            )}
-            {search?.titles.length ? (
+            <CommandEmpty>{message}</CommandEmpty>
+            {visibleTitles.length ? (
               <TitleSearchResults
-                titles={search.titles}
-                fuzzy={search.usedFuzzyFallback}
+                titles={visibleTitles}
+                fuzzy={Boolean(trimmedQuery && search?.usedFuzzyFallback)}
+                heading={!trimmedQuery ? "Recently viewed" : undefined}
                 comparisonActions={comparisonActions}
                 addToComparison={addToComparison}
                 goTo={goTo}
@@ -144,7 +135,7 @@ export default function TitleSearchModal({ addToComparison, onClose }: { addToCo
           </CommandList>
           <div className="flex items-center gap-4 border-t border-border px-4 py-2 text-[9px] uppercase tracking-wider text-muted-foreground">
             <span>↑↓ Navigate</span>
-            <span>{addToComparison ? "↵ Add title" : selectedExplicitly ? (showingRecent ? "↵ Search again" : "↵ Open title") : "↵ Search all"}</span>
+            <span>{addToComparison ? "↵ Add title" : !trimmedQuery || selectedExplicitly ? "↵ Open title" : "↵ Search all"}</span>
             <span className="ml-auto">Esc Close</span>
           </div>
         </Command>

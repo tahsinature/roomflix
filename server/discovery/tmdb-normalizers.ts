@@ -30,6 +30,7 @@ import type {
   RawVideo,
   RawWatchProvider,
 } from "./tmdb-types.ts";
+import { toSeriesStatus } from "./series-status.ts";
 
 export const SEARCHABLE_DEPARTMENTS = new Set(["Acting", "Directing", "Production"]);
 
@@ -73,6 +74,7 @@ export function toTitleDetails(item: RawTitleDetails, mediaType: DiscoverMediaTy
       : (item.created_by ?? []).map((credit) => ({ tmdbId: credit.id, name: credit.name }));
   return {
     ...toSearchResult(item, mediaType),
+    lastAirDate: mediaType === "tv" ? item.last_air_date || null : null,
     originalTitle: item.original_title ?? item.original_name ?? "",
     tagline: item.tagline ?? "",
     runtime: mediaType === "movie" ? (item.runtime ?? null) : (item.episode_run_time?.[0] ?? null),
@@ -80,6 +82,7 @@ export function toTitleDetails(item: RawTitleDetails, mediaType: DiscoverMediaTy
     spokenLanguages: (item.spoken_languages ?? []).map((language) => language.english_name ?? language.name ?? "").filter(Boolean),
     originalLanguage: item.original_language ?? "",
     status: item.status ?? "",
+    nextEpisode: mediaType === "tv" ? toSeriesStatus(item).nextEpisode : null,
     imdbId: item.external_ids?.imdb_id ?? null,
     directors,
     cast: (item.credits?.cast ?? []).slice(0, 14).map((credit) => ({

@@ -7,7 +7,7 @@ import { toLibraryPayload } from "./discover-utils";
 import { SectionLabel } from "./TitleDetailSections";
 import { TitleComparisonToggle } from "./TitleComparisonToggle";
 
-type LibraryPayload = Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt">;
+type LibraryPayload = Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt" | "watchlistedAt">;
 
 export function TitleWatchState({
   details,

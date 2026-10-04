@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useRef, useState } from "react";
 import {
   Check,
@@ -408,27 +409,28 @@ function CollectionTargetModal({
                   const already = targetUrl !== null && c.items.some((it) => it.url === targetUrl);
                   return (
                     <li key={c.id}>
-                      <button
-                        type="button"
-                        disabled={busy || already}
-                        onClick={() => run(() => onAddToCollection(target, c.id))}
-                        title={already ? "Already in this collection" : undefined}
-                        className={cn(
-                          "flex w-full items-center justify-between gap-3 border-b border-border px-3 py-2 text-left text-sm transition last:border-b-0",
-                          already ? "cursor-default text-text-dim" : "text-foreground hover:bg-white/[0.04]",
-                          "disabled:opacity-60",
-                        )}
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          {already && <Check className="h-3.5 w-3.5 shrink-0 text-live" />}
-                          <span className="truncate">{c.title}</span>
-                        </span>
-                        {already ? (
-                          <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-live">Added</span>
-                        ) : (
-                          <span className="shrink-0 font-mono text-[10px] text-text-dim">{c.items.length}</span>
-                        )}
-                      </button>
+                      <Tooltip content={already ? "Already in this collection" : undefined}>
+                        <button
+                          type="button"
+                          disabled={busy || already}
+                          onClick={() => run(() => onAddToCollection(target, c.id))}
+                          className={cn(
+                            "flex w-full items-center justify-between gap-3 border-b border-border px-3 py-2 text-left text-sm transition last:border-b-0",
+                            already ? "cursor-default text-text-dim" : "text-foreground hover:bg-white/[0.04]",
+                            "disabled:opacity-60",
+                          )}
+                        >
+                          <span className="flex min-w-0 items-center gap-2">
+                            {already && <Check className="h-3.5 w-3.5 shrink-0 text-live" />}
+                            <span className="truncate">{c.title}</span>
+                          </span>
+                          {already ? (
+                            <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-live">Added</span>
+                          ) : (
+                            <span className="shrink-0 font-mono text-[10px] text-text-dim">{c.items.length}</span>
+                          )}
+                        </button>
+                      </Tooltip>
                     </li>
                   );
                 })}
@@ -734,42 +736,45 @@ function FolderRow({
         </button>
       )}
       {onCollectionAction && !editing && (
-        <button
-          type="button"
-          onClick={onCollectionAction}
-          disabled={deleting}
-          aria-label={`Add folder ${name} to a collection`}
-          title="Add this folder to a collection"
-          className="shrink-0 p-1.5 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground disabled:opacity-50"
-        >
-          <Layers className="h-3.5 w-3.5" />
-        </button>
+        <Tooltip content="Add this folder to a collection">
+          <button
+            type="button"
+            onClick={onCollectionAction}
+            disabled={deleting}
+            aria-label={`Add folder ${name} to a collection`}
+            className="shrink-0 p-1.5 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground disabled:opacity-50"
+          >
+            <Layers className="h-3.5 w-3.5" />
+          </button>
+        </Tooltip>
       )}
       {!editing && (
+        <Tooltip content="Rename">
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            disabled={deleting}
+            aria-label={`Rename folder ${name}`}
+            className="shrink-0 p-1.5 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground disabled:opacity-50"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        </Tooltip>
+      )}
+      <Tooltip content={deleting ? "Deleting…" : armed ? "Click again to confirm" : "Delete folder"}>
         <button
           type="button"
-          onClick={() => setEditing(true)}
-          disabled={deleting}
-          aria-label={`Rename folder ${name}`}
-          title="Rename"
-          className="shrink-0 p-1.5 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground disabled:opacity-50"
+          onClick={trigger}
+          disabled={deleting || editing}
+          aria-label={armed ? "Click again to confirm delete" : `Delete folder ${name}`}
+          className={cn(
+            "mr-3 shrink-0 p-1.5 transition",
+            deleting ? "text-muted-foreground" : armed ? "animate-pulse-soft bg-accent text-white" : "text-muted-foreground hover:bg-white/[0.05] hover:text-accent",
+          )}
         >
-          <Pencil className="h-3.5 w-3.5" />
+          {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
         </button>
-      )}
-      <button
-        type="button"
-        onClick={trigger}
-        disabled={deleting || editing}
-        aria-label={armed ? "Click again to confirm delete" : `Delete folder ${name}`}
-        title={deleting ? "Deleting…" : armed ? "Click again to confirm" : "Delete folder"}
-        className={cn(
-          "mr-3 shrink-0 p-1.5 transition",
-          deleting ? "text-muted-foreground" : armed ? "animate-pulse-soft bg-accent text-white" : "text-muted-foreground hover:bg-white/[0.05] hover:text-accent",
-        )}
-      >
-        {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-      </button>
+      </Tooltip>
     </li>
   );
 }
@@ -877,39 +882,42 @@ function FileRow({
   const chips = publicUrl && (inLibrary || onAddToLibrary || onCollectionAction) && (
     <div className="flex shrink-0 items-center">
       {inLibrary && (
-        <button
-          type="button"
-          onClick={onOpenLibraryEntry ? () => onOpenLibraryEntry(publicUrl) : undefined}
-          disabled={!onOpenLibraryEntry}
-          aria-label="In your library"
-          title={onOpenLibraryEntry ? "In your library — edit entry" : "In your library"}
-          className="p-1.5 text-live transition hover:bg-white/[0.05] disabled:cursor-default"
-        >
-          <Check className="h-3.5 w-3.5" />
-        </button>
+        <Tooltip content={onOpenLibraryEntry ? "In your library — edit entry" : "In your library"}>
+          <button
+            type="button"
+            onClick={onOpenLibraryEntry ? () => onOpenLibraryEntry(publicUrl) : undefined}
+            disabled={!onOpenLibraryEntry}
+            aria-label="In your library"
+            className="p-1.5 text-live transition hover:bg-white/[0.05] disabled:cursor-default"
+          >
+            <Check className="h-3.5 w-3.5" />
+          </button>
+        </Tooltip>
       )}
       {!inLibrary && onAddToLibrary && (
-        <button
-          type="button"
-          onClick={addToLibrary}
-          disabled={adding}
-          aria-label="Add to library"
-          title={addError || "Add to library"}
-          className="p-1.5 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground disabled:opacity-50"
-        >
-          {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : addError ? <X className="h-3.5 w-3.5 text-accent" /> : <LibraryIcon className="h-3.5 w-3.5" />}
-        </button>
+        <Tooltip content={addError || "Add to library"}>
+          <button
+            type="button"
+            onClick={addToLibrary}
+            disabled={adding}
+            aria-label="Add to library"
+            className="p-1.5 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground disabled:opacity-50"
+          >
+            {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : addError ? <X className="h-3.5 w-3.5 text-accent" /> : <LibraryIcon className="h-3.5 w-3.5" />}
+          </button>
+        </Tooltip>
       )}
       {onCollectionAction && (
-        <button
-          type="button"
-          onClick={onCollectionAction}
-          aria-label="Add to a collection"
-          title={inCollection ? "In a collection — add to another" : "Add to a collection"}
-          className={cn("p-1.5 transition hover:bg-white/[0.05]", inCollection ? "text-cyan" : "text-muted-foreground hover:text-foreground")}
-        >
-          <Layers className="h-3.5 w-3.5" />
-        </button>
+        <Tooltip content={inCollection ? "In a collection — add to another" : "Add to a collection"}>
+          <button
+            type="button"
+            onClick={onCollectionAction}
+            aria-label="Add to a collection"
+            className={cn("p-1.5 transition hover:bg-white/[0.05]", inCollection ? "text-cyan" : "text-muted-foreground hover:text-foreground")}
+          >
+            <Layers className="h-3.5 w-3.5" />
+          </button>
+        </Tooltip>
       )}
     </div>
   );
@@ -934,9 +942,11 @@ function FileRow({
           {editing ? (
             <RenameInput initial={name} busy={renaming} onSubmit={commitRename} onCancel={() => setEditing(false)} />
           ) : (
-            <span onDoubleClick={() => setEditing(true)} className="min-w-0 flex-1 truncate text-sm text-foreground" title={fullKey}>
-              {name}
-            </span>
+            <Tooltip content={fullKey}>
+              <span onDoubleClick={() => setEditing(true)} className="min-w-0 flex-1 truncate text-sm text-foreground">
+                {name}
+              </span>
+            </Tooltip>
           )}
         </div>
 
@@ -946,31 +956,33 @@ function FileRow({
           <span className="mr-1 font-mono text-[11px] tabular-nums text-text-dim">{formatBytes(size)}</span>
           {lastModified && <span className="mr-1 hidden font-mono text-[11px] text-text-dim sm:inline">{lastModified.toISOString().slice(0, 10)}</span>}
           {!editing && (
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              disabled={deleting}
-              aria-label={`Rename ${name}`}
-              title="Rename"
-              className="p-1.5 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground disabled:opacity-50"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
+            <Tooltip content="Rename">
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                disabled={deleting}
+                aria-label={`Rename ${name}`}
+                className="p-1.5 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground disabled:opacity-50"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            </Tooltip>
           )}
           {publicUrl && <CopyButton text={publicUrl} label="public link" />}
-          <button
-            type="button"
-            onClick={trigger}
-            disabled={deleting || editing}
-            aria-label={armed ? "Click again to confirm delete" : `Delete ${name}`}
-            title={deleting ? "Deleting…" : armed ? "Click again to confirm" : "Delete"}
-            className={cn(
-              "p-1.5 transition",
-              deleting ? "text-muted-foreground" : armed ? "animate-pulse-soft bg-accent text-white" : "text-muted-foreground hover:bg-white/[0.05] hover:text-accent",
-            )}
-          >
-            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-          </button>
+          <Tooltip content={deleting ? "Deleting…" : armed ? "Click again to confirm" : "Delete"}>
+            <button
+              type="button"
+              onClick={trigger}
+              disabled={deleting || editing}
+              aria-label={armed ? "Click again to confirm delete" : `Delete ${name}`}
+              className={cn(
+                "p-1.5 transition",
+                deleting ? "text-muted-foreground" : armed ? "animate-pulse-soft bg-accent text-white" : "text-muted-foreground hover:bg-white/[0.05] hover:text-accent",
+              )}
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            </button>
+          </Tooltip>
         </div>
       </div>
     </li>

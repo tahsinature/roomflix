@@ -1,4 +1,4 @@
-import { ComparisonIndicator } from "@/features/compare/ComparisonIndicator";
+import { TitleStatusIndicators } from "@/features/discover/TitleStatusIndicators";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Check, Clapperboard, Clock3, Loader2, RotateCw, Search, Trash2, Tv } from "lucide-react";
 import { type RecentTitleItem, type TitleLibraryItem } from "@shared/protocol";
@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { formatVotes, posterUrl, titleIdentity, type TitleSelection } from "./discover-utils";
 import { filterAndSortRecentTitles, type RecentRange, type RecentSort } from "./recent-titles";
+import { titleLibraryStatusDate } from "./status-tooltip";
 import { prefetchTitleDetails } from "./title-details-cache";
 
 const RANGE_OPTIONS: Array<{ value: RecentRange; label: string }> = [
@@ -146,7 +147,13 @@ export function RecentTitlesView({
           {visibleTitles.length ? (
             <div className="mt-3 divide-y divide-border border border-border bg-card/20">
               {visibleTitles.map((title) => (
-                <RecentTitleRow key={titleIdentity(title)} title={title} savedLabel={libraryByTitle.get(titleIdentity(title))?.status} onSelect={() => onSelect(title)} />
+                <RecentTitleRow
+                  key={titleIdentity(title)}
+                  title={title}
+                  savedLabel={libraryByTitle.get(titleIdentity(title))?.status}
+                  statusAt={titleLibraryStatusDate(libraryByTitle.get(titleIdentity(title)))}
+                  onSelect={() => onSelect(title)}
+                />
               ))}
             </div>
           ) : (
@@ -186,7 +193,17 @@ export function RecentTitlesView({
   );
 }
 
-function RecentTitleRow({ title, savedLabel, onSelect }: { title: RecentTitleItem; savedLabel?: TitleLibraryItem["status"]; onSelect: () => void }) {
+function RecentTitleRow({
+  title,
+  savedLabel,
+  statusAt,
+  onSelect,
+}: {
+  title: RecentTitleItem;
+  savedLabel?: TitleLibraryItem["status"];
+  statusAt?: number | null;
+  onSelect: () => void;
+}) {
   const image = posterUrl(title.posterPath, "w185");
   const MediaIcon = title.mediaType === "tv" ? Tv : Clapperboard;
   const viewedAt = new Date(title.lastViewedAt);
@@ -215,7 +232,7 @@ function RecentTitleRow({ title, savedLabel, onSelect }: { title: RecentTitleIte
             <MediaIcon className="h-4 w-4 text-text-dim" />
           </span>
         )}
-        <ComparisonIndicator titleId={titleIdentity(title)} />
+        <TitleStatusIndicators titleId={titleIdentity(title)} status={savedLabel} statusAt={statusAt} />
       </div>
 
       <div className="min-w-0">

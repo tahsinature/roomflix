@@ -1,3 +1,4 @@
+import { COMPARISON_COLUMN_IDS } from "@/protocol.ts";
 import { Schema, model } from "mongoose";
 
 // Persistent user account. `usernameLower` exists so case-insensitive
@@ -23,6 +24,8 @@ const userSchema = new Schema(
     // preferences without turning the user document into a flat key list.
     preferences: {
       discover: {
+        compareColumns: { type: [{ type: String, enum: [...COMPARISON_COLUMN_IDS] }], default: () => [...COMPARISON_COLUMN_IDS] },
+        compareColumnOrder: { type: [{ type: String, enum: [...COMPARISON_COLUMN_IDS] }], default: () => [...COMPARISON_COLUMN_IDS] },
         moreLikeThisSort: {
           type: String,
           enum: ["recommended", "rating", "newest", "oldest", "title"],

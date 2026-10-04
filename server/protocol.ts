@@ -47,6 +47,7 @@ export type TitleLibraryItem = {
   userRating: number | null;
   notes: string;
   addedAt: number;
+  watchlistedAt: number | null;
   watchedAt: number | null;
   updatedAt: number;
 };
@@ -187,7 +188,23 @@ export type ImdbRatings = {
   fetchedAt: string | null;
 };
 
+export type DiscoverNextEpisode = {
+  seasonNumber: number;
+  episodeNumber: number;
+  airDate: string;
+};
+
+export type DiscoverSeriesStatus = {
+  numberOfSeasons?: number | null;
+  numberOfEpisodes?: number | null;
+  firstAirDate?: string | null;
+  lastAirDate?: string | null;
+  status: string;
+  nextEpisode: DiscoverNextEpisode | null;
+};
+
 export type DiscoverTitleDetails = DiscoverSearchResult & {
+  lastAirDate: string | null;
   originalTitle: string;
   tagline: string;
   runtime: number | null;
@@ -195,6 +212,7 @@ export type DiscoverTitleDetails = DiscoverSearchResult & {
   spokenLanguages: string[];
   originalLanguage: string;
   status: string;
+  nextEpisode: DiscoverNextEpisode | null;
   imdbId: string | null;
   directors: DiscoverPersonCredit[];
   cast: DiscoverCastMember[];
@@ -237,15 +255,22 @@ export type RecommendationSort = "recommended" | "rating" | "newest" | "oldest" 
 // Durable interface choices that follow a user across browsers and devices.
 // Keep this limited to explicit preferences; transient navigation state such
 // as scroll position and open dialogs belongs in the client history entry.
+export const COMPARISON_COLUMN_IDS = ["imdbRating", "tmdbRating", "releaseDate", "genres", "runtime"] as const;
+export type ComparisonColumnId = (typeof COMPARISON_COLUMN_IDS)[number];
+
 export type UserPreferences = {
   discover: {
     moreLikeThisSort: RecommendationSort;
+    compareColumns: ComparisonColumnId[];
+    compareColumnOrder: ComparisonColumnId[];
   };
 };
 
 export type UserPreferencesPatch = {
   discover?: {
     moreLikeThisSort?: RecommendationSort;
+    compareColumns?: ComparisonColumnId[];
+    compareColumnOrder?: ComparisonColumnId[];
   };
 };
 

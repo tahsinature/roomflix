@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useRef, useState } from "react";
 import { Download, ExternalLink, PanelLeftOpen, PanelRight, Radio, Replace } from "lucide-react";
 import { LibraryPicker } from "@/components/LibraryPicker";
@@ -53,20 +54,21 @@ export function TheaterTopBar({
               hidden. Sits next to the exit chrome so it reads as a
               "panel control" rather than floating over the video. */}
           {onShowCollectionPanel && (
-            <button
-              type="button"
-              onClick={onShowCollectionPanel}
-              aria-label="Show collection panel"
-              title="Show collection panel"
-              className="flex h-9 w-9 shrink-0 items-center justify-center border border-white/15 bg-black/50 text-white/85 backdrop-blur transition hover:bg-black/70 hover:text-white"
-            >
-              <PanelLeftOpen className="h-4 w-4" />
-            </button>
+            <Tooltip content="Show collection panel">
+              <button
+                type="button"
+                onClick={onShowCollectionPanel}
+                aria-label="Show collection panel"
+                className="flex h-9 w-9 shrink-0 items-center justify-center border border-white/15 bg-black/50 text-white/85 backdrop-blur transition hover:bg-black/70 hover:text-white"
+              >
+                <PanelLeftOpen className="h-4 w-4" />
+              </button>
+            </Tooltip>
           )}
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-white/95 sm:text-base" title={title}>
-              {title}
-            </div>
+            <Tooltip content={title}>
+              <div className="truncate text-sm font-semibold text-white/95 sm:text-base">{title}</div>
+            </Tooltip>
             <div className="truncate font-mono text-[11px] uppercase tracking-[0.16em] text-white/45">{contextLabel}</div>
           </div>
         </div>
@@ -76,24 +78,23 @@ export function TheaterTopBar({
               the in-player Radio button on video. Only rendered for
               audio + photo; video has its own launcher in the player
               control bar. */}
-          {onOpenRemote && (
-            <RemoteLauncher onOpen={onOpenRemote} sidebarOpen={!!remoteSidebarOpen} />
-          )}
+          {onOpenRemote && <RemoteLauncher onOpen={onOpenRemote} sidebarOpen={!!remoteSidebarOpen} />}
           {/* Explicit download affordance — the URL is also reachable
               via the browser's right-click / long-press menu, but a
               visible button makes the path discoverable on touch. */}
           {downloadUrl && (
-            <a
-              href={downloadUrl}
-              download={downloadFilename || ""}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Download"
-              title="Download"
-              className="flex h-9 w-9 shrink-0 items-center justify-center border border-white/15 bg-black/50 text-white/85 backdrop-blur transition hover:bg-black/70 hover:text-white"
-            >
-              <Download className="h-4 w-4" />
-            </a>
+            <Tooltip content="Download">
+              <a
+                href={downloadUrl}
+                download={downloadFilename || ""}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Download"
+                className="flex h-9 w-9 shrink-0 items-center justify-center border border-white/15 bg-black/50 text-white/85 backdrop-blur transition hover:bg-black/70 hover:text-white"
+              >
+                <Download className="h-4 w-4" />
+              </a>
+            </Tooltip>
           )}
           <LibraryPicker onPick={onLoadUrl} onOpenChange={onLibraryOpenChange} />
         </div>
@@ -133,25 +134,31 @@ function RemoteLauncher({ onOpen, sidebarOpen }: { onOpen: (mode: RemoteOpenMode
 
   return (
     <div ref={wrapRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Open chat"
-        title="Open chat (C)"
-        className={cn(
-          "inline-flex h-9 w-9 items-center justify-center gap-1.5 border text-sm font-medium backdrop-blur transition lg:w-auto lg:px-3",
-          open || sidebarOpen ? "border-accent/50 bg-accent/15 text-accent" : "border-white/15 bg-black/50 text-white/85 hover:bg-black/70 hover:text-white",
-        )}
-      >
-        <Radio className="h-3.5 w-3.5" />
-        <span className="hidden lg:inline">Remote</span>
-      </button>
+      <Tooltip content="Open chat (C)">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label="Open chat"
+          className={cn(
+            "inline-flex h-9 w-9 items-center justify-center gap-1.5 border text-sm font-medium backdrop-blur transition lg:w-auto lg:px-3",
+            open || sidebarOpen ? "border-accent/50 bg-accent/15 text-accent" : "border-white/15 bg-black/50 text-white/85 hover:bg-black/70 hover:text-white",
+          )}
+        >
+          <Radio className="h-3.5 w-3.5" />
+          <span className="hidden lg:inline">Remote</span>
+        </button>
+      </Tooltip>
       {open && (
         <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-56 border border-white/10 bg-black/90 p-1 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl">
           <div className="border-b border-white/[0.06] px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-white/45">Open remote</div>
-          <RemoteOption icon={<PanelRight className="h-3.5 w-3.5" />} label={sidebarOpen ? "Close side panel" : "Side panel"} hint={sidebarOpen ? "Hide the sidebar" : "Dock beside the player"} onClick={() => pick("sidebar")} />
+          <RemoteOption
+            icon={<PanelRight className="h-3.5 w-3.5" />}
+            label={sidebarOpen ? "Close side panel" : "Side panel"}
+            hint={sidebarOpen ? "Hide the sidebar" : "Dock beside the player"}
+            onClick={() => pick("sidebar")}
+          />
           <RemoteOption icon={<ExternalLink className="h-3.5 w-3.5" />} label="New window" hint="Detached popup — keep on a second screen" onClick={() => pick("newWindow")} />
           <RemoteOption icon={<Replace className="h-3.5 w-3.5" />} label="Replace this tab" hint="Navigate this tab to /remote" onClick={() => pick("sameWindow")} />
         </div>

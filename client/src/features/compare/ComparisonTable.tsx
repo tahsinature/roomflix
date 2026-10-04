@@ -1,3 +1,6 @@
+import { COMPARISON_COLUMN_IDS } from "@shared/protocol";
+import { useAuth } from "@/auth/AuthContext";
+import { ComparisonColumnsMenu } from "./ComparisonColumnsMenu";
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, GitCompareArrows, Plus } from "lucide-react";
 import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type SortingState } from "@tanstack/react-table";
@@ -20,6 +23,10 @@ export function ComparisonTable({
   onAdd: () => void;
   onMove: (activeId: string, overId: string) => void;
 }) {
+  const { user } = useAuth();
+  const visibleColumns = user?.preferences.discover.compareColumns ?? [...COMPARISON_COLUMN_IDS];
+  const columnOrder = user?.preferences.discover.compareColumnOrder ?? [...COMPARISON_COLUMN_IDS];
+  const columnVisibility = Object.fromEntries(COMPARISON_COLUMN_IDS.map((id) => [id, visibleColumns.includes(id)]));
   const [sorting, setSorting] = useState<SortingState>([]);
   const sensors = useSensors(
     useSensor(MouseSensor),
@@ -33,7 +40,7 @@ export function ComparisonTable({
   const table = useReactTable({
     data: titles,
     columns,
-    state: { sorting, columnVisibility: { imdbVotes: false } },
+    state: { sorting, columnVisibility: { ...columnVisibility, imdbVotes: false }, columnOrder: ["title", ...columnOrder, "imdbVotes", "actions"] },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -41,6 +48,10 @@ export function ComparisonTable({
     enableMultiSort: false,
   });
 
+  const nonTitleWidth = table
+    .getVisibleLeafColumns()
+    .filter((column) => column.id !== "title")
+    .reduce((width, column) => width + column.getSize(), 0);
   const rows = table.getRowModel().rows;
   const rowIds = rows.map((row) => row.id);
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
@@ -49,7 +60,7 @@ export function ComparisonTable({
 
   return (
     <>
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-1.5 gap-y-1 px-3 py-2 sm:flex sm:flex-wrap sm:gap-3 sm:px-5 sm:py-3">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-1.5 gap-y-1 px-3 py-2 sm:flex sm:flex-wrap sm:gap-3 sm:px-5 sm:py-3">
         <h1 className="col-start-1 row-start-1 flex items-center gap-1.5 text-xs font-medium sm:order-1 sm:gap-2 sm:text-sm sm:mr-auto">
           <GitCompareArrows className="size-3 text-accent sm:size-4" /> Compare <span className="text-[10px] tabular-nums text-muted-foreground">{titles.length}</span>
         </h1>
@@ -66,6 +77,8 @@ export function ComparisonTable({
             <option value="priority">My priority</option>
             <option value="imdbRating:desc">IMDb rating: highest first</option>
             <option value="imdbRating:asc">IMDb rating: lowest first</option>
+            <option value="tmdbRating:desc">TMDB rating: highest first</option>
+            <option value="tmdbRating:asc">TMDB rating: lowest first</option>
             <option value="imdbVotes:desc">IMDb votes: most first</option>
             <option value="imdbVotes:asc">IMDb votes: fewest first</option>
             <option value="releaseDate:desc">Release: newest first</option>
@@ -76,18 +89,19 @@ export function ComparisonTable({
             <option value="runtime:desc">Length: longest first</option>
           </select>
         </label>
+        <ComparisonColumnsMenu visible={visibleColumns} order={columnOrder} />
         <Button
           type="button"
           variant="accent"
           size="sm"
-          className="col-start-3 row-start-1 h-7 w-7 rounded-[6px] p-0 text-[10px] sm:order-4 sm:h-8 sm:w-auto sm:px-3"
+          className="col-start-4 row-start-1 h-7 w-7 rounded-[6px] p-0 text-[10px] sm:order-4 sm:h-8 sm:w-auto sm:px-3"
           onClick={onAdd}
           aria-label="Add title"
         >
           <Plus className="size-3.5" />
           <span className="hidden sm:inline">Add title</span>
         </Button>
-        <p className="col-span-3 row-start-2 text-[9px] leading-4 text-muted-foreground sm:order-5 sm:w-full sm:text-[10px]">
+        <p className="col-span-4 row-start-2 text-[9px] leading-4 text-muted-foreground sm:order-5 sm:w-full sm:text-[10px]">
           <span className="sm:hidden">Drag in My priority · Order saved.</span>
           <span className="hidden sm:inline">Use My priority to drag rows. Your saved order is preserved when sorting.</span>
         </p>
@@ -99,7 +113,7 @@ export function ComparisonTable({
           aria-label="Title comparison table"
           tabIndex={0}
         >
-          <table className="w-full min-w-[52rem] table-fixed border-collapse text-left">
+          <table className="w-full table-fixed border-collapse text-left" style={{ minWidth: `calc(var(--compare-title-width) + ${nonTitleWidth}px)` }}>
             <caption className="sr-only">
               Compare movies and series. IMDb ratings and vote counts are supplied by OMDb. Select a column header to sort. In My priority, use a row handle to drag, or press
               Space, arrow keys, then Space to reorder.

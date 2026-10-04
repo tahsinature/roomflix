@@ -1,32 +1,21 @@
-import { useCallback, useEffect } from "react";
+import { useEffect } from "react";
 import { ArrowRight, HardDrive } from "lucide-react";
-import { useToast } from "@/components/Toast";
 import { useCommandPalette } from "@/features/command-palette/CommandPaletteProvider";
 import { ComparisonTable } from "@/features/compare/ComparisonTable";
-import type { ComparisonTitle } from "@/features/compare/comparison-data";
 import { useComparison } from "@/features/compare/ComparisonProvider";
 
 export default function Compare() {
-  const { titles, addTitle, removeTitle, moveTitle, refreshRatings, storageError } = useComparison();
-  const { info } = useToast();
+  const { titles, removeTitle, moveTitle, refreshTitles, storageError } = useComparison();
   const { openComparisonSearch } = useCommandPalette();
 
   useEffect(() => {
-    void refreshRatings();
-  }, [refreshRatings]);
-
-  const removeSelection = useCallback(
-    (title: ComparisonTitle) => {
-      removeTitle(title.id);
-      info(`Removed “${title.title}” from this comparison.`, { label: "Undo", onClick: () => addTitle(title) });
-    },
-    [removeTitle, addTitle, info],
-  );
+    void refreshTitles();
+  }, [refreshTitles]);
 
   return (
     <main className="view-enter mx-auto max-w-[90rem] px-4 pb-12 pt-6 sm:px-8 sm:pt-8 lg:px-12">
       <section aria-label="Your comparison list" className="overflow-hidden rounded-[12px] border border-border-hover bg-card/65 shadow-[0_24px_80px_-40px_rgba(0,0,0,0.65)]">
-        <ComparisonTable titles={titles} onRemove={removeSelection} onAdd={openComparisonSearch} onMove={moveTitle} />
+        <ComparisonTable titles={titles} onRemove={(title) => removeTitle(title.id)} onAdd={openComparisonSearch} onMove={moveTitle} />
       </section>
 
       <footer className="mt-4 flex flex-wrap items-center justify-between gap-3 px-1 text-[9px] leading-5 text-muted-foreground">

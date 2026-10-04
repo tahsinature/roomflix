@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Check, ChevronDown, Settings, Users2 } from "lucide-react";
@@ -44,14 +45,12 @@ export function SpaceChip() {
   if (!currentSpace) {
     if (isGuest) return null;
     return (
-      <Link
-        to="/settings/space"
-        className="hidden items-center gap-1.5 font-mono text-[12px] text-text-dim transition hover:text-foreground sm:inline-flex"
-        title="You're not in a space yet — set one up"
-      >
-        <Users2 className="h-3 w-3" />
-        no space
-      </Link>
+      <Tooltip content="You're not in a space yet — set one up">
+        <Link to="/settings/space" className="hidden items-center gap-1.5 font-mono text-[12px] text-text-dim transition hover:text-foreground sm:inline-flex">
+          <Users2 className="h-3 w-3" />
+          no space
+        </Link>
+      </Tooltip>
     );
   }
 
@@ -68,27 +67,30 @@ export function SpaceChip() {
   // shell so the nav doesn't shift when an unauth'd user signs in.
   if (isGuest) {
     return (
-      <div className="hidden items-center gap-1.5 font-mono text-[12px] text-text-dim sm:inline-flex" title={`In ${currentSpace.name}`}>
-        <span className="text-text-dim/60">/</span>
-        <span className="max-w-[8rem] truncate text-foreground">{currentSpace.name}</span>
-      </div>
+      <Tooltip content={`In ${currentSpace.name}`}>
+        <div className="hidden items-center gap-1.5 font-mono text-[12px] text-text-dim sm:inline-flex">
+          <span className="text-text-dim/60">/</span>
+          <span className="max-w-[8rem] truncate text-foreground">{currentSpace.name}</span>
+        </div>
+      </Tooltip>
     );
   }
 
   return (
     <div ref={rootRef} className="relative hidden sm:inline-flex">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        title={`Current space: ${currentSpace.name}`}
-        className="inline-flex items-center gap-1.5 font-mono text-[12px] text-text-dim transition hover:text-foreground"
-      >
-        <span className="text-text-dim/60">/</span>
-        <span className="max-w-[10rem] truncate text-foreground">{currentSpace.name}</span>
-        <ChevronDown className={cn("h-3 w-3 transition", open && "rotate-180")} />
-      </button>
+      <Tooltip content={`Current space: ${currentSpace.name}`}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          className="inline-flex items-center gap-1.5 font-mono text-[12px] text-text-dim transition hover:text-foreground"
+        >
+          <span className="text-text-dim/60">/</span>
+          <span className="max-w-[10rem] truncate text-foreground">{currentSpace.name}</span>
+          <ChevronDown className={cn("h-3 w-3 transition", open && "rotate-180")} />
+        </button>
+      </Tooltip>
 
       {open && (
         <div role="menu" className="absolute left-0 top-8 z-40 min-w-[14rem] border border-border bg-bg-elevated/95 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl">

@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import type { HealthStatus } from "@shared/protocol";
 import { cn } from "@/lib/utils";
 
@@ -21,5 +22,9 @@ export function HealthDot({ status }: { status?: HealthStatus }) {
         return { color: "bg-emerald-400 shadow-[0_0_5px_rgb(52_211_153/0.4)]", label: "Not yet checked" };
     }
   })();
-  return <span className={cn("inline-block h-2 w-2 shrink-0 rounded-full", meta.color)} title={meta.label} aria-label={meta.label} />;
+  return (
+    <Tooltip content={meta.label}>
+      <span className={cn("inline-block h-2 w-2 shrink-0 rounded-full", meta.color)} aria-label={meta.label} />
+    </Tooltip>
+  );
 }

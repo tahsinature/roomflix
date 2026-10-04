@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Film, ImageIcon, Layers, Loader2, MoreVertical, Pencil, Play, Plus, Share2, Trash2 } from "lucide-react";
@@ -170,9 +171,9 @@ function CollectionCard({ collection, onDelete, onReplace }: { collection: Colle
       />
 
       <div className="px-3 py-2.5">
-        <div className="truncate text-sm font-medium text-foreground" title={collection.title}>
-          {collection.title}
-        </div>
+        <Tooltip content={collection.title}>
+          <div className="truncate text-sm font-medium text-foreground">{collection.title}</div>
+        </Tooltip>
       </div>
       {shareOpen && <ShareDialog target={{ kind: "collection", collectionId: collection.id, title: collection.title }} onClose={() => setShareOpen(false)} />}
       <CoverEditDialog open={coverOpen} collection={collection} onClose={() => setCoverOpen(false)} onSaved={onReplace} />
@@ -235,17 +236,18 @@ function CardActionsMenu({
 
   return (
     <div ref={ref} className="absolute right-1.5 top-1.5 z-10">
-      <button
-        type="button"
-        aria-label="Collection actions"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        title="Actions"
-        onClick={() => onOpenChange(!open)}
-        className="flex h-7 w-7 items-center justify-center border border-white/15 bg-black/65 text-white/85 backdrop-blur transition hover:text-white"
-      >
-        <MoreVertical className="h-3.5 w-3.5" />
-      </button>
+      <Tooltip content="Actions">
+        <button
+          type="button"
+          aria-label="Collection actions"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => onOpenChange(!open)}
+          className="flex h-7 w-7 items-center justify-center border border-white/15 bg-black/65 text-white/85 backdrop-blur transition hover:text-white"
+        >
+          <MoreVertical className="h-3.5 w-3.5" />
+        </button>
+      </Tooltip>
       {open && (
         <div
           role="menu"
@@ -301,17 +303,7 @@ function DeleteMenuItem({ armed, busy, onClick }: { armed: boolean; busy: boolea
 // <img> fall back to a placeholder if loading fails. Live preview
 // updates as the user types (debounce-free; <img> is its own throttle).
 // Save / Clear / Cancel actions; Clear is hidden when nothing's set.
-function CoverEditDialog({
-  open,
-  collection,
-  onClose,
-  onSaved,
-}: {
-  open: boolean;
-  collection: Collection;
-  onClose: () => void;
-  onSaved: (next: Collection) => void;
-}) {
+function CoverEditDialog({ open, collection, onClose, onSaved }: { open: boolean; collection: Collection; onClose: () => void; onSaved: (next: Collection) => void }) {
   const toast = useToast();
   const [draft, setDraft] = useState(collection.coverUrl ?? "");
   const [busy, setBusy] = useState<"save" | "clear" | null>(null);
@@ -369,9 +361,7 @@ function CoverEditDialog({
             autoCorrect="off"
             autoCapitalize="off"
           />
-          <span className="mt-1.5 block font-mono text-[11px] text-text-dim">
-            Leave blank and save to use an auto-picked cover (first photo in the collection).
-          </span>
+          <span className="mt-1.5 block font-mono text-[11px] text-text-dim">Leave blank and save to use an auto-picked cover (first photo in the collection).</span>
         </label>
 
         {/* Live preview — same 16/10 aspect as the card so the user

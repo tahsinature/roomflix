@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 
 import { loadImdbRatings } from "@/discovery/omdb-client.ts";
+import { loadSeriesStatus } from "@/discovery/series-status.ts";
 import { requireUser } from "@/auth.ts";
 import { tmdbRequest, TmdbGatewayError } from "@/discovery/tmdb-client.ts";
 import { isTitle, toEpisodeDetails, toImageGallery, toPersonDetails, toSearchResult, toSeasonDetails, toTitleDetails } from "@/discovery/tmdb-normalizers.ts";
@@ -33,6 +34,12 @@ export function buildDiscoverTmdbRouter(storage: Storage) {
     const query = c.req.query("q")?.trim() ?? "";
     if (query.length < 2) return c.json({ titles: [], people: [], usedFuzzyFallback: false } satisfies DiscoverSearchResponse);
     return c.json(await searchWithFuzzyFallback(query));
+  });
+
+  app.get("/series-status/:tmdbId", async (c) => {
+    const tmdbId = parsePositiveInt(c.req.param("tmdbId"));
+    if (!tmdbId) return c.json({ error: "invalid TMDB series identity" }, 400);
+    return c.json(await loadSeriesStatus(tmdbId));
   });
 
   app.get("/trending", async (c) => {

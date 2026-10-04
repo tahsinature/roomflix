@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
 import { Circle, Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSun, Pause, Play, Settings, Snowflake, Sun } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -195,9 +196,9 @@ function NowPlayingLink({ state, playing, watchingCount, onClose }: { state: Ses
         {playing ? <PlayingBars /> : <Play className="h-3 w-3 fill-current" />}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm text-foreground" title={title}>
-          {title}
-        </span>
+        <Tooltip content={title}>
+          <span className="block truncate text-sm text-foreground">{title}</span>
+        </Tooltip>
         <span className="mt-0.5 block font-mono text-[9px] uppercase tracking-[0.16em] text-text-dim">
           {playing ? "Playing" : "Paused"} · {watchingCount} in theater
         </span>
@@ -212,7 +213,11 @@ function LocalContext({ role, timezone, city, now }: { role: MemberListRow["role
   if (!timezone && !city) return <span className="uppercase tracking-[0.14em]">{role}</span>;
   return (
     <span className="flex min-w-0 items-center gap-1.5">
-      {timezone ? <span title={timezone}>{formatLocalTime(timezone, now)}</span> : null}
+      {timezone ? (
+        <Tooltip content={timezone}>
+          <span>{formatLocalTime(timezone, now)}</span>
+        </Tooltip>
+      ) : null}
       {timezone && city ? <span className="text-white/20">·</span> : null}
       {city ? <span className="max-w-[13ch] truncate">{city}</span> : null}
     </span>
@@ -234,10 +239,12 @@ function WeatherChip({ weather, hasCity }: { weather: Weather | null | undefined
   const { bucket, label } = weatherBucket(weather.code);
   const Icon = weatherIcon(bucket);
   return (
-    <span className="inline-flex items-center gap-1 font-mono text-[10px] tabular-nums text-foreground/75" title={`${label} · ${weather.resolvedName}`}>
-      <Icon className="h-3 w-3 text-text-dim" />
-      {Math.round(weather.tempC)}°
-    </span>
+    <Tooltip content={`${label} · ${weather.resolvedName}`}>
+      <span className="inline-flex items-center gap-1 font-mono text-[10px] tabular-nums text-foreground/75">
+        <Icon className="h-3 w-3 text-text-dim" />
+        {Math.round(weather.tempC)}°
+      </span>
+    </Tooltip>
   );
 }
 

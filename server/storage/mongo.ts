@@ -1,3 +1,4 @@
+import { titleStatusDates } from "@/discovery/title-status-dates.ts";
 import mongoose from "mongoose";
 
 import { RECENT_TITLE_LIMIT } from "@/protocol.ts";
@@ -158,7 +159,7 @@ class MongoTitleLibraryRepo implements TitleLibraryRepo {
     const existing = await this.get(userId, input.mediaType, input.tmdbId);
     const now = Date.now();
     const addedAt = existing?.addedAt ?? now;
-    const watchedAt = input.status === "watched" ? (input.watchedAt ?? existing?.watchedAt ?? now) : null;
+    const statusDates = titleStatusDates(existing, input.status, now);
     const id = existing?.id ?? randomId() + randomId();
     const fields = {
       userId,
@@ -177,7 +178,7 @@ class MongoTitleLibraryRepo implements TitleLibraryRepo {
       status: input.status,
       userRating: input.userRating,
       notes: input.notes,
-      watchedAt,
+      ...statusDates,
       updatedAt: now,
     };
 
@@ -392,6 +393,12 @@ class MongoUserRepo implements UserRepo {
     const set: Record<string, unknown> = {};
     if (patch.discover?.moreLikeThisSort !== undefined) {
       set["preferences.discover.moreLikeThisSort"] = patch.discover.moreLikeThisSort;
+    }
+    if (patch.discover?.compareColumns !== undefined) {
+      set["preferences.discover.compareColumns"] = patch.discover.compareColumns;
+    }
+    if (patch.discover?.compareColumnOrder !== undefined) {
+      set["preferences.discover.compareColumnOrder"] = patch.discover.compareColumnOrder;
     }
     if (Object.keys(set).length === 0) {
       const existing = await UserModel.findOne({ _id: id }).lean();
@@ -1239,6 +1246,7 @@ type TitleLibraryItemLean = {
   userRating?: number | null;
   notes?: string;
   addedAt: number;
+  watchlistedAt?: number | null;
   watchedAt?: number | null;
   updatedAt: number;
 };
@@ -1263,6 +1271,7 @@ function toTitleLibraryItem(doc: TitleLibraryItemLean): TitleLibraryItem {
     userRating: doc.userRating ?? null,
     notes: doc.notes ?? "",
     addedAt: doc.addedAt,
+    watchlistedAt: doc.watchlistedAt ?? null,
     watchedAt: doc.watchedAt ?? null,
     updatedAt: doc.updatedAt,
   };

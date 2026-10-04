@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Ban, ChevronLeft, ChevronRight, Film, Loader2, Lock, Music } from "lucide-react";
@@ -192,19 +193,20 @@ function ShareViewer({ share }: { share: PublicShareData }) {
         <ul className="flex shrink-0 gap-1.5 overflow-x-auto border-t border-white/10 bg-black/80 p-2">
           {items.map((item, i) => (
             <li key={`${item.url}-${i}`} className="shrink-0">
-              <button
-                type="button"
-                onClick={() => setIndex(i)}
-                aria-current={i === index}
-                className={cn(
-                  "relative block h-14 w-14 overflow-hidden border transition",
-                  i === index ? "border-accent ring-1 ring-accent" : "border-white/15 opacity-60 hover:opacity-100",
-                )}
-                title={item.name || urlFilename(item.url)}
-              >
-                <Thumb item={item} />
-                <span className="absolute left-0.5 top-0.5 bg-black/70 px-1 font-mono text-[9px] text-white/80">{i + 1}</span>
-              </button>
+              <Tooltip content={item.name || urlFilename(item.url)}>
+                <button
+                  type="button"
+                  onClick={() => setIndex(i)}
+                  aria-current={i === index}
+                  className={cn(
+                    "relative block h-14 w-14 overflow-hidden border transition",
+                    i === index ? "border-accent ring-1 ring-accent" : "border-white/15 opacity-60 hover:opacity-100",
+                  )}
+                >
+                  <Thumb item={item} />
+                  <span className="absolute left-0.5 top-0.5 bg-black/70 px-1 font-mono text-[9px] text-white/80">{i + 1}</span>
+                </button>
+              </Tooltip>
             </li>
           ))}
         </ul>

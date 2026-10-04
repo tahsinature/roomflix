@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -73,9 +74,9 @@ export function ConfigFileDialog({
               {file ? "Change file" : "Choose JSON file"}
             </Button>
             {file && (
-              <span className="truncate font-mono text-xs text-muted-foreground" title={file.name}>
-                {file.name}
-              </span>
+              <Tooltip content={file.name}>
+                <span className="truncate font-mono text-xs text-muted-foreground">{file.name}</span>
+              </Tooltip>
             )}
           </div>
         </section>

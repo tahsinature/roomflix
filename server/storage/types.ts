@@ -52,7 +52,7 @@ export interface VideoRepo {
   reparent(oldOwnerId: string, spaceId: string): Promise<number>;
 }
 
-export type TitleLibraryInput = Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt">;
+export type TitleLibraryInput = Omit<TitleLibraryItem, "id" | "userId" | "addedAt" | "updatedAt" | "watchlistedAt">;
 
 export interface TitleLibraryRepo {
   list(userId: string, status?: TitleLibraryStatus): Promise<TitleLibraryItem[]>;

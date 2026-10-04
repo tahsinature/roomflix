@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { Crown, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -62,21 +63,22 @@ export function MemberRow({
   if (onClick) {
     return (
       <li>
-        <button
-          type="button"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={onClick}
-          className="flex w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-white/[0.04]"
-          title={title}
-        >
-          {body}
-        </button>
+        <Tooltip content={title}>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onClick}
+            className="flex w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-white/[0.04]"
+          >
+            {body}
+          </button>
+        </Tooltip>
       </li>
     );
   }
   return (
-    <li className="flex w-full items-center gap-3 px-3 py-2" title={title}>
-      {body}
-    </li>
+    <Tooltip content={title}>
+      <li className="flex w-full items-center gap-3 px-3 py-2">{body}</li>
+    </Tooltip>
   );
 }

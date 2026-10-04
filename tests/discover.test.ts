@@ -19,6 +19,22 @@ describe("Pulse Lab prototype helpers", () => {
 });
 
 describe("discovery detail parity", () => {
+  test("preserves series status and next episode without inventing a date", () => {
+    const series = toTitleDetails({ id: 2, status: "Returning Series", next_episode_to_air: { season_number: 5, episode_number: 1, air_date: null } }, "tv");
+    expect(series.status).toBe("Returning Series");
+    expect(series.nextEpisode).toEqual({ seasonNumber: 5, episodeNumber: 1, airDate: "" });
+    expect(toTitleDetails({ id: 2, status: "Ended", next_episode_to_air: null }, "tv").nextEpisode).toBeNull();
+    expect(toTitleDetails({ id: 2, next_episode_to_air: { season_number: -1, episode_number: 1 } }, "tv").nextEpisode).toBeNull();
+    expect(toTitleDetails({ id: 2, next_episode_to_air: { season_number: 5, episode_number: 1 } }, "movie").nextEpisode).toBeNull();
+  });
+
+  test("preserves series air dates without adding them to movies", () => {
+    const item = { id: 2, first_air_date: "2011-09-22", last_air_date: "2016-06-21", status: "Ended" };
+    expect(toTitleDetails(item, "tv").lastAirDate).toBe("2016-06-21");
+    expect(toTitleDetails(item, "movie").lastAirDate).toBeNull();
+    expect(toTitleDetails({ id: 2 }, "tv").lastAirDate).toBeNull();
+  });
+
   test("normalizes movie and series certifications by country", () => {
     const movie = toTitleDetails(
       {

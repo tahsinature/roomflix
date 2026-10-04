@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,14 +20,15 @@ export function CopyButton({ text, label, className }: { text: string; label: st
   };
 
   return (
-    <button
-      type="button"
-      onClick={copy}
-      title={copied ? "Copied" : `Copy ${label}`}
-      aria-label={copied ? "Copied" : `Copy ${label}`}
-      className={cn("shrink-0 p-1.5 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground", className)}
-    >
-      {copied ? <Check className="h-3.5 w-3.5 text-live" /> : <Copy className="h-3.5 w-3.5" />}
-    </button>
+    <Tooltip content={copied ? "Copied" : `Copy ${label}`}>
+      <button
+        type="button"
+        onClick={copy}
+        aria-label={copied ? "Copied" : `Copy ${label}`}
+        className={cn("shrink-0 p-1.5 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground", className)}
+      >
+        {copied ? <Check className="h-3.5 w-3.5 text-live" /> : <Copy className="h-3.5 w-3.5" />}
+      </button>
+    </Tooltip>
   );
 }

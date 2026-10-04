@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, ImageOff, Loader2, Maximize2, Minimize2, Pause, Play, RotateCw } from "lucide-react";
 import type { DiscoverImage, DiscoverImageGallery, DiscoverImageKind } from "@shared/protocol";
@@ -16,10 +17,7 @@ const GROUPS: Array<{ kind: DiscoverImageKind; label: string }> = [
 
 export function DiscoverPhotoGallery({ subject, initialKind, onBack }: { subject: GallerySubject; initialKind?: DiscoverImageKind; onBack: () => void }) {
   const [gallery, setGallery] = useState<DiscoverImageGallery | null>(null);
-  const [activeKind, setActiveKind] = useHistoryEntryState<DiscoverImageKind>(
-    "discover.gallery.kind",
-    initialKind ?? (subject.type === "person" ? "profile" : "backdrop"),
-  );
+  const [activeKind, setActiveKind] = useHistoryEntryState<DiscoverImageKind>("discover.gallery.kind", initialKind ?? (subject.type === "person" ? "profile" : "backdrop"));
   const [activeIndex, setActiveIndex] = useHistoryEntryState("discover.gallery.index", 0);
   const [playing, setPlaying] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -192,25 +190,27 @@ export function DiscoverPhotoGallery({ subject, initialKind, onBack }: { subject
         <span className="hidden text-[10px] tabular-nums text-white/45 sm:inline" aria-live="polite">
           {visibleIndex + 1} / {activeImages.length}
         </span>
-        <button
-          type="button"
-          onClick={() => setPlaying((current) => !current)}
-          disabled={activeImages.length < 2}
-          className="grid h-10 w-10 place-items-center border border-white/10 text-white/65 transition-colors hover:border-white/25 hover:text-white disabled:opacity-30"
-          aria-label={playing ? "Pause slideshow" : "Play slideshow"}
-          title={playing ? "Pause slideshow" : "Play slideshow"}
-        >
-          {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-        </button>
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          className="hidden h-10 w-10 place-items-center border border-white/10 text-white/65 transition-colors hover:border-white/25 hover:text-white sm:grid"
-          aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-          title={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-        >
-          {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-        </button>
+        <Tooltip content={playing ? "Pause slideshow" : "Play slideshow"}>
+          <button
+            type="button"
+            onClick={() => setPlaying((current) => !current)}
+            disabled={activeImages.length < 2}
+            className="grid h-10 w-10 place-items-center border border-white/10 text-white/65 transition-colors hover:border-white/25 hover:text-white disabled:opacity-30"
+            aria-label={playing ? "Pause slideshow" : "Play slideshow"}
+          >
+            {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          </button>
+        </Tooltip>
+        <Tooltip content={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="hidden h-10 w-10 place-items-center border border-white/10 text-white/65 transition-colors hover:border-white/25 hover:text-white sm:grid"
+            aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+          >
+            {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </button>
+        </Tooltip>
       </header>
 
       <section

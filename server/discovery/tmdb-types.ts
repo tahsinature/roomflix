@@ -78,6 +78,8 @@ export type RawTitleDetails = RawSearchItem & {
   original_language?: string;
   tagline?: string;
   status?: string;
+  last_air_date?: string | null;
+  next_episode_to_air?: { season_number?: number; episode_number?: number; air_date?: string | null } | null;
   number_of_seasons?: number;
   number_of_episodes?: number;
   seasons?: RawSeasonSummary[];

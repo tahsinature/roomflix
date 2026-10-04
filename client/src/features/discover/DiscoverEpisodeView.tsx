@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
 import { CalendarDays, Clapperboard, Clock3, Copy, ExternalLink, Loader2, RotateCw, Star, Tv, UserRound } from "lucide-react";
 import type { DiscoverEpisodeDetails, DiscoverPersonCredit, DiscoverTitleDetails } from "@shared/protocol";
@@ -153,15 +154,16 @@ function EpisodeFacts({ episode }: { episode: DiscoverEpisodeDetails }) {
           <div className="flex min-w-0 items-start gap-2">
             <p className="min-w-0 flex-1 text-xs leading-relaxed text-foreground/80">{episode.overview || "No description is available for this episode."}</p>
             {episode.overview ? (
-              <button
-                type="button"
-                aria-label="Copy description"
-                title="Copy description"
-                onClick={() => void navigator.clipboard.writeText(episode.overview).then(() => toast.success("Description copied."))}
-                className="shrink-0 p-1 text-muted-foreground hover:text-accent"
-              >
-                <Copy className="h-3.5 w-3.5" />
-              </button>
+              <Tooltip content="Copy description">
+                <button
+                  type="button"
+                  aria-label="Copy description"
+                  onClick={() => void navigator.clipboard.writeText(episode.overview).then(() => toast.success("Description copied."))}
+                  className="shrink-0 p-1 text-muted-foreground hover:text-accent"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+              </Tooltip>
             ) : null}
           </div>
         </Fact>

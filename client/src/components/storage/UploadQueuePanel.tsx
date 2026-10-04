@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { CheckCircle2, ChevronDown, Loader2, RotateCw, Upload, X, XCircle } from "lucide-react";
@@ -64,9 +65,9 @@ function SinglePanel({ item, onRemove, onRetry }: { item: UploadQueueItem; onRem
     <div className="flex items-center gap-3 px-4 py-3">
       <RowIcon status={item.status} large />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm text-foreground" title={item.file.name}>
-          {item.file.name}
-        </div>
+        <Tooltip content={item.file.name}>
+          <div className="truncate text-sm text-foreground">{item.file.name}</div>
+        </Tooltip>
         <div className="font-mono text-[11px] text-text-dim">
           {formatBytes(item.file.size)}
           {verb && <span className={cn("ml-2", toneFor(item.status))}>· {item.message ?? verb}</span>}
@@ -159,9 +160,9 @@ function QueueRow({ item, onRemove, onRetry }: { item: UploadQueueItem; onRemove
     <li className="flex items-center gap-3 border-b border-border px-3 py-2 text-xs last:border-b-0">
       <RowIcon status={item.status} />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-foreground" title={item.file.name}>
-          {item.file.name}
-        </div>
+        <Tooltip content={item.file.name}>
+          <div className="truncate text-foreground">{item.file.name}</div>
+        </Tooltip>
         <div className="font-mono text-[10px] text-text-dim">
           {formatBytes(item.file.size)}
           {item.message && <span className={cn("ml-2", toneFor(item.status))}>· {item.message}</span>}
@@ -184,15 +185,16 @@ function RowIcon({ status, large }: { status: UploadQueueItem["status"]; large?:
 
 function RetryButton({ onClick }: { onClick: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label="Retry upload"
-      title="Retry upload"
-      className="shrink-0 border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground transition hover:border-accent/40 hover:text-foreground"
-    >
-      Retry
-    </button>
+    <Tooltip content="Retry upload">
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label="Retry upload"
+        className="shrink-0 border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground transition hover:border-accent/40 hover:text-foreground"
+      >
+        Retry
+      </button>
+    </Tooltip>
   );
 }
 

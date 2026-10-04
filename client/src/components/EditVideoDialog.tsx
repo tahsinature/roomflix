@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
 import { Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import type { Subtitle, Video, VideoHealth } from "@shared/protocol";
@@ -158,22 +159,23 @@ export function EditVideoDialog({
             </form>
           ) : (
             <div className="mt-2 flex items-center gap-2">
-              <p className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground" title={video.url}>
-                {video.url}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setDraftUrl(video.url);
-                  setUrlErr("");
-                  setEditingUrl(true);
-                }}
-                aria-label="Edit media URL"
-                title="Edit media URL"
-                className="shrink-0 p-1 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
+              <Tooltip content={video.url}>
+                <p className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">{video.url}</p>
+              </Tooltip>
+              <Tooltip content="Edit media URL">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraftUrl(video.url);
+                    setUrlErr("");
+                    setEditingUrl(true);
+                  }}
+                  aria-label="Edit media URL"
+                  className="shrink-0 p-1 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              </Tooltip>
               <CopyButton text={video.url} label="media URL" />
             </div>
           )}
@@ -366,15 +368,16 @@ function SubtitleRow({
         </div>
         <p className="truncate font-mono text-[10px] text-text-dim">{subtitle.url}</p>
       </div>
-      <button
-        type="button"
-        onClick={startEditing}
-        aria-label={`Edit ${subtitle.label || subtitle.url}`}
-        title="Edit subtitle"
-        className="shrink-0 p-1 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground"
-      >
-        <Pencil className="h-3.5 w-3.5" />
-      </button>
+      <Tooltip content="Edit subtitle">
+        <button
+          type="button"
+          onClick={startEditing}
+          aria-label={`Edit ${subtitle.label || subtitle.url}`}
+          className="shrink-0 p-1 text-muted-foreground transition hover:bg-white/[0.05] hover:text-foreground"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      </Tooltip>
       <CopyButton text={subtitle.url} label="subtitle URL" />
       <button
         type="button"

@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useRef, useState } from "react";
 import { Captions } from "lucide-react";
 import type { Subtitle } from "@shared/protocol";
@@ -46,9 +47,11 @@ export function SubtitleToggle({ subtitles, activeId, onSelect }: Props) {
 
   return (
     <div ref={ref} className="relative">
-      <button type="button" className={cn(ICON_BTN, activeId && "text-accent")} aria-label="Subtitles" title="Subtitles" onClick={() => setOpen((o) => !o)}>
-        <Captions className="h-5 w-5" />
-      </button>
+      <Tooltip content="Subtitles">
+        <button type="button" className={cn(ICON_BTN, activeId && "text-accent")} aria-label="Subtitles" onClick={() => setOpen((o) => !o)}>
+          <Captions className="h-5 w-5" />
+        </button>
+      </Tooltip>
       {open && (
         <div className="absolute bottom-full right-0 z-50 mb-2 min-w-[14rem] origin-bottom-right border border-white/10 bg-[#16181f]/95 p-1.5 text-sm shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)] backdrop-blur-xl">
           <div className="px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">Subtitles</div>

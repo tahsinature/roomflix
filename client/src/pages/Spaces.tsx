@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useState, type FormEvent } from "react";
 import { Check, Copy, Loader2, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 import type { InviteCode, JoinRequest, Space, SpaceJoinPolicy, SpaceMember, SpaceRole } from "@shared/protocol";
@@ -151,19 +152,20 @@ export function SpaceDetailCard({ spaceId, onChanged, onDeleted }: { spaceId: st
                   <div className="font-mono text-[10px] text-text-dim">{hasDisplayName ? `@${m.username} · ${m.role}` : m.role}</div>
                 </div>
                 {isOwner && m.role !== "owner" && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!confirm(`Remove @${m.username} from this space?`)) return;
-                      await api.removeMember(spaceId, m.userId);
-                      await load();
-                    }}
-                    aria-label={`Remove @${m.username}`}
-                    title="Remove from space"
-                    className="flex h-7 w-7 shrink-0 items-center justify-center text-text-dim transition hover:text-accent"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
+                  <Tooltip content="Remove from space">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!confirm(`Remove @${m.username} from this space?`)) return;
+                        await api.removeMember(spaceId, m.userId);
+                        await load();
+                      }}
+                      aria-label={`Remove @${m.username}`}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center text-text-dim transition hover:text-accent"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </Tooltip>
                 )}
               </li>
             );
@@ -351,24 +353,26 @@ function InviteRow({ invite, onRevoke }: { invite: InviteCode; onRevoke: () => P
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        <button
-          type="button"
-          onClick={() => void copy("link")}
-          aria-label="Copy join link"
-          title="Copy /join/<code> URL"
-          className="border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground transition hover:border-border-hover hover:text-foreground"
-        >
-          {copied === "link" ? "copied" : "link"}
-        </button>
-        <button
-          type="button"
-          onClick={() => void copy("code")}
-          aria-label="Copy code"
-          title="Copy just the code"
-          className="flex h-7 w-7 items-center justify-center text-text-dim transition hover:text-foreground"
-        >
-          {copied === "code" ? <span className="font-mono text-[10px]">✓</span> : <Copy className="h-3.5 w-3.5" />}
-        </button>
+        <Tooltip content="Copy /join/<code> URL">
+          <button
+            type="button"
+            onClick={() => void copy("link")}
+            aria-label="Copy join link"
+            className="border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground transition hover:border-border-hover hover:text-foreground"
+          >
+            {copied === "link" ? "copied" : "link"}
+          </button>
+        </Tooltip>
+        <Tooltip content="Copy just the code">
+          <button
+            type="button"
+            onClick={() => void copy("code")}
+            aria-label="Copy code"
+            className="flex h-7 w-7 items-center justify-center text-text-dim transition hover:text-foreground"
+          >
+            {copied === "code" ? <span className="font-mono text-[10px]">✓</span> : <Copy className="h-3.5 w-3.5" />}
+          </button>
+        </Tooltip>
         <button type="button" onClick={() => void onRevoke()} aria-label="Revoke" className="flex h-7 w-7 items-center justify-center text-text-dim transition hover:text-accent">
           <Trash2 className="h-3.5 w-3.5" />
         </button>
@@ -435,15 +439,16 @@ function SpaceTitleEditor({ name, canEdit, onRename }: { name: string; canEdit: 
       <div className="flex items-center gap-2">
         <h2 className="text-xl font-medium text-foreground">{name}</h2>
         {canEdit && (
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            aria-label="Rename space"
-            title="Rename space"
-            className="flex h-7 w-7 items-center justify-center text-text-dim transition hover:text-foreground"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
+          <Tooltip content="Rename space">
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              aria-label="Rename space"
+              className="flex h-7 w-7 items-center justify-center text-text-dim transition hover:text-foreground"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          </Tooltip>
         )}
       </div>
     );

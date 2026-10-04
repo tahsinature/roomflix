@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { arrayMove } from "@dnd-kit/sortable";
-import type { ImdbRatings } from "@shared/protocol";
-import { comparisonRatings, decodeComparisonList, type ComparisonTitle } from "./comparison-data";
+import type { ImdbRatings, DiscoverTitleDetails } from "@shared/protocol";
+import { comparisonRatings, comparisonDetails, decodeComparisonList, type ComparisonTitle } from "./comparison-data";
 
 export function useComparisonList(userId: string | null) {
   const storageKey = userId ? `roomflix:compare:v1:${userId}` : null;
@@ -42,6 +42,10 @@ export function useComparisonList(userId: string | null) {
     );
   }, []);
 
+  const updateDetails = useCallback((id: string, details: DiscoverTitleDetails) => {
+    setTitles((current) => current.map((title) => (title.id === id ? { ...title, ...comparisonDetails(details) } : title)));
+  }, []);
+
   const moveTitle = useCallback((activeId: string, overId: string) => {
     setTitles((current) => {
       const from = current.findIndex((title) => title.id === activeId);
@@ -50,5 +54,5 @@ export function useComparisonList(userId: string | null) {
     });
   }, []);
 
-  return { titles, addTitle, removeTitle, moveTitle, updateRatings, storageError };
+  return { titles, addTitle, removeTitle, moveTitle, updateRatings, updateDetails, storageError };
 }

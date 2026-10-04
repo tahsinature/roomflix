@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Star } from "lucide-react";
 import { formatVotes } from "./discover-utils";
 import { imdbFailureMessages } from "./ImdbRatingDisplay";
+import { TooltipDetails } from "@/components/ui/tooltip";
 import { TitleMetadataCard } from "./TitleMetadataCard";
 import { TitleRuntime } from "./TitleRuntime";
 import type { ImdbRatings, DiscoverMediaType } from "@shared/protocol";
@@ -44,7 +45,13 @@ export function TitleRatings({
         label="IMDb"
         icon={Star}
         tone="text-amber-300"
-        title="IMDb · Average rating out of 10 · via OMDb"
+        title={
+          <TooltipDetails
+            heading="IMDb rating"
+            description={ratings && ratings.status !== "available" ? imdbFailureMessages[ratings.status] : "Average rating out of 10"}
+            tone="text-amber-300"
+          />
+        }
         value={
           ratings?.rating != null ? (
             <span aria-label={`${ratings.rating.toFixed(1)} out of 10`}>{ratings.rating.toFixed(1)}</span>
@@ -58,7 +65,7 @@ export function TitleRatings({
         label="TMDB"
         icon={Star}
         tone="text-cyan"
-        title="TMDB · Average rating out of 10"
+        title={<TooltipDetails heading="TMDB rating" description="Average rating out of 10" tone="text-cyan" />}
         value={<span aria-label={`${tmdbRating.toFixed(1)} out of 10`}>{tmdbRating.toFixed(1)}</span>}
         caption={`${formatVotes(tmdbVotes)} ratings`}
       />

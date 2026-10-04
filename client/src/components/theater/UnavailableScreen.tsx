@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import { Ban } from "lucide-react";
 
 // Shown in the theater when the current collection item's URL probed as
@@ -10,9 +11,9 @@ export function UnavailableScreen({ title }: { title: string }) {
         <Ban className="h-7 w-7" />
       </span>
       <div className="flex max-w-[42rem] flex-col items-center gap-1.5">
-        <span className="line-clamp-2 font-mono text-base font-medium text-white/90 sm:text-lg" title={title}>
-          {title}
-        </span>
+        <Tooltip content={title}>
+          <span className="line-clamp-2 font-mono text-base font-medium text-white/90 sm:text-lg">{title}</span>
+        </Tooltip>
         <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent/85">Unavailable</span>
         <span className="mt-1 text-xs text-white/45">This item's URL couldn't be reached — pick another from the filmstrip below.</span>
       </div>

@@ -1,6 +1,7 @@
 import type { DiscoverTitleDetails } from "@shared/protocol";
 import { api } from "@/lib/api";
 import type { TitleSelection } from "./discover-utils";
+import { primeSeriesStatus } from "./series-status-cache";
 
 const CACHE_TTL_MS = 10 * 60 * 1_000;
 
@@ -23,6 +24,7 @@ export function loadTitleDetails(selection: Pick<TitleSelection, "mediaType" | "
   const promise = api
     .discoverTitle(selection.mediaType, selection.tmdbId)
     .then((data) => {
+      primeSeriesStatus(data);
       titleDetailsCache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
       return data;
     })
